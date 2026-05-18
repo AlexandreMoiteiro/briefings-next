@@ -2,6 +2,7 @@ import {
   PDFDocument,
   PDFName,
   type PDFPage,
+  type PDFRef,
   StandardFonts,
   rgb,
 } from "pdf-lib";
@@ -135,11 +136,11 @@ function drawCenteredText(
   });
 }
 
-function addAnnotation(page: PDFPage, annotationRef: unknown) {
+function addAnnotation(page: PDFPage, annotationRef: PDFRef) {
   const annots = page.node.Annots();
 
   if (annots) {
-    annots.push(annotationRef as never);
+    annots.push(annotationRef);
     return;
   }
 

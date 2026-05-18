@@ -328,26 +328,29 @@ function parseProcedures(raw: unknown): NavlogProcedure[] {
 
   if (!Array.isArray(maybeProcedures)) return [];
 
-  return maybeProcedures
-    .map((procedure) => {
-      if (!procedure || typeof procedure !== "object") return null;
+  const procedures: NavlogProcedure[] = [];
 
-      const item = procedure as Record<string, unknown>;
-      const id = String(item.id ?? "");
-      const name = String(item.name ?? id);
-      const kind = String(item.kind ?? "");
+  for (const procedure of maybeProcedures) {
+    if (!procedure || typeof procedure !== "object") continue;
 
-      if (!id || !kind) return null;
+    const item = procedure as Record<string, unknown>;
 
-      return {
-        id,
-        name,
-        kind,
-        runway: item.runway ? String(item.runway) : undefined,
-        transition: item.transition ? String(item.transition) : undefined,
-      } satisfies NavlogProcedure;
-    })
-    .filter((item): item is NavlogProcedure => item !== null);
+    const id = String(item.id ?? "");
+    const name = String(item.name ?? id);
+    const kind = String(item.kind ?? "");
+
+    if (!id || !kind) continue;
+
+    procedures.push({
+      id,
+      name,
+      kind,
+      runway: item.runway ? String(item.runway) : undefined,
+      transition: item.transition ? String(item.transition) : undefined,
+    });
+  }
+
+  return procedures;
 }
 
 async function fetchText(path: string) {
