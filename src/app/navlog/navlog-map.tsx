@@ -1,17 +1,21 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo } from "react";
 import {
-  CircleMarker,
   MapContainer,
+  Marker,
   Polyline,
   Popup,
   TileLayer,
+  Tooltip,
+  useMap,
   useMapEvents,
 } from "react-leaflet";
+import { divIcon, latLngBounds, type DivIcon } from "leaflet";
 import type { LatLngExpression } from "leaflet";
 import type {
   NavlogPoint,
+  NavlogReferenceLayer,
   NavlogRouteNode,
   NavlogRouteWaypoint,
 } from "@/lib/navlog";
@@ -21,9 +25,55 @@ type NavlogMapProps = {
   routeWaypoints: NavlogRouteWaypoint[];
   calculatedNodes: NavlogRouteNode[];
   searchQuery: string;
+  showReferencePoints: boolean;
+  referenceLayers: NavlogReferenceLayer[];
+  manualMapClickEnabled: boolean;
   onAddPoint: (point: NavlogPoint) => void;
   onAddMapPoint: (lat: number, lon: number) => void;
 };
+
+const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
+
+const openAipTilesUrl = openAipApiKey
+  ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
+  : "";
+
+function InvalidateMapSize() {
+  const map = useMap();
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 180);
+
+    return () => window.clearTimeout(timeout);
+  }, [map]);
+
+  return null;
+}
+
+function FitToRoute({
+  routePositions,
+}: {
+  routePositions: [number, number][];
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (routePositions.length > 1) {
+      map.fitBounds(latLngBounds(routePositions), {
+        padding: [32, 32],
+      });
+      return;
+    }
+
+    if (routePositions.length === 1) {
+      map.setView(routePositions[0], 9);
+    }
+  }, [map, routePositions]);
+
+  return null;
+}
 
 function MapClickHandler({
   enabled,
@@ -55,25 +105,134 @@ function pointMatchesQuery(point: NavlogPoint, query: string) {
   );
 }
 
-function getPointRadius(src: string) {
-  if (src === "AD") return 5;
-  if (src === "VOR") return 4;
-  if (src === "IFR") return 3;
-  return 3;
+function getIconSpec(src: string) {
+  switch (src) {
+    case "AD":
+      return {
+        label: "AD",
+        bg: "#ef4444",
+        border: "#991b1b",
+        shape: "circle",
+        size: 16,
+      };
+
+    case "VOR":
+      return {
+        label: "VOR",
+        bg: "#a855f7",
+        border: "#6d28d9",
+        shape: "diamond",
+        size: 15,
+      };
+
+    case "IFR":
+      return {
+        label: "IFR",
+        bg: "#60a5fa",
+        border: "#1d4ed8",
+        shape: "diamond-small",
+        size: 12,
+      };
+
+    case "VFR":
+      return {
+        label: "VFR",
+        bg: "#22c55e",
+        border: "#166534",
+        shape: "circle-small",
+        size: 12,
+      };
+
+    case "CALC":
+      return {
+        label: "CALC",
+        bg: "#ffffff",
+        border: "#111827",
+        shape: "square",
+        size: 14,
+      };
+
+    default:
+      return {
+        label: src,
+        bg: "#a1a1aa",
+        border: "#52525b",
+        shape: "circle-small",
+        size: 12,
+      };
+  }
+}
+
+function makeIcon(src: string, emphasized = false): DivIcon {
+  const spec = getIconSpec(src);
+  const size = emphasized ? spec.size + 4 : spec.size;
+  const borderWidth = emphasized ? 2.5 : 2;
+
+  let shapeStyle = "";
+
+  if (spec.shape === "diamond" || spec.shape === "diamond-small") {
+    shapeStyle = `
+      width:${size}px;
+      height:${size}px;
+      background:${spec.bg};
+      border:${borderWidth}px solid ${spec.border};
+      transform: rotate(45deg);
+      border-radius: ${spec.shape === "diamond" ? "2px" : "1px"};
+      box-sizing:border-box;
+    `;
+  } else if (spec.shape === "square") {
+    shapeStyle = `
+      width:${size}px;
+      height:${size}px;
+      background:${spec.bg};
+      border:${borderWidth}px solid ${spec.border};
+      border-radius:4px;
+      box-sizing:border-box;
+    `;
+  } else {
+    shapeStyle = `
+      width:${size}px;
+      height:${size}px;
+      background:${spec.bg};
+      border:${borderWidth}px solid ${spec.border};
+      border-radius:9999px;
+      box-sizing:border-box;
+    `;
+  }
+
+  const html = `
+    <div style="display:flex;align-items:center;justify-content:center;">
+      <div style="${shapeStyle}"></div>
+    </div>
+  `;
+
+  return divIcon({
+    html,
+    className: "navlog-map-icon",
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
 }
 
 export function NavlogMap({
   points,
-  routeWaypoints,
   calculatedNodes,
   searchQuery,
+  showReferencePoints,
+  referenceLayers,
+  manualMapClickEnabled,
   onAddPoint,
   onAddMapPoint,
 }: NavlogMapProps) {
-  const [clickToAdd, setClickToAdd] = useState(false);
+  const selectedLayerSet = useMemo(
+    () => new Set(referenceLayers),
+    [referenceLayers]
+  );
 
-  const routePositions = calculatedNodes.map(
-    (node) => [node.lat, node.lon] as LatLngExpression
+  const routePositions = useMemo(
+    () =>
+      calculatedNodes.map((node) => [node.lat, node.lon] as [number, number]),
+    [calculatedNodes]
   );
 
   const center: LatLngExpression =
@@ -82,70 +241,64 @@ export function NavlogMap({
       : ([39.55, -8.0] as LatLngExpression);
 
   const visiblePoints = useMemo(() => {
+    if (!showReferencePoints) return [];
+
     const query = searchQuery.trim();
 
-    if (query) {
-      return points.filter((point) => pointMatchesQuery(point, query)).slice(0, 500);
-    }
-
     return points
-      .filter((point) => ["AD", "VFR", "VOR"].includes(point.src))
-      .slice(0, 1200);
-  }, [points, searchQuery]);
+      .filter((point) =>
+        selectedLayerSet.has(point.src as NavlogReferenceLayer)
+      )
+      .filter((point) => {
+        if (!query) return true;
+        return pointMatchesQuery(point, query);
+      })
+      .slice(0, query ? 1000 : 1500);
+  }, [points, searchQuery, selectedLayerSet, showReferencePoints]);
+
+  const shouldLabelReferencePoints = searchQuery.trim().length > 0;
 
   return (
-    <section className="space-y-4">
-      <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-4 md:flex-row md:items-center md:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-            Mapa da rota
-          </h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-500">
-            Clica num ponto do mapa para o adicionar à rota. Ativa “click manual”
-            para criar um waypoint numa coordenada livre.
-          </p>
-        </div>
-
-        <button
-          type="button"
-          onClick={() => setClickToAdd((current) => !current)}
-          className={[
-            "rounded-xl px-4 py-2 text-sm font-medium transition",
-            clickToAdd
-              ? "bg-zinc-950 text-white"
-              : "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50",
-          ].join(" ")}
-        >
-          {clickToAdd ? "Click manual ativo" : "Ativar click manual"}
-        </button>
-      </div>
-
-      <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+    <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div className="h-[720px] bg-zinc-100">
         <MapContainer
           center={center}
           zoom={7}
+          maxZoom={17}
           scrollWheelZoom
-          className="h-[680px] w-full"
+          className="h-full w-full"
         >
+          <InvalidateMapSize />
+          <FitToRoute routePositions={routePositions} />
+
           <TileLayer
-            attribution='&copy; OpenStreetMap contributors'
-            url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            maxZoom={17}
           />
 
+          {openAipTilesUrl ? (
+            <TileLayer
+              attribution="openAIP"
+              url={openAipTilesUrl}
+              opacity={0.65}
+              minZoom={4}
+              maxNativeZoom={16}
+              maxZoom={20}
+              detectRetina
+            />
+          ) : null}
+
           <MapClickHandler
-            enabled={clickToAdd}
+            enabled={manualMapClickEnabled}
             onAddMapPoint={onAddMapPoint}
           />
 
           {visiblePoints.map((point) => (
-            <CircleMarker
+            <Marker
               key={`${point.src}-${point.code}-${point.lat}-${point.lon}`}
-              center={[point.lat, point.lon]}
-              radius={getPointRadius(point.src)}
-              pathOptions={{
-                weight: 1,
-                fillOpacity: 0.75,
-              }}
+              position={[point.lat, point.lon]}
+              icon={makeIcon(point.src)}
             >
               <Popup>
                 <div className="space-y-2">
@@ -156,6 +309,11 @@ export function NavlogMap({
                       {point.src} · {point.lat.toFixed(5)},{" "}
                       {point.lon.toFixed(5)}
                     </div>
+                    {point.routes ? (
+                      <div className="mt-1 text-xs text-zinc-500">
+                        {point.routes}
+                      </div>
+                    ) : null}
                   </div>
 
                   <button
@@ -167,22 +325,27 @@ export function NavlogMap({
                   </button>
                 </div>
               </Popup>
-            </CircleMarker>
+
+              {shouldLabelReferencePoints ? (
+                <Tooltip permanent direction="right" offset={[10, 0]} opacity={0.9}>
+                  {point.code}
+                </Tooltip>
+              ) : null}
+            </Marker>
           ))}
 
           {routePositions.length > 1 ? (
-            <Polyline positions={routePositions} pathOptions={{ weight: 3 }} />
+            <Polyline
+              positions={routePositions}
+              pathOptions={{ color: "#111827", weight: 4, opacity: 0.9 }}
+            />
           ) : null}
 
           {calculatedNodes.map((node, index) => (
-            <CircleMarker
+            <Marker
               key={`${node.id}-${index}`}
-              center={[node.lat, node.lon]}
-              radius={node.src === "CALC" ? 5 : 6}
-              pathOptions={{
-                weight: 2,
-                fillOpacity: 0.95,
-              }}
+              position={[node.lat, node.lon]}
+              icon={makeIcon(node.src, true)}
             >
               <Popup>
                 <div>
@@ -200,10 +363,14 @@ export function NavlogMap({
                   ) : null}
                 </div>
               </Popup>
-            </CircleMarker>
+
+              <Tooltip permanent direction="right" offset={[10, 0]} opacity={0.95}>
+                {node.code}
+              </Tooltip>
+            </Marker>
           ))}
         </MapContainer>
       </div>
-    </section>
+    </div>
   );
 }

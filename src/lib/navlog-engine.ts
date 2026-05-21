@@ -50,9 +50,22 @@ function rf(fuelL: number) {
 
 export function formatDuration(seconds: number) {
   const rounded = Math.max(0, Math.round(seconds));
+  const totalMinutes = Math.round(rounded / 60);
+
+  if (totalMinutes >= 60) {
+    const hours = Math.floor(totalMinutes / 60);
+    const minutes = totalMinutes % 60;
+
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(
+      2,
+      "0"
+    )}`;
+  }
+
   const minutes = Math.floor(rounded / 60);
   const sec = rounded % 60;
-  return `${minutes}:${String(sec).padStart(2, "0")}`;
+
+  return `${String(minutes).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
 }
 
 export function formatClock(seconds: number, startClock: string) {
@@ -205,7 +218,8 @@ function cleanCode(value: string) {
 export function makeWaypointFromPoint(
   point: NavlogPoint,
   setup: NavlogSetupForm,
-  altitudeFt = setup.defaultAltitude
+  altitudeFt = setup.defaultAltitude,
+  stopMin = 0
 ): NavlogRouteWaypoint {
   return {
     id: crypto.randomUUID(),
@@ -214,7 +228,7 @@ export function makeWaypointFromPoint(
     useGlobalWind: setup.useGlobalWind,
     windFrom: setup.windFrom,
     windKt: setup.windKt,
-    stopMin: 0,
+    stopMin,
     note: "",
     vorPref: "AUTO",
     vorIdent: "",
@@ -266,7 +280,6 @@ function buildTocTodNodes(
 ): NavlogRouteNode[] {
   if (userNodes.length < 2) return userNodes;
 
-  const profile = navlogAircraftProfiles[setup.aircraftType];
   const output: NavlogRouteNode[] = [];
 
   for (let index = 0; index < userNodes.length - 1; index += 1) {
@@ -284,7 +297,7 @@ function buildTocTodNodes(
 
     if (b.alt > a.alt) {
       const climbMinutes = (b.alt - a.alt) / Math.max(setup.rocFpm, 1);
-      const { gs } = windTriangle(tc, profile.climbTas, windFrom, windKt);
+      const { gs } = windTriangle(tc, setup.climbTas, windFrom, windKt);
       const distanceNeeded = (gs * climbMinutes) / 60;
 
       if (distanceNeeded > 0.05 && distanceNeeded < dist - 0.05) {
@@ -325,7 +338,7 @@ function buildTocTodNodes(
 
     if (b.alt < a.alt) {
       const descentMinutes = (a.alt - b.alt) / Math.max(setup.rodFpm, 1);
-      const { gs } = windTriangle(tc, profile.descentTas, windFrom, windKt);
+      const { gs } = windTriangle(tc, setup.descentTas, windFrom, windKt);
       const distanceNeeded = (gs * descentMinutes) / 60;
 
       if (distanceNeeded > 0.05 && distanceNeeded < dist - 0.05) {
@@ -447,13 +460,13 @@ export function buildNavlogCalculation(
     };
   }
 
-  const profile = navlogAircraftProfiles[setup.aircraftType];
   const userNodes = waypoints.map(waypointToNode);
   const nodes = buildTocTodNodes(userNodes, setup);
 
   const legs: NavlogLeg[] = [];
-  let timeCursor = 0;
-  let efob = Math.max(0, setup.startEfob - profile.taxiFuelL);
+  let timeCursor = Math.max(0, setup.taxiMin * 60);
+  const taxiFuelL = rf((setup.taxiFuelFlowLh * setup.taxiMin) / 60);
+  let efob = Math.max(0, setup.startEfob - taxiFuelL);
 
   for (let index = 0; index < nodes.length - 1; index += 1) {
     const from = nodes[index];
@@ -469,18 +482,18 @@ export function buildNavlogCalculation(
 
     const tas =
       legProfile === "CLIMB"
-        ? profile.climbTas
+        ? setup.climbTas
         : legProfile === "DESCENT"
-          ? profile.descentTas
-          : profile.cruiseTas;
+          ? setup.descentTas
+          : setup.cruiseTas;
 
     const { th, gs } = windTriangle(tc, tas, windFrom, windKt);
     const mh = applyMagVar(th, setup.magVar, setup.magDirection);
     const eteSec = gs > 0 && dist > 0 ? rt((dist / gs) * 3600) : 0;
-    const burnL = rf((profile.fuelFlowLh * eteSec) / 3600);
+    const burnL = rf((setup.fuelFlowLh * eteSec) / 3600);
 
     const holdSec = to.stopMin > 0 ? rt(to.stopMin * 60) : 0;
-    const holdBurnL = holdSec > 0 ? rf((profile.fuelFlowLh * holdSec) / 3600) : 0;
+    const holdBurnL = holdSec > 0 ? rf((setup.fuelFlowLh * holdSec) / 3600) : 0;
 
     const efobStartL = efob;
     const efobAfterLegL = Math.max(0, rf(efobStartL - burnL));

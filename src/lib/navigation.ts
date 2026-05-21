@@ -38,7 +38,7 @@ export const navigationItems: NavigationItem[] = [
     phase: "Fase 4",
   },
   {
-    title: "VFR Map",
+    title: "Aviation Map",
     href: "/vfr-map",
     eyebrow: "Mapa",
     description:

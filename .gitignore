@@ -48,3 +48,6 @@ legacy/streamlit/
 .env
 .env.local
 .env.*.local
+
+# Vercel local project link
+.vercel/

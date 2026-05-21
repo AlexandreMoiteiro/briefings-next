@@ -12,8 +12,14 @@ export type NavlogSetupForm = {
 
   fuelFlowLh: number;
   taxiFuelL: number;
+  taxiFuelFlowLh: number;
   startEfob: number;
   startClock: string;
+  onBlockClock: string;
+  lesson: string;
+  instructor: string;
+  student: string;
+  taxiMin: number;
 
   windFrom: number;
   windKt: number;
@@ -41,6 +47,7 @@ export const navlogAircraftProfiles: Record<
     descentTas: number;
     fuelFlowLh: number;
     taxiFuelL: number;
+    taxiFuelFlowLh: number;
     startEfob: number;
   }
 > = {
@@ -50,6 +57,7 @@ export const navlogAircraftProfiles: Record<
     descentTas: 90,
     fuelFlowLh: 20,
     taxiFuelL: 3,
+    taxiFuelFlowLh: 8,
     startEfob: 120,
   },
   "Piper PA-28": {
@@ -58,6 +66,7 @@ export const navlogAircraftProfiles: Record<
     descentTas: 100,
     fuelFlowLh: 38,
     taxiFuelL: 5,
+    taxiFuelFlowLh: 13.5,
     startEfob: 180,
   },
 };
@@ -86,7 +95,6 @@ export const navlogReferenceLayers: NavlogReferenceLayer[] = [
   "VOR",
   "AD",
   "VFR",
-  "PROC",
 ];
 
 export const navlogDefaultSetup: NavlogSetupForm = {
@@ -99,8 +107,14 @@ export const navlogDefaultSetup: NavlogSetupForm = {
 
   fuelFlowLh: navlogAircraftProfiles["Piper PA-28"].fuelFlowLh,
   taxiFuelL: navlogAircraftProfiles["Piper PA-28"].taxiFuelL,
+  taxiFuelFlowLh: navlogAircraftProfiles["Piper PA-28"].taxiFuelFlowLh,
   startEfob: navlogAircraftProfiles["Piper PA-28"].startEfob,
   startClock: "",
+  onBlockClock: "",
+  lesson: "",
+  instructor: "",
+  student: "AMOIT",
+  taxiMin: 20,
 
   windFrom: 0,
   windKt: 0,
@@ -151,6 +165,7 @@ export function applyAircraftProfile(
     descentTas: profile.descentTas,
     fuelFlowLh: profile.fuelFlowLh,
     taxiFuelL: profile.taxiFuelL,
+    taxiFuelFlowLh: profile.taxiFuelFlowLh,
     startEfob: profile.startEfob,
   };
 }
