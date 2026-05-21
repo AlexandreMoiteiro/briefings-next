@@ -318,6 +318,47 @@ function stampPdfValues(
   }
 }
 
+async function makeTwoUpPdf(bytes: Uint8Array) {
+  const sourcePdf = await PDFDocument.load(bytes);
+  const outputPdf = await PDFDocument.create();
+  const pageCount = sourcePdf.getPageCount();
+
+  for (let i = 0; i < pageCount; i += 2) {
+    const indices = i + 1 < pageCount ? [i, i + 1] : [i];
+    const embedded = await outputPdf.embedPdf(bytes, indices);
+
+    const left = embedded[0];
+    const right = embedded[1] ?? null;
+
+    const targetHeight = Math.max(left.height, right?.height ?? left.height);
+    const leftScale = targetHeight / left.height;
+    const rightScale = right ? targetHeight / right.height : 1;
+
+    const leftWidth = left.width * leftScale;
+    const rightWidth = right ? right.width * rightScale : 0;
+
+    const page = outputPdf.addPage([leftWidth + rightWidth, targetHeight]);
+
+    page.drawPage(left, {
+      x: 0,
+      y: 0,
+      width: leftWidth,
+      height: targetHeight,
+    });
+
+    if (right) {
+      page.drawPage(right, {
+        x: leftWidth,
+        y: 0,
+        width: rightWidth,
+        height: targetHeight,
+      });
+    }
+  }
+
+  return outputPdf.save();
+}
+
 async function loadPdf(url: string) {
   const bytes = await fetch(url).then((response) => {
     if (!response.ok) throw new Error(`Cannot load template: ${url}`);
@@ -770,11 +811,21 @@ function buildTecnamFields(input: BuildPerformancePdfInput) {
 
 export async function buildPerformancePdf(input: BuildPerformancePdfInput) {
   if (input.aircraft === "Piper PA-28") {
-    return saveStampedPdf(PA28_TEMPLATE_URL, buildPa28Fields(input), (pdfDoc) => {
-      drawPa28CgOverlay(pdfDoc, input.pa28);
+    const stamped = await saveStampedPdf(
+      PA28_TEMPLATE_URL,
+      buildPa28Fields(input),
+      (pdfDoc) => {
+        drawPa28CgOverlay(pdfDoc, input.pa28);
+      }
+    );
 
-    });
+    return makeTwoUpPdf(stamped);
   }
 
-  return saveStampedPdf(TECNAM_TEMPLATE_URL, buildTecnamFields(input));
+  const stamped = await saveStampedPdf(
+    TECNAM_TEMPLATE_URL,
+    buildTecnamFields(input)
+  );
+
+  return makeTwoUpPdf(stamped);
 }
