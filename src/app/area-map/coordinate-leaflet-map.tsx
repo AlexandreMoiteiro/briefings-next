@@ -241,8 +241,9 @@ export function CoordinateLeafletMap({
           <FitToAreas areas={drawableAreas} expanded={expanded} />
 
           {drawableAreas.map((area) => {
-            const selected =
-              area.id === selectedAreaId || area.isSelected || area.isDraft;
+            const selected = Boolean(
+              area.id === selectedAreaId || area.isSelected || area.isDraft
+            );
             const pathOptions = {
               color: selected ? "#020617" : "#18181b",
               weight: selected ? 4 : 2,
