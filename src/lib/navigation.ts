@@ -1,68 +1,44 @@
-export type ModuleStatus = "ready" | "next" | "planned";
-
-export type NavigationItem = {
-  title: string;
-  href: string;
-  eyebrow: string;
-  description: string;
-  status: ModuleStatus;
-  phase: string;
-};
-
-export const navigationItems: NavigationItem[] = [
+export const navigationItems = [
   {
-    title: "Briefing Builder",
+    title: "Briefing",
     href: "/briefing",
-    eyebrow: "PDF final",
+    eyebrow: "PDF Builder",
     description:
-      "Monta o briefing operacional com Mission, Weather, NOTAM, Performance, M&B, FPL, Routes e anexos.",
-    status: "next",
-    phase: "Fase 2",
+      "Build a complete briefing package with weather, NOTAM, performance, FPL and NavLog sections.",
   },
   {
     title: "NavLog",
     href: "/navlog",
-    eyebrow: "VFR / IFR Low",
+    eyebrow: "Navigation",
     description:
-      "Vai substituir o NavLog antigo pela versão teste, com defaults restaurados e arquitetura mais limpa.",
-    status: "planned",
-    phase: "Fase 3",
+      "Create operational navigation logs with saved routes, fuel planning and PDF export.",
   },
   {
-    title: "Performance & M&B",
+    title: "Performance",
     href: "/performance",
-    eyebrow: "Tecnam + PA-28",
+    eyebrow: "M&B",
     description:
-      "Página única com seleção de aeronave, respeitando as diferenças entre Tecnam P2008 e PA-28.",
-    status: "planned",
-    phase: "Fase 4",
+      "Calculate Mass & Balance and aircraft performance for Tecnam P2008 and Piper PA-28.",
+  },
+  {
+    title: "Tools",
+    href: "/tools",
+    eyebrow: "PDF",
+    description:
+      "PDF Side-by-Side tools with normal, dual and manual arrangement modes.",
+  },
+  {
+    title: "Area Map",
+    href: "/area-map",
+    eyebrow: "Coordinates",
+    description:
+      "Paste DMS coordinate strings and draw areas or lines directly on the map.",
   },
   {
     title: "Aviation Map",
     href: "/vfr-map",
     eyebrow: "Mapa",
     description:
-      "Consulta visual de aeródromos, localidades, VORs, openAIP e futura integração com rotas.",
-    status: "planned",
-    phase: "Fase 5",
+      "Interactive aviation map with base map and OpenAIP overlay.",
   },
-  {
-    title: "Tools",
-    href: "/tools",
-    eyebrow: "Utilitários",
-    description:
-      "Ferramentas auxiliares como JPG, PDF lado a lado, cartões, duplex e preparação de anexos.",
-    status: "planned",
-    phase: "Fase 6",
-  },
-];
-
-export const workflowSteps = [
-  "Mission",
-  "Weather",
-  "NOTAM",
-  "Performance & M&B",
-  "FPL",
-  "Routes",
-  "Final PDF",
-];
+] as const;
