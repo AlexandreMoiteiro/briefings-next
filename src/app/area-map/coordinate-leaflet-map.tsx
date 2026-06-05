@@ -20,6 +20,12 @@ type CoordinateLeafletMapProps = {
 
 const defaultCenter: [number, number] = [38.7223, -9.1393];
 
+const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
+
+const openAipTilesUrl = openAipApiKey
+  ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
+  : "";
+
 function closePolygon(points: ParsedCoordinatePoint[]) {
   if (points.length < 3) return points;
 
@@ -138,30 +144,12 @@ function FitToAreas({
   return null;
 }
 
-function buildOpenAipUrl() {
-  const template = process.env.NEXT_PUBLIC_OPENAIP_TILES_URL;
-  const apiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY;
-
-  if (!template || !apiKey) return null;
-
-  if (template.includes("{apiKey}")) {
-    return template.replace("{apiKey}", apiKey);
-  }
-
-  if (template.includes("apiKey=")) {
-    return `${template}${apiKey}`;
-  }
-
-  return `${template}${template.includes("?") ? "&" : "?"}apiKey=${apiKey}`;
-}
-
 export function CoordinateLeafletMap({
   areas,
   selectedAreaId,
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const openAipUrl = buildOpenAipUrl();
 
   const drawableAreas = useMemo(
     () => areas.filter((area) => area.points.length > 0),
@@ -226,16 +214,26 @@ export function CoordinateLeafletMap({
         <MapContainer
           center={defaultCenter}
           zoom={9}
+          maxZoom={17}
           scrollWheelZoom
           className="h-full w-full"
         >
           <TileLayer
-            attribution="Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap"
+            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
             url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            maxZoom={17}
           />
 
-          {openAipUrl ? (
-            <TileLayer attribution="OpenAIP" url={openAipUrl} opacity={0.65} />
+          {openAipTilesUrl ? (
+            <TileLayer
+              attribution="openAIP"
+              url={openAipTilesUrl}
+              opacity={0.65}
+              minZoom={4}
+              maxNativeZoom={16}
+              maxZoom={20}
+              detectRetina
+            />
           ) : null}
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
