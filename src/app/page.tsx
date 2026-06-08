@@ -14,8 +14,8 @@ export default function HomePage() {
         </h1>
 
         <p className="mt-5 max-w-3xl text-lg leading-8 text-zinc-600">
-          Build briefing packages, NavLogs, performance sheets, PDF tools and
-          aviation maps in one place.
+          Build briefing packages, NavLogs, performance sheets and aviation maps
+          in one place.
         </p>
       </section>
 
@@ -38,8 +38,19 @@ export default function HomePage() {
               {item.description}
             </p>
 
+            <div className="mt-4 flex flex-wrap gap-2">
+              {item.details.map((detail) => (
+                <span
+                  key={detail}
+                  className="rounded-full border border-zinc-200 bg-zinc-50 px-2.5 py-1 text-xs font-medium text-zinc-500"
+                >
+                  {detail}
+                </span>
+              ))}
+            </div>
+
             <p className="mt-5 text-sm font-semibold text-zinc-950">
-              Abrir{" "}
+              Open{" "}
               <span className="inline-block transition group-hover:translate-x-1">
                 →
               </span>

@@ -127,7 +127,7 @@ function fitAxisValueFromTicks(
 ): [number, number] {
   if (!ticks || ticks.length < 2) {
     throw new Error(
-      `O eixo '${axisName}' precisa de pelo menos 2 ticks, mas só tem ${
+      `Axis '${axisName}' needs at least 2 ticks, but only has ${
         ticks?.length ?? 0
       }.`
     );

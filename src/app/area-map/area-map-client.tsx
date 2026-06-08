@@ -1,5 +1,6 @@
 "use client";
 
+import { logUsageEvent } from "@/lib/usage-events";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -20,7 +21,7 @@ const CoordinateLeafletMap = dynamic(
     ssr: false,
     loading: () => (
       <div className="flex h-[640px] items-center justify-center rounded-3xl border border-zinc-200 bg-zinc-100 text-sm text-zinc-500">
-        A carregar mapa...
+        Loading map...
       </div>
     ),
   }
@@ -58,7 +59,7 @@ function parseLatitude(raw: string, warnings: string[]) {
   let digits = clean.slice(0, -1);
 
   if (!["N", "S"].includes(direction)) {
-    throw new Error(`Latitude inválida: ${raw}`);
+    throw new Error(`Invalid latitude: ${raw}`);
   }
 
   if (digits.length === 5) {
@@ -68,7 +69,7 @@ function parseLatitude(raw: string, warnings: string[]) {
   }
 
   if (digits.length !== 6) {
-    throw new Error(`Latitude inválida: ${raw}`);
+    throw new Error(`Invalid latitude: ${raw}`);
   }
 
   const degrees = Number(digits.slice(0, 2));
@@ -76,7 +77,7 @@ function parseLatitude(raw: string, warnings: string[]) {
   const seconds = Number(digits.slice(4, 6));
 
   if (degrees > 90 || minutes > 59 || seconds > 59) {
-    throw new Error(`Latitude inválida: ${raw}`);
+    throw new Error(`Invalid latitude: ${raw}`);
   }
 
   return dmsToDecimal(degrees, minutes, seconds, direction);
@@ -88,7 +89,7 @@ function parseLongitude(raw: string, warnings: string[]) {
   let digits = clean.slice(0, -1);
 
   if (!["E", "W"].includes(direction)) {
-    throw new Error(`Longitude inválida: ${raw}`);
+    throw new Error(`Invalid longitude: ${raw}`);
   }
 
   if (digits.length === 6) {
@@ -98,7 +99,7 @@ function parseLongitude(raw: string, warnings: string[]) {
   }
 
   if (digits.length !== 7) {
-    throw new Error(`Longitude inválida: ${raw}`);
+    throw new Error(`Invalid longitude: ${raw}`);
   }
 
   const degrees = Number(digits.slice(0, 3));
@@ -106,7 +107,7 @@ function parseLongitude(raw: string, warnings: string[]) {
   const seconds = Number(digits.slice(5, 7));
 
   if (degrees > 180 || minutes > 59 || seconds > 59) {
-    throw new Error(`Longitude inválida: ${raw}`);
+    throw new Error(`Invalid longitude: ${raw}`);
   }
 
   return dmsToDecimal(degrees, minutes, seconds, direction);
@@ -127,7 +128,7 @@ function parseCoordinateInput(input: string): ParseResult {
 
   if (!matches.length && input.trim()) {
     errors.push(
-      "Não encontrei coordenadas válidas. Usa formato DDMMSSN DDDMMSSW."
+      "No valid coordinates found. Use DDMMSSN DDDMMSSW format."
     );
   }
 
@@ -147,7 +148,7 @@ function parseCoordinateInput(input: string): ParseResult {
       });
     } catch (error) {
       errors.push(
-        error instanceof Error ? error.message : "Coordenada inválida."
+        error instanceof Error ? error.message : "Invalid coordinate."
       );
     }
   });
@@ -252,7 +253,7 @@ export function AreaMapClient() {
     if (!selectedAreaId && parsed.errors.length === 0 && parsed.points.length) {
       areas.push({
         id: "draft-area",
-        name: areaName.trim() || "Nova área",
+        name: areaName.trim() || "New area",
         points: parsed.points,
         isDraft: true,
         isSelected: true,
@@ -288,7 +289,7 @@ export function AreaMapClient() {
       setSavedAreas(areas);
     } catch (error) {
       console.error(error);
-      setAreasStatus("Não consegui carregar áreas guardadas.");
+      setAreasStatus("Could not load saved areas.");
     } finally {
       setBusy(false);
     }
@@ -332,10 +333,25 @@ export function AreaMapClient() {
         ...current.filter((item) => item.id !== saved.id),
       ]);
       setSelectedAreaId(saved.id);
-      setAreasStatus("Área guardada.");
+
+      void logUsageEvent({
+        eventType: "area_map_save",
+        module: "area-map",
+        title: areaName,
+        summary: {
+          name: areaName,
+          points: parsed.points.length,
+        },
+        payload: {
+          name: areaName,
+          input,
+          points: parsed.points,
+        },
+      });
+      setAreasStatus("Area saved.");
     } catch (error) {
       console.error(error);
-      setAreasStatus("Não consegui guardar a área.");
+      setAreasStatus("Could not save the area.");
     } finally {
       setBusy(false);
     }
@@ -357,10 +373,26 @@ export function AreaMapClient() {
       setSavedAreas((current) =>
         current.map((item) => (item.id === saved.id ? saved : item))
       );
-      setAreasStatus("Área atualizada.");
+
+      void logUsageEvent({
+        eventType: "area_map_update",
+        module: "area-map",
+        title: areaName,
+        summary: {
+          name: areaName,
+          points: parsed.points.length,
+        },
+        payload: {
+          id: selectedAreaId,
+          name: areaName,
+          input,
+          points: parsed.points,
+        },
+      });
+      setAreasStatus("Area updated.");
     } catch (error) {
       console.error(error);
-      setAreasStatus("Não consegui atualizar a área.");
+      setAreasStatus("Could not update the area.");
     } finally {
       setBusy(false);
     }
@@ -371,7 +403,7 @@ export function AreaMapClient() {
 
     const area = savedAreas.find((item) => item.id === selectedAreaId);
     const ok = window.confirm(
-      `Eliminar área${area ? ` "${area.name}"` : ""}?`
+      `Delete area${area ? ` "${area.name}"` : ""}?`
     );
 
     if (!ok) return;
@@ -387,10 +419,10 @@ export function AreaMapClient() {
       setSelectedAreaId("");
       setAreaName("");
       setInput("");
-      setAreasStatus("Área eliminada.");
+      setAreasStatus("Area deleted.");
     } catch (error) {
       console.error(error);
-      setAreasStatus("Não consegui eliminar a área.");
+      setAreasStatus("Could not delete the area.");
     } finally {
       setBusy(false);
     }
@@ -400,7 +432,7 @@ export function AreaMapClient() {
     if (!geoJson) return;
 
     await navigator.clipboard.writeText(geoJson);
-    setCopyStatus("GeoJSON copiado.");
+    setCopyStatus("GeoJSON copied.");
     setTimeout(() => setCopyStatus(""), 1600);
   }
 
@@ -414,28 +446,32 @@ export function AreaMapClient() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-          Cola coordenadas em formato DMS, desenha áreas no mapa e guarda-as.
+          Paste DMS coordinates from NOTAMs, plot the area on the map, and save it for quick visual review.
         </p>
+
+        <div className="mt-5 max-w-4xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          <strong>Use case:</strong> when a NOTAM defines an area by coordinates, paste those coordinates here to visualise the affected area instead of reading it only as text.
+        </div>
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[420px_1fr]">
         <aside className="space-y-5">
           <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Áreas guardadas
+              Saved areas
             </h2>
 
             <div className="mt-4 space-y-4">
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Escolher área
+                  Select area
                 </span>
                 <select
                   value={selectedAreaId}
                   onChange={(event) => selectSavedArea(event.target.value)}
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
                 >
-                  <option value="">Nova área</option>
+                  <option value="">New area</option>
                   {savedAreas.map((area) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
@@ -452,7 +488,7 @@ export function AreaMapClient() {
                   value={areaName}
                   onChange={(event) => setAreaName(event.target.value)}
                   className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-                  placeholder="Nome da área"
+                  placeholder="Area name"
                 />
               </label>
 
@@ -463,7 +499,7 @@ export function AreaMapClient() {
                   disabled={!canSave || busy}
                   className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
                 >
-                  Guardar nova
+                  Save new
                 </button>
 
                 <button
@@ -472,7 +508,7 @@ export function AreaMapClient() {
                   disabled={!selectedAreaId || !canSave || busy}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-50 disabled:text-zinc-300"
                 >
-                  Atualizar
+                  Update
                 </button>
 
                 <button
@@ -481,7 +517,7 @@ export function AreaMapClient() {
                   disabled={!selectedAreaId || busy}
                   className="rounded-xl border border-red-200 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-50 disabled:text-zinc-300"
                 >
-                  Eliminar
+                  Delete
                 </button>
 
                 <button
@@ -489,7 +525,7 @@ export function AreaMapClient() {
                   onClick={newArea}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-50"
                 >
-                  Limpar
+                  Clear
                 </button>
               </div>
 
@@ -504,7 +540,7 @@ export function AreaMapClient() {
           <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <label className="space-y-2">
               <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Coordenadas
+                Coordinates
               </span>
 
               <textarea
@@ -523,7 +559,7 @@ export function AreaMapClient() {
                 disabled={!geoJson}
                 className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
               >
-                Copiar GeoJSON
+                Copy GeoJSON
               </button>
             </div>
 
@@ -536,11 +572,11 @@ export function AreaMapClient() {
 
           <div className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Pontos
+              Points
             </h2>
 
             <p className="mt-1 text-sm text-zinc-500">
-              {parsed.points.length} ponto(s) encontrado(s).
+              {parsed.points.length} point(s) found.
             </p>
 
             {parsed.errors.length ? (
@@ -574,7 +610,7 @@ export function AreaMapClient() {
                 <table className="w-full text-left text-sm">
                   <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
                     <tr>
-                      <th className="px-3 py-2">Ponto</th>
+                      <th className="px-3 py-2">Point</th>
                       <th className="px-3 py-2">Lat</th>
                       <th className="px-3 py-2">Lon</th>
                     </tr>

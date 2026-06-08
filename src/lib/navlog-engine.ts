@@ -253,6 +253,7 @@ export function waypointToNode(
     windKt: waypoint.windKt,
     vorPref: waypoint.vorPref,
     vorIdent: waypoint.vorIdent,
+    suppressAutoVertical: waypoint.suppressAutoVertical ?? false,
   };
 }
 
@@ -288,6 +289,10 @@ function buildTocTodNodes(
 
     output.push(a);
 
+    if (a.suppressAutoVertical === true) {
+      continue;
+    }
+
     const dist = gcDistanceNm(a.lat, a.lon, b.lat, b.lon);
     const tc = gcCourseTc(a.lat, a.lon, b.lat, b.lon);
     const { windFrom, windKt } = windForNode(a, setup);
@@ -313,7 +318,7 @@ function buildTocTodNodes(
         const dTo = rd(dist - distanceNeeded);
 
         output.push({
-          id: crypto.randomUUID(),
+          id: `${a.id}__TOC__${b.id}`,
           code: "TOC",
           name: "TOC",
           lat: pos.lat,
@@ -348,7 +353,7 @@ function buildTocTodNodes(
         const pos = pointAlongGreatCircle(a.lat, a.lon, b.lat, b.lon, dFrom);
 
         output.push({
-          id: crypto.randomUUID(),
+          id: `${a.id}__TOD__${b.id}`,
           code: "TOD",
           name: "TOD",
           lat: pos.lat,
@@ -477,8 +482,14 @@ export function buildNavlogCalculation(
     const dist = rd(distRaw);
     const { windFrom, windKt } = windForNode(from, setup);
 
-    const legProfile =
-      to.alt > from.alt + 1 ? "CLIMB" : to.alt < from.alt - 1 ? "DESCENT" : "LEVEL";
+    const verticalSuppressed = from.suppressAutoVertical === true;
+    const legProfile = verticalSuppressed
+      ? "LEVEL"
+      : to.alt > from.alt + 1
+        ? "CLIMB"
+        : to.alt < from.alt - 1
+          ? "DESCENT"
+          : "LEVEL";
 
     const tas =
       legProfile === "CLIMB"
@@ -574,7 +585,7 @@ export function parseRouteText(
     const point = resolvePointToken(token, data.points);
 
     if (!point) {
-      warnings.push(`Não encontrei ponto para: ${token}`);
+      warnings.push(`Could not find point for: ${token}`);
       continue;
     }
 

@@ -19,6 +19,7 @@ export type PerfectRouteWaypointRaw = {
   wind_kt?: number | null;
   vor_pref?: string;
   vor_ident?: string;
+  suppress_auto_vertical?: boolean;
 };
 
 export type PerfectRoute = {
@@ -36,7 +37,7 @@ type SupabasePerfectRouteRow = {
 
 function requireSupabase() {
   if (!supabase) {
-    throw new Error("Supabase não está configurado em .env.local.");
+    throw new Error("Supabase is not configured in .env.local.");
   }
 
   return supabase;
@@ -110,6 +111,7 @@ export function routeWaypointsToPerfectRouteRaw(
     wind_kt: waypoint.useGlobalWind ? null : waypoint.windKt,
     vor_pref: waypoint.vorPref,
     vor_ident: waypoint.vorIdent,
+    suppress_auto_vertical: waypoint.suppressAutoVertical === true,
   }));
 }
 
@@ -216,6 +218,7 @@ export function perfectRouteToWaypoints(
         note: cleanText(item.remarks),
         vorPref: normalizeVorPref(item.vor_pref),
         vorIdent: cleanText(item.vor_ident).toUpperCase(),
+        suppressAutoVertical: Boolean(item.suppress_auto_vertical),
       };
     });
 }

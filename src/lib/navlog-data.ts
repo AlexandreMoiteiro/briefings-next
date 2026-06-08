@@ -357,7 +357,7 @@ async function fetchText(path: string) {
   const response = await fetch(path);
 
   if (!response.ok) {
-    throw new Error(`Não consegui carregar ${path}`);
+    throw new Error(`Could not load ${path}`);
   }
 
   return response.text();
@@ -367,7 +367,7 @@ async function fetchJson(path: string) {
   const response = await fetch(path);
 
   if (!response.ok) {
-    throw new Error(`Não consegui carregar ${path}`);
+    throw new Error(`Could not load ${path}`);
   }
 
   return response.json() as Promise<unknown>;

@@ -18,7 +18,7 @@ export type MissionForm = {
 };
 
 export const missionDefaults: MissionForm = {
-  pilot: "Alexandre Moiteiro",
+  pilot: "",
   callsign: "RVP",
   aircraftType: "PA28",
   registration: "OE-KPE",
@@ -53,43 +53,43 @@ export const briefingSteps: {
     id: "mission",
     title: "Mission",
     shortTitle: "Mission",
-    description: "Dados principais da missão, piloto, aeronave, data e hora UTC.",
+    description: "Main mission details: pilot, aircraft, date and UTC time.",
   },
   {
     id: "weather",
     title: "Weather",
     shortTitle: "Weather",
-    description: "Cartas meteorológicas organizadas por tipo.",
+    description: "Weather charts organised by type.",
   },
   {
     id: "notam",
     title: "NOTAM",
     shortTitle: "NOTAM",
-    description: "PIB, SUP e outros documentos NOTAM.",
+    description: "PIB, SUP and other NOTAM documents.",
   },
   {
     id: "performance",
     title: "Performance & M&B",
     shortTitle: "Perf/M&B",
-    description: "PDFs de performance e mass & balance.",
+    description: "Performance and mass & balance PDFs.",
   },
   {
     id: "fpl",
     title: "FPL",
     shortTitle: "FPL",
-    description: "Plano de voo e comprovativos relacionados.",
+    description: "Flight plan and related confirmations.",
   },
   {
     id: "routes",
     title: "Routes",
     shortTitle: "Routes",
-    description: "Pares de rota com NavLog e VFR Map.",
+    description: "Route pairs with NavLog and VFR Map.",
   },
   {
     id: "generate",
     title: "Generate PDF",
     shortTitle: "Generate",
-    description: "Resumo final e futura geração do PDF.",
+    description: "Final review and PDF generation.",
   },
 ];
 
@@ -140,8 +140,8 @@ export const uploadTargets: UploadTarget[] = [
   {
     sectionId: "weather",
     bucketId: "weather_other",
-    label: "Weather · Outros",
-    shortLabel: "Outros",
+    label: "Weather · Other",
+    shortLabel: "Other",
   },
   {
     sectionId: "notam",

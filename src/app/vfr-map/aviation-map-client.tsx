@@ -16,7 +16,7 @@ const AviationMapLeaflet = dynamic(
     ssr: false,
     loading: () => (
       <div className="h-[780px] rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-        <p className="text-sm text-zinc-500">A carregar mapa...</p>
+        <p className="text-sm text-zinc-500">Loading map...</p>
       </div>
     ),
   }
@@ -29,7 +29,7 @@ const layerOptions: {
 }[] = [
   {
     id: "AD",
-    label: "Aeródromos",
+    label: "Aerodromes",
     description: "AD / HEL / ULM",
   },
   {
@@ -45,7 +45,7 @@ const layerOptions: {
   {
     id: "VOR",
     label: "VOR/NAVAID",
-    description: "VOR com frequência",
+    description: "VOR with frequency",
   },
 ];
 
@@ -104,7 +104,7 @@ export function AviationMapClient() {
         console.error(error);
 
         if (!cancelled) {
-          setDataError("Não foi possível carregar os dados do mapa.");
+          setDataError("Could not load map data.");
         }
       } finally {
         if (!cancelled) {
@@ -169,9 +169,12 @@ export function AviationMapClient() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              Mapa geral com OpenAIP, aeródromos, pontos VFR, fixes IFR e
-              VOR/NAVAIDs.
+              General overview of Portuguese aviation data: airspace context, aerodromes, VFR points, IFR fixes, VOR/NAVAIDs and optional OpenAIP overlay.
             </p>
+
+            <div className="mt-5 max-w-4xl rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
+              <strong>Purpose:</strong> use this map for situational awareness in Portugal before route planning, not as a substitute for current charts, NOTAMs or AIP validation.
+            </div>
           </div>
 
           <div className="grid grid-cols-4 gap-3 text-sm">
@@ -201,7 +204,7 @@ export function AviationMapClient() {
       <section className="grid gap-6 xl:grid-cols-[340px_1fr]">
         <aside className="space-y-4">
           <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-zinc-950">Pesquisa</h2>
+            <h2 className="text-sm font-semibold text-zinc-950">Search</h2>
 
             <input
               value={searchQuery}
@@ -216,13 +219,13 @@ export function AviationMapClient() {
 
             {loading ? (
               <p className="mt-3 text-sm text-zinc-500">
-                A carregar dados...
+                Loading data...
               </p>
             ) : null}
 
             <div className="mt-4 max-h-80 space-y-2 overflow-auto pr-1">
               {searchQuery.trim() && searchResults.length === 0 ? (
-                <p className="text-sm text-zinc-500">Sem resultados.</p>
+                <p className="text-sm text-zinc-500">No results.</p>
               ) : null}
 
               {searchResults.map((point) => {

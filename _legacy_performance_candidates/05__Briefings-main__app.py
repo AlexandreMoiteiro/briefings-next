@@ -261,7 +261,7 @@ def simple_order_key(item: Dict[str, Any]) -> Tuple[int, str]:
     name = safe_str(item.get("filename", ""))
     return (order, name.lower())
 
-ss_init("pilot", "Alexandre Moiteiro")
+ss_init("pilot", "Pilot Name")
 ss_init("callsign", "RVP")
 ss_init("aircraft_type", "PA28")
 ss_init("registration", "OE-KPE")

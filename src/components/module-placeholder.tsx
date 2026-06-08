@@ -28,7 +28,7 @@ export function ModulePlaceholder({
       </section>
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-        <p className="text-sm font-semibold text-zinc-950">Próximo passo</p>
+        <p className="text-sm font-semibold text-zinc-950">Next step</p>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
           {nextStep}
         </p>
@@ -38,7 +38,7 @@ export function ModulePlaceholder({
         href="/"
         className="inline-flex rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
       >
-        ← Voltar à página inicial
+        ← Back to home
       </Link>
     </div>
   );

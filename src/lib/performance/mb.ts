@@ -164,19 +164,19 @@ export function calculatePa28Mb(input: Pa28MbInput): Pa28MbResult {
   const warnings: string[] = [];
 
   if (input.baggageKg > PA28.baggageMaxKg) {
-    warnings.push(`Baggage acima do limite: ${input.baggageKg.toFixed(0)} kg > ${PA28.baggageMaxKg.toFixed(0)} kg.`);
+    warnings.push(`Baggage above limit: ${input.baggageKg.toFixed(0)} kg > ${PA28.baggageMaxKg.toFixed(0)} kg.`);
   }
 
   if (input.fuelL > PA28.fuelUsableL) {
-    warnings.push(`Fuel acima do usable: ${input.fuelL.toFixed(0)} L > ${PA28.fuelUsableL.toFixed(0)} L.`);
+    warnings.push(`Fuel above usable fuel: ${input.fuelL.toFixed(0)} L > ${PA28.fuelUsableL.toFixed(0)} L.`);
   }
 
   if (takeoffWeight > PA28.mtowLb) {
-    warnings.push(`MTOW excedido: ${takeoffWeight.toFixed(0)} lb > ${PA28.mtowLb.toFixed(0)} lb.`);
+    warnings.push(`MTOW exceeded: ${takeoffWeight.toFixed(0)} lb > ${PA28.mtowLb.toFixed(0)} lb.`);
   }
 
   if (landingWeight > PA28.mlwLb) {
-    warnings.push(`MLW excedido: ${landingWeight.toFixed(0)} lb > ${PA28.mlwLb.toFixed(0)} lb.`);
+    warnings.push(`MLW exceeded: ${landingWeight.toFixed(0)} lb > ${PA28.mlwLb.toFixed(0)} lb.`);
   }
 
   return {
@@ -272,23 +272,23 @@ export function calculateTecnamMb(input: TecnamMbInput): TecnamMbResult {
   const [cgMin, cgMax] = TECNAM.cgLimitsM;
 
   if (input.fuelL > TECNAM.maxFuelVolumeL) {
-    warnings.push(`Fuel acima do máximo: ${input.fuelL.toFixed(0)} L > ${TECNAM.maxFuelVolumeL.toFixed(0)} L.`);
+    warnings.push(`Fuel above maximum: ${input.fuelL.toFixed(0)} L > ${TECNAM.maxFuelVolumeL.toFixed(0)} L.`);
   }
 
   if (pilotPassengerKg > TECNAM.maxPassengerWeightKg) {
-    warnings.push(`Student/instructor acima do máximo: ${pilotPassengerKg.toFixed(0)} kg > ${TECNAM.maxPassengerWeightKg.toFixed(0)} kg.`);
+    warnings.push(`Student/instructor above maximum: ${pilotPassengerKg.toFixed(0)} kg > ${TECNAM.maxPassengerWeightKg.toFixed(0)} kg.`);
   }
 
   if (input.baggageKg > TECNAM.maxBaggageWeightKg) {
-    warnings.push(`Baggage acima do máximo: ${input.baggageKg.toFixed(0)} kg > ${TECNAM.maxBaggageWeightKg.toFixed(0)} kg.`);
+    warnings.push(`Baggage above maximum: ${input.baggageKg.toFixed(0)} kg > ${TECNAM.maxBaggageWeightKg.toFixed(0)} kg.`);
   }
 
   if (totalWeight > TECNAM.maxTakeoffWeightKg) {
-    warnings.push(`MTOW excedido: ${totalWeight.toFixed(1)} kg > ${TECNAM.maxTakeoffWeightKg.toFixed(0)} kg.`);
+    warnings.push(`MTOW exceeded: ${totalWeight.toFixed(1)} kg > ${TECNAM.maxTakeoffWeightKg.toFixed(0)} kg.`);
   }
 
   if (cg > 0 && (cg < cgMin || cg > cgMax)) {
-    warnings.push(`CG fora dos limites: ${cg.toFixed(3)} m não está entre ${cgMin.toFixed(3)} e ${cgMax.toFixed(3)} m.`);
+    warnings.push(`CG outside limits: ${cg.toFixed(3)} m is not between ${cgMin.toFixed(3)} e ${cgMax.toFixed(3)} m.`);
   }
 
   return {

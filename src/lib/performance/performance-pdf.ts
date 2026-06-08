@@ -115,7 +115,7 @@ async function loadTemplate(url: string) {
   const response = await fetch(url);
 
   if (!response.ok) {
-    throw new Error(`Não foi possível carregar o template ${url}.`);
+    throw new Error(`Could not load template ${url}.`);
   }
 
   const bytes = await response.arrayBuffer();

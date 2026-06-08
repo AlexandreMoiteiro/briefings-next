@@ -1,4 +1,12 @@
-export type NavlogAircraftType = "Tecnam P2008" | "Piper PA-28";
+export const CUSTOM_AIRCRAFT_TYPE = "Custom aircraft" as const;
+
+export const navlogAircraftOptions = [
+  "Tecnam P2008",
+  "Piper PA-28",
+  CUSTOM_AIRCRAFT_TYPE,
+] as const;
+
+export type NavlogAircraftType = (typeof navlogAircraftOptions)[number];
 
 export type NavlogReferenceLayer = "IFR" | "VOR" | "AD" | "VFR" | "PROC";
 
@@ -39,17 +47,23 @@ export type NavlogSetupForm = {
   openAipOpacity: number;
 };
 
+type NavlogAircraftProfile = {
+  climbTas: number;
+  cruiseTas: number;
+  descentTas: number;
+  fuelFlowLh: number;
+  taxiFuelL: number;
+  taxiFuelFlowLh: number;
+  startEfob: number;
+  taxiMin: number;
+  rocFpm: number;
+  rodFpm: number;
+  defaultAltitude: number;
+};
+
 export const navlogAircraftProfiles: Record<
-  NavlogAircraftType,
-  {
-    climbTas: number;
-    cruiseTas: number;
-    descentTas: number;
-    fuelFlowLh: number;
-    taxiFuelL: number;
-    taxiFuelFlowLh: number;
-    startEfob: number;
-  }
+  Exclude<NavlogAircraftType, typeof CUSTOM_AIRCRAFT_TYPE>,
+  NavlogAircraftProfile
 > = {
   "Tecnam P2008": {
     climbTas: 70,
@@ -59,6 +73,10 @@ export const navlogAircraftProfiles: Record<
     taxiFuelL: 3,
     taxiFuelFlowLh: 8,
     startEfob: 120,
+    taxiMin: 20,
+    rocFpm: 600,
+    rodFpm: 500,
+    defaultAltitude: 3000,
   },
   "Piper PA-28": {
     climbTas: 76,
@@ -68,7 +86,25 @@ export const navlogAircraftProfiles: Record<
     taxiFuelL: 5,
     taxiFuelFlowLh: 13.5,
     startEfob: 180,
+    taxiMin: 20,
+    rocFpm: 600,
+    rodFpm: 500,
+    defaultAltitude: 3000,
   },
+};
+
+const blankCustomAircraftProfile: NavlogAircraftProfile = {
+  climbTas: 0,
+  cruiseTas: 0,
+  descentTas: 0,
+  fuelFlowLh: 0,
+  taxiFuelL: 0,
+  taxiFuelFlowLh: 0,
+  startEfob: 0,
+  taxiMin: 0,
+  rocFpm: 0,
+  rodFpm: 0,
+  defaultAltitude: 0,
 };
 
 export const tecnamRegistrations = [
@@ -113,8 +149,8 @@ export const navlogDefaultSetup: NavlogSetupForm = {
   onBlockClock: "",
   lesson: "",
   instructor: "",
-  student: "AMOIT",
-  taxiMin: 20,
+  student: "",
+  taxiMin: navlogAircraftProfiles["Piper PA-28"].taxiMin,
 
   windFrom: 0,
   windKt: 0,
@@ -123,9 +159,9 @@ export const navlogDefaultSetup: NavlogSetupForm = {
   magVar: 1.0,
   magDirection: "W",
 
-  rocFpm: 600,
-  rodFpm: 500,
-  defaultAltitude: 3000,
+  rocFpm: navlogAircraftProfiles["Piper PA-28"].rocFpm,
+  rodFpm: navlogAircraftProfiles["Piper PA-28"].rodFpm,
+  defaultAltitude: navlogAircraftProfiles["Piper PA-28"].defaultAltitude,
 
   showReferencePoints: true,
   referenceLayers: navlogReferenceLayers,
@@ -138,19 +174,39 @@ export function getAircraftTypeFromRegistration(
   registration: string
 ): NavlogAircraftType {
   if (registration.startsWith("CS-")) return "Tecnam P2008";
-  return "Piper PA-28";
+  if (registration.startsWith("OE-")) return "Piper PA-28";
+  return CUSTOM_AIRCRAFT_TYPE;
 }
 
 export function getRegistrationsForAircraft(aircraftType: NavlogAircraftType) {
-  return aircraftType === "Tecnam P2008"
-    ? tecnamRegistrations
-    : piperRegistrations;
+  if (aircraftType === "Tecnam P2008") return tecnamRegistrations;
+  if (aircraftType === "Piper PA-28") return piperRegistrations;
+  return [];
 }
 
 export function applyAircraftProfile(
   setup: NavlogSetupForm,
   aircraftType: NavlogAircraftType
 ): NavlogSetupForm {
+  if (aircraftType === CUSTOM_AIRCRAFT_TYPE) {
+    return {
+      ...setup,
+      aircraftType,
+      registration: "",
+      climbTas: blankCustomAircraftProfile.climbTas,
+      cruiseTas: blankCustomAircraftProfile.cruiseTas,
+      descentTas: blankCustomAircraftProfile.descentTas,
+      fuelFlowLh: blankCustomAircraftProfile.fuelFlowLh,
+      taxiFuelL: blankCustomAircraftProfile.taxiFuelL,
+      taxiFuelFlowLh: blankCustomAircraftProfile.taxiFuelFlowLh,
+      startEfob: blankCustomAircraftProfile.startEfob,
+      taxiMin: blankCustomAircraftProfile.taxiMin,
+      rocFpm: blankCustomAircraftProfile.rocFpm,
+      rodFpm: blankCustomAircraftProfile.rodFpm,
+      defaultAltitude: blankCustomAircraftProfile.defaultAltitude,
+    };
+  }
+
   const profile = navlogAircraftProfiles[aircraftType];
   const registrations = getRegistrationsForAircraft(aircraftType);
 
@@ -167,6 +223,10 @@ export function applyAircraftProfile(
     taxiFuelL: profile.taxiFuelL,
     taxiFuelFlowLh: profile.taxiFuelFlowLh,
     startEfob: profile.startEfob,
+    taxiMin: profile.taxiMin,
+    rocFpm: profile.rocFpm,
+    rodFpm: profile.rodFpm,
+    defaultAltitude: profile.defaultAltitude,
   };
 }
 
@@ -230,6 +290,7 @@ export type NavlogRouteWaypoint = {
   note: string;
   vorPref: "AUTO" | "FIXED";
   vorIdent: string;
+  suppressAutoVertical?: boolean;
 };
 
 export type NavlogRouteNode = {
@@ -248,6 +309,7 @@ export type NavlogRouteNode = {
   vorPref: "AUTO" | "FIXED";
   vorIdent: string;
   calcDetail?: string;
+  suppressAutoVertical?: boolean;
 };
 
 export type NavlogLegProfile = "CLIMB" | "LEVEL" | "DESCENT" | "STOP";

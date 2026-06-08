@@ -728,7 +728,7 @@ function stampPdfValuesAndRemoveWidgets(
 
 async function loadTemplate(url: string, pagesToKeep?: number) {
   const bytes = await fetch(url).then((response) => {
-    if (!response.ok) throw new Error(`Não foi possível carregar ${url}.`);
+    if (!response.ok) throw new Error(`Could not load ${url}.`);
     return response.arrayBuffer();
   });
 

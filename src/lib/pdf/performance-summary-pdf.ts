@@ -168,7 +168,7 @@ export async function buildPerformanceSummaryPdf(
         borderWidth: 1,
       });
 
-      text("Sem avisos principais.", MARGIN + 10, y - 17, {
+      text("No major warnings.", MARGIN + 10, y - 17, {
         size: 9,
         bold: true,
         color: rgb(0.05, 0.45, 0.18),

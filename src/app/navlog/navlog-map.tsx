@@ -321,7 +321,7 @@ export function NavlogMap({
                     onClick={() => onAddPoint(point)}
                     className="rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white"
                   >
-                    Adicionar à rota
+                    Add to route
                   </button>
                 </div>
               </Popup>

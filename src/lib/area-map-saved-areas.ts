@@ -27,7 +27,7 @@ type SupabaseAreaRow = {
 
 function requireSupabase() {
   if (!supabase) {
-    throw new Error("Supabase não está configurado.");
+    throw new Error("Supabase is not configured.");
   }
 
   return supabase;

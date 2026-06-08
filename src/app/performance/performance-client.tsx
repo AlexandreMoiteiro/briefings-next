@@ -1,6 +1,8 @@
 "use client";
 
+import { logUsageEvent } from "@/lib/usage-events";
 import { useMemo, useState } from "react";
+import { WorkflowChecklist, type WorkflowStep } from "@/components/workflow-checklist";
 import { piperRegistrations, tecnamRegistrations } from "@/lib/navlog";
 import {
   PERFORMANCE_AERODROMES,
@@ -267,7 +269,7 @@ function TecnamPerformanceTable({
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
-        Sem dados suficientes para performance Tecnam.
+        Not enough data for Tecnam performance.
       </div>
     );
   }
@@ -355,7 +357,7 @@ function Pa28PerformanceTable({
   if (rows.length === 0) {
     return (
       <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
-        Preenche o Weight & Balance para calcular a performance PA-28.
+        Fill in Weight & Balance to calculate PA-28 performance.
       </div>
     );
   }
@@ -525,7 +527,7 @@ function FuelPlanningSection({
             Fuel planning
           </h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Trip fuel é calculado por climb + enroute + descent. Extra é o que sobra até ao fuel carregado no M&B.
+            Trip fuel is calculated as climb + enroute + descent. Extra fuel is the amount remaining after required ramp fuel.
           </p>
         </div>
 
@@ -537,13 +539,13 @@ function FuelPlanningSection({
               : "border-red-200 bg-red-50",
           ].join(" ")}
         >
-          <p className="text-zinc-500">Fuel carregado</p>
+          <p className="text-zinc-500">Fuel loaded</p>
           <p className="text-lg font-semibold text-zinc-950">
             {formatFuelLiters(fuelPlan.fuelLoadedL)} L
           </p>
           {!fuelPlan.fuelSufficient ? (
             <p className="mt-1 text-xs font-medium text-red-700">
-              Abaixo do required ramp fuel.
+              Below required ramp fuel.
             </p>
           ) : null}
         </div>
@@ -677,10 +679,10 @@ function ExportPdfSection({
             Step 06
           </p>
           <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-            Official PDF
+            Performance PDF
           </h2>
           <p className="mt-1 text-sm text-zinc-500">
-            Exporta o template oficial depois de validar loading, fuel, MET e performance.
+            Export the completed performance form after validating loading, fuel, MET and performance.
           </p>
           <p className="mt-3 text-sm text-zinc-500">
             {aircraft} · {registration || "—"} · {date || "—"}
@@ -694,7 +696,7 @@ function ExportPdfSection({
             disabled={pdfBusy}
             className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
           >
-            {pdfBusy ? "A gerar..." : "Export official PDF"}
+            {pdfBusy ? "Generating..." : "Export performance PDF"}
           </button>
 
           {pdfStatus ? (
@@ -921,10 +923,10 @@ export function PerformanceClient() {
       );
 
       const ok = fetched.filter((entry) => entry.met).length;
-      setWeatherStatus(`Meteo atualizada: ${ok}/${activeLegs.length}`);
+      setWeatherStatus(`Weather updated: ${ok}/${activeLegs.length}`);
     } catch (error) {
       console.error(error);
-      setWeatherStatus("Não consegui atualizar a meteo.");
+      setWeatherStatus("Could not update the weather.");
     } finally {
       setWeatherBusy(false);
     }
@@ -961,10 +963,36 @@ export function PerformanceClient() {
         `performance_${safeReg}_${date || "no-date"}.pdf`
       );
 
-      setPdfStatus("PDF oficial exportado.");
+      void logUsageEvent({
+        eventType: "performance_export",
+        module: "performance",
+        title: `Performance ${registration || aircraft}`,
+        aircraftType: aircraft,
+        registration,
+        summary: {
+          aircraft,
+          registration,
+          date,
+          mission,
+          fuelSufficient: fuelPlan.fuelSufficient,
+          totalRampFuelL: fuelPlan.totalRampFuelL,
+          requiredRampFuelL: fuelPlan.requiredRampFuelL,
+          extraFuelL: fuelPlan.extraFuelL,
+        },
+        payload: {
+          mission,
+          date,
+          aircraft,
+          registration,
+          fuelPlan,
+          performanceResults,
+        },
+      });
+
+      setPdfStatus("Performance PDF exported.");
     } catch (error) {
       console.error(error);
-      setPdfStatus("Não consegui gerar o PDF oficial.");
+      setPdfStatus("Could not generate the performance PDF.");
     } finally {
       setPdfBusy(false);
     }
@@ -975,6 +1003,80 @@ export function PerformanceClient() {
 
   const activeWarnings =
     aircraft === "Piper PA-28" ? pa28.warnings : tecnam.warnings;
+
+  const performanceRowsReady =
+    aircraft === "Piper PA-28"
+      ? pa28PerformanceRows.length > 0
+      : tecnamPerformanceRows.length > 0;
+
+  const metRunwayReady = displayedPerformanceLegs.every((leg) => {
+    if (leg.icao === "-") return true;
+
+    return Boolean(
+      leg.icao &&
+        Object.prototype.hasOwnProperty.call(PERFORMANCE_AERODROMES, leg.icao) &&
+        Number.isFinite(leg.tempC) &&
+        Number.isFinite(leg.qnhHpa) &&
+        Number.isFinite(leg.windFrom) &&
+        Number.isFinite(leg.windKt)
+    );
+  });
+
+  const performanceWorkflow = useMemo<WorkflowStep[]>(
+    () => [
+      {
+        label: "Aircraft setup",
+        description: `${aircraft} · ${registration || "no registration"} · ${date || "no date"}`,
+        complete: Boolean(aircraft && registration && date),
+      },
+      {
+        label: "Loading & M&B",
+        description:
+          activeWarnings.length === 0
+            ? "Weight, mass and CG are within the configured checks."
+            : `${activeWarnings.length} warning${activeWarnings.length === 1 ? "" : "s"} to review.`,
+        complete: activeWarnings.length === 0,
+        attention: activeWarnings.length > 0,
+      },
+      {
+        label: "Fuel planning",
+        description: fuelPlan.fuelSufficient
+          ? `${formatFuelLiters(fuelPlan.totalRampFuelL)} L total ramp fuel planned.`
+          : "Fuel loaded is below required ramp fuel.",
+        complete: fuelPlan.fuelSufficient,
+        attention: !fuelPlan.fuelSufficient,
+      },
+      {
+        label: "MET & runway",
+        description: metRunwayReady
+          ? "Weather and runway data are available for each active leg."
+          : "Check ICAO, temperature, QNH, wind and runway data.",
+        complete: metRunwayReady,
+        attention: !metRunwayReady,
+      },
+      {
+        label: "Performance & export",
+        description: performanceRowsReady
+          ? "Performance rows are ready. Review margins before export."
+          : "Complete loading and MET/runway data first.",
+        complete:
+          performanceRowsReady &&
+          activeWarnings.length === 0 &&
+          fuelPlan.fuelSufficient,
+        attention: performanceRowsReady && activeWarnings.length > 0,
+      },
+    ],
+    [
+      activeWarnings.length,
+      aircraft,
+      date,
+      fuelPlan.fuelSufficient,
+      fuelPlan.totalRampFuelL,
+      metRunwayReady,
+      performanceRowsReady,
+      registration,
+    ]
+  );
 
   return (
     <div className="space-y-6">
@@ -990,7 +1092,7 @@ export function PerformanceClient() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              Fluxo: aeronave e matrícula, loading, fuel planning, MET/runway, performance e PDF oficial.
+              Follow the workflow from aircraft setup to loading, fuel planning, MET/runway checks, performance review and PDF export.
             </p>
           </div>
 
@@ -1012,7 +1114,7 @@ export function PerformanceClient() {
         </div>
       </section>
 
-      
+      <WorkflowChecklist steps={performanceWorkflow} />
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="mb-4">
@@ -1022,9 +1124,16 @@ export function PerformanceClient() {
           <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
             Flight setup
           </h2>
+          <p className="mt-1 text-sm text-zinc-500">
+            Choose the aircraft, registration and date first. The aircraft selection controls the calculation model; the registration applies saved fleet empty weight/moment defaults.
+          </p>
         </div>
 
         <div className="grid gap-4 md:grid-cols-[1fr_1fr_240px]">
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm leading-6 text-amber-900 md:col-span-3">
+            <strong>Aircraft selection matters.</strong> The selected aircraft changes empty-weight defaults, M&B arms/moments, fuel assumptions and the performance tables used for takeoff, landing, climb and margins. Confirm the aircraft before entering or trusting any numbers.
+          </div>
+
           <label className="space-y-1.5">
             <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
               Registration
@@ -1051,8 +1160,8 @@ export function PerformanceClient() {
           <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-sm text-zinc-600">
             <p>
               {aircraft === "Piper PA-28"
-                ? "PA-28 em lb / in lb, com inputs de carga em kg."
-                : "Tecnam em kg / kg m, com CG em metros."}
+                ? "PA-28 uses lb / in·lb internally, with loading inputs entered in kg."
+                : "Tecnam uses kg / kg·m internally, with CG shown in metres."}
             </p>
           </div>
         </div>
@@ -1070,7 +1179,7 @@ export function PerformanceClient() {
               Aerodromes & MET
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Meteo manual ou forecast Open-Meteo por aeródromo e hora UTC.
+              Manual weather or Open-Meteo forecast by aerodrome and UTC hour.
             </p>
           </div>
 
@@ -1085,7 +1194,7 @@ export function PerformanceClient() {
               disabled={weatherBusy || !date}
               className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
             >
-              {weatherBusy ? "A buscar..." : "Fetch meteo"}
+              {weatherBusy ? "Fetching..." : "Fetch meteo"}
             </button>
           </div>
         </div>
@@ -1247,7 +1356,7 @@ export function PerformanceClient() {
                   </div>
                 ) : (
                   <p className="mt-4 text-sm text-red-600">
-                    Aeródromo não encontrado.
+                    Aerodrome not found.
                   </p>
                 )}
               </div>
@@ -1266,6 +1375,9 @@ export function PerformanceClient() {
               <h2 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">
                 PA-28 loading
               </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Enter passenger, baggage and fuel loaded. Fuel loaded is also sent to the fuel planning section.
+              </p>
 
               <div className="mt-5 grid gap-4">
                 <NumberInput
@@ -1391,7 +1503,7 @@ export function PerformanceClient() {
                 <StatusCard
                   label="Takeoff CG"
                   value={`${pa28.takeoff.cgIn.toFixed(1)} in`}
-                  detail="Confirmar no envelope PA-28"
+                  detail="Confirm in the PA-28 envelope"
                   ok={pa28.takeoff.cgIn >= 82 && pa28.takeoff.cgIn <= 93}
                 />
               </div>
@@ -1406,7 +1518,7 @@ export function PerformanceClient() {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-                  Sem avisos principais de peso.
+                  No major weight warnings.
                 </div>
               )}
 
@@ -1423,7 +1535,7 @@ export function PerformanceClient() {
               PA-28 performance
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              Calculado com o peso atual de takeoff/landing do Weight & Balance.
+              Calculated with the current takeoff/landing weight from Weight & Balance.
             </p>
           </div>
 
@@ -1444,6 +1556,9 @@ export function PerformanceClient() {
               <h2 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">
                 Tecnam loading
               </h2>
+              <p className="mt-1 text-sm text-zinc-500">
+                Enter crew, baggage and fuel loaded. Fuel loaded is also sent to the fuel planning section.
+              </p>
 
               <div className="mt-5 grid gap-4">
                 <NumberInput
@@ -1579,7 +1694,7 @@ export function PerformanceClient() {
                 </div>
               ) : (
                 <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-700">
-                  Sem avisos principais de massa ou CG.
+                  No major mass or CG warnings.
                 </div>
               )}
 
@@ -1606,7 +1721,7 @@ export function PerformanceClient() {
                 Tecnam performance
               </h2>
               <p className="mt-1 text-sm text-zinc-500">
-                Calculado com as tabelas AFM antigas: TODR/LDR 50 ft, ROC e Vy.
+                Calculated with the legacy AFM tables: TODR/LDR 50 ft, ROC and Vy.
               </p>
             </div>
           </div>

@@ -1,5 +1,6 @@
 "use client";
 
+import { logUsageEvent } from "@/lib/usage-events";
 import { useMemo, useState } from "react";
 import { buildBriefingPdf } from "@/lib/pdf/briefing-pdf";
 import {
@@ -140,7 +141,7 @@ function PreviewFrame({ file }: { file: BriefingFile | RouteFile }) {
 
   return (
     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-sm text-zinc-500">
-      Pré-visualização indisponível para este tipo de ficheiro.
+      Preview is not available for this file type.
     </div>
   );
 }
@@ -452,10 +453,60 @@ export function BriefingBuilderClient() {
         bytes,
         buildBriefingFilename(mission.registration, mission.flightDate)
       );
+
+      void logUsageEvent({
+        eventType: "briefing_export",
+        module: "briefing",
+        title: `Briefing ${mission.registration || "unknown registration"}`,
+        aircraftType: mission.aircraftType,
+        registration: mission.registration,
+        summary: {
+          aircraftType: mission.aircraftType,
+          registration: mission.registration,
+          callsign: mission.callsign,
+          flightDate: mission.flightDate,
+          missionNumber: mission.missionNumber,
+          fileCount: Object.values(files).filter(Boolean).length,
+          routePairs: routes.filter((route) => route.navlog || route.vfrMap)
+            .length,
+        },
+        payload: {
+          mission,
+          files: Object.fromEntries(
+            Object.entries(files).map(([key, item]) => [
+              key,
+              item
+                ? {
+                    name: item.name,
+                    type: item.type,
+                    size: item.size,
+                  }
+                : null,
+            ])
+          ),
+          routes: routes.map((route) => ({
+            name: route.name,
+            navlog: route.navlog
+              ? {
+                  name: route.navlog.name,
+                  type: route.navlog.type,
+                  size: route.navlog.size,
+                }
+              : null,
+            vfrMap: route.vfrMap
+              ? {
+                  name: route.vfrMap.name,
+                  type: route.vfrMap.type,
+                  size: route.vfrMap.size,
+                }
+              : null,
+          })),
+        },
+      });
     } catch (error) {
       console.error(error);
       setPdfError(
-        "Não foi possível gerar o PDF. Confirma se todos os ficheiros são PDF, PNG, JPG, JPEG ou GIF válidos."
+        "Could not generate the PDF. Check that every file is a valid PDF, PNG, JPG, JPEG or GIF."
       );
     } finally {
       setIsGeneratingPdf(false);
@@ -466,7 +517,7 @@ export function BriefingBuilderClient() {
   return (
     <div className="space-y-8">
       <section className="border-b border-zinc-200 pb-8">
-        <p className="mb-3 text-sm font-medium text-zinc-500">PDF final</p>
+        <p className="mb-3 text-sm font-medium text-zinc-500">Final PDF</p>
 
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -475,14 +526,12 @@ export function BriefingBuilderClient() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              Estrutura fiel ao briefing antigo, mas organizada de forma mais
-              clara: missão como dados, weather por tipo de chart, NOTAM por
-              categoria, routes por pares e ficheiros com preview e ordenação.
+              Build a structured briefing package: mission details, weather charts, NOTAM documents, performance/M&B, FPL and route file pairs with previews and ordering.
             </p>
           </div>
 
           <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
-            <div className="text-sm text-zinc-500">Conteúdo preenchido</div>
+            <div className="text-sm text-zinc-500">Completed content</div>
             <div className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
               {completedSteps}/6
             </div>
@@ -495,7 +544,7 @@ export function BriefingBuilderClient() {
         <div className="mt-8">
           <div className="mb-2 flex items-center justify-between text-xs font-medium text-zinc-500">
             <span>
-              Etapa {activeStepIndex + 1} de {briefingSteps.length}
+              Step {activeStepIndex + 1} of {briefingSteps.length}
             </span>
             <span>{activeStep.title}</span>
           </div>
@@ -513,10 +562,10 @@ export function BriefingBuilderClient() {
         <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-3">
           <div className="px-3 py-2">
             <h2 className="text-sm font-semibold text-zinc-950">
-              Etapas do briefing
+              Briefing steps
             </h2>
             <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Mantém a ordem lógica que será usada no PDF final.
+              Keep the logical order that will be used in the final PDF.
             </p>
           </div>
 
@@ -582,7 +631,7 @@ export function BriefingBuilderClient() {
           {activeStepId === "mission" ? (
             <section className="rounded-2xl border border-zinc-200 bg-white p-6">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
-                Dados da missão
+                Mission details
               </h3>
 
               <div className="mt-5 grid gap-4 md:grid-cols-2">
@@ -733,7 +782,7 @@ export function BriefingBuilderClient() {
                           onClick={() => clearBucket(target.bucketId)}
                           className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-950"
                         >
-                          Limpar
+                          Clear
                         </button>
                       ) : null}
                     </div>
@@ -896,7 +945,7 @@ export function BriefingBuilderClient() {
                       </p>
 
                       <label className="mt-3 block cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-600 hover:bg-zinc-50">
-                        Escolher NavLog
+                        Choose NavLog
                         <input
                           type="file"
                           accept={acceptedFiles}
@@ -935,7 +984,7 @@ export function BriefingBuilderClient() {
                       </p>
 
                       <label className="mt-3 block cursor-pointer rounded-xl border border-dashed border-zinc-300 bg-white px-4 py-6 text-center text-sm text-zinc-600 hover:bg-zinc-50">
-                        Escolher VFR Map
+                        Choose VFR Map
                         <input
                           type="file"
                           accept={acceptedFiles}
@@ -985,7 +1034,7 @@ export function BriefingBuilderClient() {
             <section className="space-y-6">
               <div className="rounded-2xl border border-zinc-200 bg-white p-6">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
-                  Resumo da missão
+                  Mission summary
                 </h3>
 
                 <div className="mt-5 grid gap-3 md:grid-cols-3">
@@ -1021,12 +1070,11 @@ export function BriefingBuilderClient() {
 
               <div className="rounded-2xl border border-zinc-200 bg-white p-6">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
-                  Ordem final do PDF
+                  Final PDF order
                 </h3>
 
                 <p className="mt-1 text-sm leading-6 text-zinc-500">
-                  Esta é a ordem usada na exportação. A capa e o índice são
-                  adicionados automaticamente no início, como no projeto antigo.
+                  This is the order used for export. The cover and clickable index are added automatically at the beginning.
                 </p>
 
                 <div className="mt-5 space-y-3">
@@ -1035,7 +1083,7 @@ export function BriefingBuilderClient() {
                       00 · Cover / Index
                     </p>
                     <p className="mt-1 text-sm text-zinc-500">
-                      Capa em A4 landscape com índice clicável.
+                      A4 landscape cover with a clickable index.
                     </p>
                   </div>
 
@@ -1047,7 +1095,7 @@ export function BriefingBuilderClient() {
                         { label: "Pressure chart", id: "pressure" },
                         { label: "SIGWX chart", id: "sigwx" },
                         { label: "Wind chart", id: "wind" },
-                        { label: "Outros", id: "weather_other" },
+                        { label: "Other", id: "weather_other" },
                       ],
                     },
                     {
@@ -1093,7 +1141,7 @@ export function BriefingBuilderClient() {
 
                               {bucketFiles.length === 0 ? (
                                 <p className="mt-1 text-sm text-zinc-400">
-                                  Sem ficheiros
+                                  No files
                                 </p>
                               ) : (
                                 <ol className="mt-1 space-y-1">
@@ -1124,7 +1172,7 @@ export function BriefingBuilderClient() {
                         .length === 0 ? (
                         <div className="rounded-lg border border-zinc-200 bg-white px-3 py-2">
                           <p className="text-sm text-zinc-400">
-                            Sem rotas com ficheiros
+                            No routes with files
                           </p>
                         </div>
                       ) : (
@@ -1158,12 +1206,11 @@ export function BriefingBuilderClient() {
 
               <div className="rounded-2xl border border-zinc-200 bg-white p-6">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
-                  Exportar
+                  Export
                 </h3>
 
                 <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
-                  O PDF será gerado localmente no browser. Os ficheiros não são
-                  enviados para servidor nesta fase.
+                  The PDF is generated locally in the browser. Files are not uploaded to a server at this stage.
                 </p>
 
                 <div className="mt-5">
@@ -1177,7 +1224,7 @@ export function BriefingBuilderClient() {
                     disabled={isGeneratingPdf}
                     className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
                   >
-                    {isGeneratingPdf ? "A gerar PDF..." : "Gerar PDF"}
+                    {isGeneratingPdf ? "Generating PDF..." : "Generate PDF"}
                   </button>
                 </div>
               </div>
@@ -1190,7 +1237,7 @@ export function BriefingBuilderClient() {
               disabled={!previousStep}
               className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              ← Anterior
+              ← Previous
             </button>
 
             <div className="flex flex-col gap-3 sm:flex-row">
@@ -1200,7 +1247,7 @@ export function BriefingBuilderClient() {
                   onClick={goToGenerateStep}
                   className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50"
                 >
-                  Ir para Generate PDF
+                  Go to Generate PDF
                 </button>
               ) : null}
 
@@ -1210,7 +1257,7 @@ export function BriefingBuilderClient() {
                 disabled={!nextStep}
                 className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:cursor-not-allowed disabled:bg-zinc-300"
               >
-                Próximo →
+                Next →
               </button>
             </div>
           </section>
