@@ -124,6 +124,7 @@ export const piperRegistrations = [
   "OE-KPP",
   "OE-KPJ",
   "OE-KPF",
+  "OE-KPH",
 ];
 
 export const navlogReferenceLayers: NavlogReferenceLayer[] = [

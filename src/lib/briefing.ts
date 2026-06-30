@@ -34,6 +34,7 @@ export const aircraftRegistrations = [
   "OE-KPP",
   "OE-KPG",
   "OE-KPF",
+  "OE-KPH",
   "CS-DHS",
   "CS-DHT",
   "CS-DHU",

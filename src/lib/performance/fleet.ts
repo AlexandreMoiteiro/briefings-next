@@ -31,7 +31,7 @@ export const PA28_FLEET = {
     emptyMomentInLb: 150833.0,
     notes: "",
   },
-    "OE-KPH": {
+  "OE-KPH": {
     emptyWeightLb: 1686.2,
     emptyMomentInLb: 150723.3,
     notes: "",
