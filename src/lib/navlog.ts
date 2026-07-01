@@ -13,6 +13,7 @@ export type NavlogReferenceLayer = "IFR" | "VOR" | "AD" | "VFR" | "PROC";
 export type NavlogSetupForm = {
   aircraftType: NavlogAircraftType;
   registration: string;
+  callsign: string;
 
   climbTas: number;
   cruiseTas: number;
@@ -137,6 +138,7 @@ export const navlogReferenceLayers: NavlogReferenceLayer[] = [
 export const navlogDefaultSetup: NavlogSetupForm = {
   aircraftType: "Piper PA-28",
   registration: "OE-KPE",
+  callsign: "RVP",
 
   climbTas: navlogAircraftProfiles["Piper PA-28"].climbTas,
   cruiseTas: navlogAircraftProfiles["Piper PA-28"].cruiseTas,

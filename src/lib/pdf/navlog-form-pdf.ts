@@ -532,7 +532,7 @@ function buildHeaderPayload(
   return {
     AIRCRAFT: aircraftPdfCode(setup),
     REGISTRATION: setup.registration,
-    CALLSIGN: setup.registration,
+    CALLSIGN: setup.callsign?.trim().toUpperCase() || "RVP",
     STUDENT: setup.student,
     LESSON: setup.lesson,
     INSTRUTOR: setup.instructor,

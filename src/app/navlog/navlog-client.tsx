@@ -856,6 +856,7 @@ export function NavlogClient() {
       summary: {
         aircraftType: setup.aircraftType,
         registration: setup.registration,
+        callsign: setup.callsign,
         waypoints: routeWaypoints.length,
         legs: calculation.legs.length,
         distanceNm: summary.distNm,
@@ -869,6 +870,7 @@ export function NavlogClient() {
         setup: {
           aircraftType: setup.aircraftType,
           registration: setup.registration,
+          callsign: setup.callsign,
           climbTas: setup.climbTas,
           cruiseTas: setup.cruiseTas,
           descentTas: setup.descentTas,
@@ -1063,6 +1065,20 @@ export function NavlogClient() {
                 ))}
               </select>
             )}
+          </label>
+
+          <label className="space-y-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-zinc-500">
+              Callsign
+            </span>
+            <input
+              value={setup.callsign}
+              onChange={(event) =>
+                updateSetup("callsign", event.target.value.toUpperCase())
+              }
+              placeholder="RVP"
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-zinc-400"
+            />
           </label>
 
           <NumberInput
