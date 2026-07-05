@@ -20,6 +20,7 @@ export type PerfectRouteWaypointRaw = {
   vor_pref?: string;
   vor_ident?: string;
   suppress_auto_vertical?: boolean;
+  alternate_marker?: boolean;
 };
 
 export type PerfectRoute = {
@@ -112,6 +113,7 @@ export function routeWaypointsToPerfectRouteRaw(
     vor_pref: waypoint.vorPref,
     vor_ident: waypoint.vorIdent,
     suppress_auto_vertical: waypoint.suppressAutoVertical === true,
+    alternate_marker: waypoint.alternateMarker === true,
   }));
 }
 
@@ -219,6 +221,7 @@ export function perfectRouteToWaypoints(
         vorPref: normalizeVorPref(item.vor_pref),
         vorIdent: cleanText(item.vor_ident).toUpperCase(),
         suppressAutoVertical: Boolean(item.suppress_auto_vertical),
+        alternateMarker: Boolean(item.alternate_marker),
       };
     });
 }

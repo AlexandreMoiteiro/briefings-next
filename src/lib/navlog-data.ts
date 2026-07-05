@@ -9,6 +9,57 @@ import type {
 
 const DATA_BASE = "/legacy/data";
 
+const LPFR_NAVLOG_POINTS: NavlogPoint[] = [
+  { code: "FR611", name: "FR611", lat: 36.992278, lon: -7.815806, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID RWY10 ILS LOC RWY10", remarks: "LPFR RNAV SID/IAP waypoint AIRAC 005-26" },
+  { code: "FR621", name: "FR621", lat: 37.068969, lon: -7.697489, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID RWY10", remarks: "LPFR RNAV SID waypoint AIRAC 005-26" },
+  { code: "DEDUX", name: "DEDUX", lat: 37.411358, lon: -7.957933, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "XAPAS", name: "XAPAS", lat: 37.597228, lon: -7.949892, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "ODPAK", name: "ODPAK", lat: 38.128422, lon: -7.926689, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "DOGUT", name: "DOGUT", lat: 38.295256, lon: -7.924153, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "EVURA", name: "EVURA", lat: 38.664972, lon: -7.918492, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "FR631", name: "FR631", lat: 37.339767, lon: -8.087881, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR RWY10", remarks: "LPFR RNAV STAR waypoint AIRAC 005-26" },
+  { code: "USALU", name: "USALU", lat: 37.222111, lon: -8.300347, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR RWY10", remarks: "LPFR RNAV STAR waypoint AIRAC 005-26" },
+  { code: "KOPAV", name: "KOPAV", lat: 37.057094, lon: -8.269211, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR ILS LOC RWY10", remarks: "LPFR STAR/IAP clearance limit AIRAC 005-26" },
+  { code: "FR910", name: "FR910", lat: 37.043778, lon: -8.174000, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR ILS/LOC RWY10 FAP waypoint AIRAC 005-26" },
+  { code: "THR10", name: "THR RWY 10", lat: 37.017222, lon: -7.985611, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR RWY10 threshold / MAPt AIRAC 005-26" },
+  { code: "FR728", name: "FR728", lat: 36.997000, lon: -7.842167, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach waypoint AIRAC 005-26" },
+  { code: "GIMAL", name: "GIMAL", lat: 36.764444, lon: -8.005861, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach holding waypoint AIRAC 005-26" },
+  { code: "FR609", name: "FR609", lat: 36.930906, lon: -8.346689, alt: 0, src: "IFR", routes: "LPFR GIMAL9C STAR ILS LOC RWY10", remarks: "LPFR RNAV STAR/IAP chart waypoint AIRAC 005-26" },
+];
+
+const LPFR_NAVLOG_CODES = new Set(
+  LPFR_NAVLOG_POINTS.map((point) => cleanCode(point.code))
+);
+
+function mergeNavlogPointsPreferLpfr(points: NavlogPoint[]) {
+  const bySourceAndCode = new Map<string, NavlogPoint>();
+
+  for (const point of points) {
+    const code = cleanCode(point.code);
+
+    if (!code || code === "RUWIB") {
+      continue;
+    }
+
+    bySourceAndCode.set(`${point.src}:${code}`, point);
+  }
+
+  for (const point of LPFR_NAVLOG_POINTS) {
+    bySourceAndCode.set(`IFR:${cleanCode(point.code)}`, point);
+  }
+
+  return Array.from(bySourceAndCode.values());
+}
+
+
+
+
+
+
+
+
+
+
 function stripOuterQuotes(value: string) {
   const trimmed = value.trim();
 
@@ -267,6 +318,10 @@ function parseIfrPoints(text: string): NavlogPoint[] {
     .filter((item): item is NavlogPoint => item !== null);
 }
 
+
+
+
+
 function parseAirways(text: string): NavlogAirway[] {
   const rows = parseCsv(text);
 
@@ -309,16 +364,23 @@ function parseAirways(text: string): NavlogAirway[] {
 }
 
 function deduplicatePoints(points: NavlogPoint[]) {
-  const seen = new Set<string>();
+  const bySourceAndCode = new Map<string, NavlogPoint>();
 
-  return points.filter((point) => {
-    const key = `${point.code}-${point.lat.toFixed(6)}-${point.lon.toFixed(6)}-${point.src}`;
+  for (const point of points) {
+    const code = cleanCode(point.code);
 
-    if (seen.has(key)) return false;
+    if (!code || code === "RUWIB") {
+      continue;
+    }
 
-    seen.add(key);
-    return true;
-  });
+    bySourceAndCode.set(`${point.src}:${code}`, point);
+  }
+
+  for (const point of LPFR_NAVLOG_POINTS) {
+    bySourceAndCode.set(`IFR:${cleanCode(point.code)}`, point);
+  }
+
+  return Array.from(bySourceAndCode.values());
 }
 
 function parseProcedures(raw: unknown): NavlogProcedure[] {
@@ -354,7 +416,7 @@ function parseProcedures(raw: unknown): NavlogProcedure[] {
 }
 
 async function fetchText(path: string) {
-  const response = await fetch(path);
+  const response = await fetch(`${path}?v=airac-005-26-lpfr-2`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load ${path}`);
@@ -364,7 +426,7 @@ async function fetchText(path: string) {
 }
 
 async function fetchJson(path: string) {
-  const response = await fetch(path);
+  const response = await fetch(`${path}?v=airac-005-26-lpfr-2`, { cache: "no-store" });
 
   if (!response.ok) {
     throw new Error(`Could not load ${path}`);
@@ -387,7 +449,7 @@ export async function loadAllNavlogData(): Promise<NavlogDataBundle> {
   const adPoints = parseAdHelUlm(adText);
   const vfrPoints = parseLocalidades(localidadesText);
   const { vors, points: vorPoints } = parseVors(vorText);
-  const ifrPoints = parseIfrPoints(ifrText);
+  const ifrPoints = mergeNavlogPointsPreferLpfr(parseIfrPoints(ifrText));
   const airways = parseAirways(airwaysText);
   const procedures = parseProcedures(proceduresJson);
 

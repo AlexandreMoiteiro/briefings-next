@@ -21,16 +21,16 @@ type Tick = {
 type ChartCapture = {
   axis_ticks: Record<string, Tick[]>;
   lines: Record<string, Segment[]>;
-  guides?: {
-    middle?: Segment[];
-    right?: Segment[];
-  };
+  guides?: Record<string, Segment[]>;
   panel_corners?: Record<string, Array<{ x: number; y: number }>>;
 };
 
 export type Pa28ChartPreview = {
   title: string;
   valueLabel: string;
+  imageUrl: string;
+  imageWidth: number;
+  imageHeight: number;
   viewBox: {
     minX: number;
     minY: number;
@@ -72,6 +72,12 @@ export type Pa28PerformanceRow = {
   landingPct: number;
   takeoffOk: boolean;
   landingOk: boolean;
+  takeoffOmRequiredM: number;
+  landingOmRequiredM: number;
+  takeoffOmPct: number;
+  landingOmPct: number;
+  takeoffOmOk: boolean;
+  landingOmOk: boolean;
   headwindKt: number;
   crosswindKt: number;
   crosswindSide: "L" | "R" | "";
@@ -89,15 +95,24 @@ const ASSETS = {
     title: "Takeoff distance over 50 ft",
     roundTo: 5,
     outAxisKey: "takeoff_50ft_ft",
+    imageUrl: "/admin/performance-graphs/pa28/to_perf.png",
+    imageWidth: 1488,
+    imageHeight: 1050,
   },
   landing: {
     title: "Landing distance over 50 ft",
     roundTo: 5,
     outAxisKey: "landing_50ft_ft",
+    imageUrl: "/admin/performance-graphs/pa28/ldg_perf.png",
+    imageWidth: 1488,
+    imageHeight: 1050,
   },
   climb: {
     title: "Climb performance",
     roundTo: 10,
+    imageUrl: "/admin/performance-graphs/pa28/climb_perf.jpg",
+    imageWidth: 1240,
+    imageHeight: 875,
   },
 };
 
@@ -252,26 +267,26 @@ function samePoint(
   );
 }
 
-function groupGuidesPolylinePairs(segments: Segment[]) {
+function groupConnectedSegments(segments: Segment[]) {
   const groups: Segment[][] = [];
-  let index = 0;
 
-  while (index < segments.length) {
-    if (index + 1 < segments.length) {
-      const first = segments[index];
-      const second = segments[index + 1];
-      const [, firstEnd] = segmentEndpoints(first);
-      const [secondStart] = segmentEndpoints(second);
+  for (const segment of segments) {
+    const lastGroup = groups[groups.length - 1];
+    const lastSegment = lastGroup?.[lastGroup.length - 1];
 
-      if (samePoint(firstEnd, secondStart)) {
-        groups.push([first, second]);
-        index += 2;
-        continue;
-      }
+    if (
+      lastGroup &&
+      lastSegment &&
+      samePoint(
+        [lastSegment.x2, lastSegment.y2],
+        [segment.x1, segment.y1],
+        2
+      )
+    ) {
+      lastGroup.push(segment);
+    } else {
+      groups.push([segment]);
     }
-
-    groups.push([segments[index]]);
-    index += 1;
   }
 
   return groups;
@@ -350,21 +365,14 @@ function interpGuidesY(
   return yRef;
 }
 
-function pickGuides(cap: ChartCapture, mode: "takeoff" | "landing") {
+function pickGuides(cap: ChartCapture, _mode: "takeoff" | "landing") {
   const guides = cap.guides ?? {};
-  const middle = guides.middle ?? [];
-  const right = guides.right ?? [];
-
-  if (mode === "takeoff") {
-    return {
-      middle: groupGuidesPolylinePairs(middle),
-      right: right.map((segment) => [segment]),
-    };
-  }
+  const weightGuides = guides.guides_weight ?? guides.middle ?? [];
+  const windGuides = guides.guides_wind ?? guides.right ?? [];
 
   return {
-    middle: middle.map((segment) => [segment]),
-    right: right.map((segment) => [segment]),
+    middle: groupConnectedSegments(weightGuides),
+    right: groupConnectedSegments(windGuides),
   };
 }
 
@@ -481,12 +489,9 @@ function solveGroundRollTrace(
   const paLevels = parsePaLevelsFt(lines);
   const [[, loKey], [, hiKey], alpha] = interpBetweenLevels(paFt, paLevels);
 
-  const segmentLo = lines[loKey][0];
-  const segmentHi = lines[hiKey][0];
-
   const yEntry =
-    (1 - alpha) * lineYAtX(segmentLo, xOat) +
-    alpha * lineYAtX(segmentHi, xOat);
+    (1 - alpha) * polylineYAtX(lines[loKey], xOat) +
+    alpha * polylineYAtX(lines[hiKey], xOat);
 
   const xWeight = axisCoordFromValue(weightA, weightB, weightLb / 100);
   const guides = pickGuides(cap, mode);
@@ -523,12 +528,9 @@ function solveClimbTrace(cap: ChartCapture, oatC: number, paFt: number) {
   const paLevels = parsePaLevelsFt(lines);
   const [[, loKey], [, hiKey], alpha] = interpBetweenLevels(paFt, paLevels);
 
-  const segmentLo = lines[loKey][0];
-  const segmentHi = lines[hiKey][0];
-
   const y =
-    (1 - alpha) * lineYAtX(segmentLo, xOat) +
-    alpha * lineYAtX(segmentHi, xOat);
+    (1 - alpha) * polylineYAtX(lines[loKey], xOat) +
+    alpha * polylineYAtX(lines[hiKey], xOat);
 
   const valueFpm = axisValue(rocA, rocB, y);
 
@@ -603,14 +605,27 @@ function chartViewBox(cap: ChartCapture) {
 
 function makeChartPreview(
   cap: ChartCapture,
-  title: string,
+  asset: {
+    title: string;
+    imageUrl: string;
+    imageWidth: number;
+    imageHeight: number;
+  },
   valueLabel: string,
   trace: Array<{ x: number; y: number; label: string }>
 ): Pa28ChartPreview {
   return {
-    title,
+    title: asset.title,
     valueLabel,
-    viewBox: chartViewBox(cap),
+    imageUrl: asset.imageUrl,
+    imageWidth: asset.imageWidth,
+    imageHeight: asset.imageHeight,
+    viewBox: {
+      minX: 0,
+      minY: 0,
+      width: asset.imageWidth,
+      height: asset.imageHeight,
+    },
     lines: allSegments(cap),
     trace,
   };
@@ -668,6 +683,17 @@ export function calculatePa28Performance(
   const toM = ftToM(toFt);
   const ldgM = ftToM(ldgFt);
 
+  const takeoffOmRequiredM = toM * 1.25;
+  const landingOmRequiredM = ldgM * 1.25;
+
+  const takeoffOmPct =
+    runway.toda > 0 ? Math.round((takeoffOmRequiredM / runway.toda) * 100) : 0;
+  const landingOmPct =
+    runway.lda > 0 ? Math.round((landingOmRequiredM / runway.lda) * 100) : 0;
+
+  const takeoffOmOk = runway.toda >= takeoffOmRequiredM;
+  const landingOmOk = runway.lda >= landingOmRequiredM;
+
   return {
     role: result.leg.role,
     icao: result.leg.icao,
@@ -691,25 +717,31 @@ export function calculatePa28Performance(
     landingPct: runway.lda > 0 ? Math.round((ldgM / runway.lda) * 100) : 0,
     takeoffOk: toM <= runway.toda,
     landingOk: ldgM <= runway.lda,
+    takeoffOmRequiredM,
+    landingOmRequiredM,
+    takeoffOmPct,
+    landingOmPct,
+    takeoffOmOk,
+    landingOmOk,
     headwindKt: result.headwindKt,
     crosswindKt: result.crosswindKt,
     crosswindSide: result.crosswindSide,
     charts: {
       takeoff: makeChartPreview(
         PA28_TAKEOFF_CHART as unknown as ChartCapture,
-        ASSETS.takeoff.title,
+        ASSETS.takeoff,
         `${toFt.toFixed(0)} ft / ${toM.toFixed(0)} m`,
         takeoffTrace.points
       ),
       climb: makeChartPreview(
         PA28_CLIMB_CHART as unknown as ChartCapture,
-        ASSETS.climb.title,
+        ASSETS.climb,
         `${rocFpm.toFixed(0)} fpm`,
         climbTrace.points
       ),
       landing: makeChartPreview(
         PA28_LANDING_CHART as unknown as ChartCapture,
-        ASSETS.landing.title,
+        ASSETS.landing,
         `${ldgFt.toFixed(0)} ft / ${ldgM.toFixed(0)} m`,
         landingTrace.points
       ),

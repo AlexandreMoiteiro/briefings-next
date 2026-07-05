@@ -294,6 +294,7 @@ export type NavlogRouteWaypoint = {
   vorPref: "AUTO" | "FIXED";
   vorIdent: string;
   suppressAutoVertical?: boolean;
+  alternateMarker?: boolean;
 };
 
 export type NavlogRouteNode = {
@@ -313,6 +314,7 @@ export type NavlogRouteNode = {
   vorIdent: string;
   calcDetail?: string;
   suppressAutoVertical?: boolean;
+  alternateMarker?: boolean;
 };
 
 export type NavlogLegProfile = "CLIMB" | "LEVEL" | "DESCENT" | "STOP";

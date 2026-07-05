@@ -32,11 +32,33 @@ type NavlogMapProps = {
   onAddMapPoint: (lat: number, lon: number) => void;
 };
 
+const LPFR_REQUIRED_NAVLOG_MAP_POINTS: NavlogPoint[] = [
+  { code: "FR611", name: "FR611", lat: 36.992278, lon: -7.815806, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID RWY10 ILS LOC RWY10", remarks: "LPFR RNAV SID/IAP waypoint AIRAC 005-26" },
+  { code: "FR621", name: "FR621", lat: 37.068969, lon: -7.697489, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID RWY10", remarks: "LPFR RNAV SID waypoint AIRAC 005-26" },
+  { code: "DEDUX", name: "DEDUX", lat: 37.411358, lon: -7.957933, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "XAPAS", name: "XAPAS", lat: 37.597228, lon: -7.949892, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "ODPAK", name: "ODPAK", lat: 38.128422, lon: -7.926689, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "DOGUT", name: "DOGUT", lat: 38.295256, lon: -7.924153, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "EVURA", name: "EVURA", lat: 38.664972, lon: -7.918492, alt: 0, src: "IFR", routes: "LPFR EVURA1F SID EVURA1C STAR RWY10", remarks: "LPFR RNAV SID/STAR waypoint AIRAC 005-26" },
+  { code: "FR631", name: "FR631", lat: 37.339767, lon: -8.087881, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR RWY10", remarks: "LPFR RNAV STAR waypoint AIRAC 005-26" },
+  { code: "USALU", name: "USALU", lat: 37.222111, lon: -8.300347, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR RWY10", remarks: "LPFR RNAV STAR waypoint AIRAC 005-26" },
+  { code: "KOPAV", name: "KOPAV", lat: 37.057094, lon: -8.269211, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR ILS LOC RWY10", remarks: "LPFR STAR/IAP clearance limit AIRAC 005-26" },
+  { code: "FR910", name: "FR910", lat: 37.043778, lon: -8.174000, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR ILS/LOC RWY10 FAP waypoint AIRAC 005-26" },
+  { code: "THR10", name: "THR RWY 10", lat: 37.017222, lon: -7.985611, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR RWY10 threshold / MAPt AIRAC 005-26" },
+  { code: "FR728", name: "FR728", lat: 36.997000, lon: -7.842167, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach waypoint AIRAC 005-26" },
+  { code: "GIMAL", name: "GIMAL", lat: 36.764444, lon: -8.005861, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach holding waypoint AIRAC 005-26" },
+  { code: "FR609", name: "FR609", lat: 36.930906, lon: -8.346689, alt: 0, src: "IFR", routes: "LPFR GIMAL9C STAR ILS LOC RWY10", remarks: "LPFR RNAV STAR/IAP chart waypoint AIRAC 005-26" },
+];
+
 const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
 
 const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
+
+function navlogMapPointKey(point: NavlogPoint) {
+  return `${point.src}:${point.code.trim().toUpperCase()}:${point.lat.toFixed(6)}:${point.lon.toFixed(6)}`;
+}
 
 function InvalidateMapSize() {
   const map = useMap();
@@ -75,6 +97,38 @@ function FitToRoute({
   return null;
 }
 
+function FitToSearchedReferencePoints({
+  searchQuery,
+  visiblePoints,
+}: {
+  searchQuery: string;
+  visiblePoints: NavlogPoint[];
+}) {
+  const map = useMap();
+
+  useEffect(() => {
+    const query = searchQuery.trim();
+
+    if (!query || visiblePoints.length === 0) return;
+
+    const positions = visiblePoints
+      .slice(0, 20)
+      .map((point) => [point.lat, point.lon] as [number, number]);
+
+    if (positions.length === 1) {
+      map.setView(positions[0], 11);
+      return;
+    }
+
+    map.fitBounds(latLngBounds(positions), {
+      padding: [40, 40],
+      maxZoom: 11,
+    });
+  }, [map, searchQuery, visiblePoints]);
+
+  return null;
+}
+
 function MapClickHandler({
   enabled,
   onAddMapPoint,
@@ -101,7 +155,8 @@ function pointMatchesQuery(point: NavlogPoint, query: string) {
     point.code.toUpperCase().includes(normalized) ||
     point.name.toUpperCase().includes(normalized) ||
     point.src.toUpperCase().includes(normalized) ||
-    point.routes.toUpperCase().includes(normalized)
+    point.routes.toUpperCase().includes(normalized) ||
+    point.remarks.toUpperCase().includes(normalized)
   );
 }
 
@@ -241,19 +296,38 @@ export function NavlogMap({
       : ([39.55, -8.0] as LatLngExpression);
 
   const visiblePoints = useMemo(() => {
-    if (!showReferencePoints) return [];
-
     const query = searchQuery.trim();
 
-    return points
+    if (!showReferencePoints && !query) return [];
+
+    const filtered = points
+      .filter((point) => point.code.trim().toUpperCase() !== "RUWIB")
       .filter((point) =>
         selectedLayerSet.has(point.src as NavlogReferenceLayer)
       )
       .filter((point) => {
         if (!query) return true;
         return pointMatchesQuery(point, query);
-      })
-      .slice(0, query ? 1000 : 1500);
+      });
+
+    const requiredLpfrPoints = LPFR_REQUIRED_NAVLOG_MAP_POINTS.filter(
+      (point) =>
+        selectedLayerSet.has(point.src as NavlogReferenceLayer) &&
+        (!query || pointMatchesQuery(point, query))
+    );
+
+    const limited = filtered.slice(0, query ? 1000 : 1500);
+    const merged = new Map<string, NavlogPoint>();
+
+    for (const point of requiredLpfrPoints) {
+      merged.set(navlogMapPointKey(point), point);
+    }
+
+    for (const point of limited) {
+      merged.set(navlogMapPointKey(point), point);
+    }
+
+    return Array.from(merged.values());
   }, [points, searchQuery, selectedLayerSet, showReferencePoints]);
 
   const shouldLabelReferencePoints = searchQuery.trim().length > 0;
@@ -270,6 +344,10 @@ export function NavlogMap({
         >
           <InvalidateMapSize />
           <FitToRoute routePositions={routePositions} />
+          <FitToSearchedReferencePoints
+            searchQuery={searchQuery}
+            visiblePoints={visiblePoints}
+          />
 
           <TileLayer
             attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'

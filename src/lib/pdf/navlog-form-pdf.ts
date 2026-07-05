@@ -11,6 +11,21 @@ import { formatClock } from "@/lib/navlog-engine";
 
 type NavlogLeg = NavlogCalculationResult["legs"][number];
 
+type AlternatePdfInfo = {
+  markerWaypointId: string;
+  markerCode: string;
+  destinationArrivalEfobL: number;
+  alternateTripFuelL: number;
+  alternateTripSec: number;
+  finalReserveFuelL: number;
+  minimumFuelAtMarkerL: number;
+  holdAvailableFuelL: number;
+  holdAvailableSec: number;
+  plannedHoldFuelL: number;
+  fuelAfterPlannedHoldL: number;
+  status: "ok" | "caution" | "blocked";
+};
+
 type BuildNavlogFormPdfInput = {
   setup: NavlogSetupForm;
   waypoints: NavlogRouteWaypoint[];
@@ -29,6 +44,7 @@ const PDF_CONTINUATION_FIRST_ROW = 12;
 
 const EARTH_NM = 3440.065;
 const LITERS_PER_US_GALLON = 3.785411784;
+const FINAL_RESERVE_MIN = 45;
 
 function safe(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -73,6 +89,10 @@ function fmtPlannedBurnPdf(liters: number) {
   }
 
   return `${roundedLiters}(${roundedGallons})`;
+}
+
+function roundSecondsToNearestFiveMinutes(seconds: number) {
+  return Math.max(0, Math.round((seconds || 0) / 300) * 300);
 }
 
 function pdfTime(seconds: number) {
@@ -239,6 +259,83 @@ function legTotalBurn(leg: NavlogLeg) {
   return Number(leg.burnL || 0) + legHoldBurn(leg);
 }
 
+function buildAlternatePdfInfo(
+  setup: NavlogSetupForm,
+  waypoints: NavlogRouteWaypoint[],
+  legs: NavlogLeg[]
+): AlternatePdfInfo | null {
+  const markerWaypoint = waypoints.find(
+    (waypoint) => (waypoint as any).alternateMarker === true
+  );
+
+  if (!markerWaypoint || legs.length === 0) return null;
+
+  const markerLegIndex = legs.findIndex(
+    (leg) => leg.to.id === markerWaypoint.id
+  );
+
+  if (markerLegIndex < 0) return null;
+
+  const destinationLeg = legs[markerLegIndex];
+  const alternateLegs = legs.slice(markerLegIndex + 1);
+
+  const alternateTripFuelL = alternateLegs.reduce(
+    (sum, leg) => sum + leg.burnL + legHoldBurn(leg),
+    0
+  );
+  const alternateTripSecRaw = alternateLegs.reduce(
+    (sum, leg) => sum + leg.eteSec + legHoldSec(leg),
+    0
+  );
+  const alternateTripSec = roundSecondsToNearestFiveMinutes(alternateTripSecRaw);
+  const finalReserveFuelL = (setup.fuelFlowLh * FINAL_RESERVE_MIN) / 60;
+  const minimumFuelAtMarkerL = alternateTripFuelL + finalReserveFuelL;
+  const destinationArrivalEfobL = Number(destinationLeg.efobAfterLegL || 0);
+  const plannedHoldFuelL = legHoldBurn(destinationLeg);
+  const holdAvailableFuelL =
+    destinationArrivalEfobL - alternateTripFuelL - finalReserveFuelL;
+  const holdAvailableSecRaw =
+    setup.fuelFlowLh > 0
+      ? Math.max(0, (holdAvailableFuelL / setup.fuelFlowLh) * 3600)
+      : 0;
+  const holdAvailableSec = roundSecondsToNearestFiveMinutes(holdAvailableSecRaw);
+  const fuelAfterPlannedHoldL = holdAvailableFuelL - plannedHoldFuelL;
+
+  const status =
+    holdAvailableFuelL < 0
+      ? "blocked"
+      : fuelAfterPlannedHoldL < 0
+        ? "caution"
+        : "ok";
+
+  return {
+    markerWaypointId: markerWaypoint.id,
+    markerCode:
+      markerWaypoint.point.code || markerWaypoint.point.name || "Arrival",
+    destinationArrivalEfobL,
+    alternateTripFuelL,
+    alternateTripSec,
+    finalReserveFuelL,
+    minimumFuelAtMarkerL,
+    holdAvailableFuelL,
+    holdAvailableSec,
+    plannedHoldFuelL,
+    fuelAfterPlannedHoldL,
+    status,
+  };
+}
+
+function alternateObservationText(info: AlternatePdfInfo | null) {
+  if (!info) return "";
+
+  return [
+    `ALT FROM ${info.markerCode}`,
+    `HOLD MAX ${pdfTime(info.holdAvailableSec)} / ${fmtEfobPdf(info.holdAvailableFuelL)}`,
+    `ALT ${fmtEfobPdf(info.alternateTripFuelL)} + RES45 ${fmtEfobPdf(info.finalReserveFuelL)}`,
+    `MIN FOB ${fmtEfobPdf(info.minimumFuelAtMarkerL)}`,
+  ].join("\n");
+}
+
 function fmtWithPlus(base: string, plus: string, hasPlus: boolean) {
   return hasPlus ? `${base}\n+${plus}` : base;
 }
@@ -361,14 +458,22 @@ function putLegPayload(
   leg: NavlogLeg,
   accDistance: number,
   accTime: number,
-  navlogData?: NavlogDataBundle | null
+  navlogData?: NavlogDataBundle | null,
+  alternateInfo?: AlternatePdfInfo | null
 ) {
   const prefix = legPrefix(index);
   const point = leg.to;
   const hasHold = legHoldSec(leg) > 0;
   const navaid = chooseVorForPoint(navlogData, point);
 
-  data[`${prefix}_Waypoint`] = compactPdfWaypoint(point);
+  data[`${prefix}_Waypoint`] =
+    alternateInfo?.markerWaypointId === point.id
+      ? prettyPdfWaypointText(
+          `${point.code || point.name}\nALT HOLD MAX\n${pdfTime(
+            alternateInfo.holdAvailableSec
+          )}`
+        )
+      : compactPdfWaypoint(point);
   data[`${prefix}_Altitude_FL`] = fmtUnit(Number(point.alt || 0));
 
   data[`${prefix}_True_Course`] = pad3(leg.tc);
@@ -385,11 +490,20 @@ function putLegPayload(
   );
   data[`${prefix}_Cumulative_Distance`] = fmtDistance(accDistance);
 
-  data[`${prefix}_Leg_ETE`] = fmtWithPlus(
-    pdfTime(leg.eteSec),
-    pdfTime(legHoldSec(leg)),
-    hasHold
-  );
+  data[`${prefix}_Leg_ETE`] =
+    alternateInfo?.markerWaypointId === point.id
+      ? [
+          pdfTime(leg.eteSec),
+          hasHold ? `+${pdfTime(legHoldSec(leg))}` : "",
+          `HM ${pdfTime(alternateInfo.holdAvailableSec)}`,
+        ]
+          .filter(Boolean)
+          .join("\n")
+      : fmtWithPlus(
+          pdfTime(leg.eteSec),
+          pdfTime(legHoldSec(leg)),
+          hasHold
+        );
   data[`${prefix}_Cumulative_ETE`] = pdfTime(accTime);
   data[`${prefix}_ETO`] = "";
 
@@ -398,7 +512,12 @@ function putLegPayload(
     fmtPlannedBurnPdf(legHoldBurn(leg)),
     hasHold
   );
-  data[`${prefix}_Estimated_FOB`] = fmtEfobPdf(Number(leg.efobEndL || 0));
+  data[`${prefix}_Estimated_FOB`] =
+    alternateInfo?.markerWaypointId === point.id
+      ? `${fmtEfobPdf(Number(leg.efobEndL || 0))}\nMIN ${fmtEfobPdf(
+          alternateInfo.minimumFuelAtMarkerL
+        )}`
+      : fmtEfobPdf(Number(leg.efobEndL || 0));
 
   data[`${prefix}_Navaid_Identifier`] = formatVorId(navaid);
   data[`${prefix}_Navaid_Frequency`] = formatRadialDist(
@@ -645,6 +764,28 @@ function fieldTextColor(fieldName: string) {
   return rgb(0, 0, 0);
 }
 
+function stampedLineColor(fieldName: string, line: string) {
+  const trimmed = line.trim();
+
+  if (/_Leg_ETE$/i.test(fieldName)) {
+    if (/^HM\b/i.test(trimmed) || /^HOLD MAX\b/i.test(trimmed)) {
+      return rgb(0.05, 0.45, 0.18);
+    }
+
+    if (/^\+/.test(trimmed)) {
+      return rgb(0.75, 0.08, 0.08);
+    }
+
+    return rgb(0.88, 0.34, 0.04);
+  }
+
+  if (/_Estimated_FOB$/i.test(fieldName) && /^MIN\b/i.test(trimmed)) {
+    return rgb(0.05, 0.45, 0.18);
+  }
+
+  return fieldTextColor(fieldName);
+}
+
 function drawStampedField({
   page,
   font,
@@ -681,7 +822,7 @@ function drawStampedField({
       y,
       size,
       font,
-      color: fieldTextColor(fieldName),
+      color: stampedLineColor(fieldName, line),
     });
 
     y -= lineHeight;
@@ -757,6 +898,7 @@ async function fillTemplate({
   totalOnNextRow,
   fillContinuationTotal,
   pagesToKeep,
+  alternateInfo,
 }: {
   url: string;
   header: Record<string, unknown>;
@@ -771,6 +913,7 @@ async function fillTemplate({
   totalOnNextRow: boolean;
   fillContinuationTotal: boolean;
   pagesToKeep?: number;
+  alternateInfo?: AlternatePdfInfo | null;
 }) {
   const pdfDoc = await loadTemplate(url, pagesToKeep);
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
@@ -812,7 +955,8 @@ async function fillTemplate({
       leg,
       accDistance,
       accTime,
-      navlogData
+      navlogData,
+      alternateInfo
     );
   }
 
@@ -856,7 +1000,11 @@ export async function buildNavlogFormPdf({
 }: BuildNavlogFormPdfInput) {
   const legs = calculation.legs;
   const outputPdf = await PDFDocument.create();
-  const header = buildHeaderPayload(setup, waypoints, legs);
+  const alternateInfo = buildAlternatePdfInfo(setup, waypoints, legs);
+  const header = {
+    ...buildHeaderPayload(setup, waypoints, legs),
+    OBSERVATIONS: alternateObservationText(alternateInfo),
+  };
 
   const singlePageLegCapacity = PDF_SINGLE_PAGE_LEG_ROWS - 1;
   const fullTemplateLegCapacity = PDF_FULL_TEMPLATE_LEG_ROWS - 1;
@@ -876,6 +1024,7 @@ export async function buildNavlogFormPdf({
     totalOnNextRow: singlePage,
     fillContinuationTotal: !singlePage,
     pagesToKeep: singlePage ? 1 : undefined,
+    alternateInfo,
   });
 
   await appendPdf(outputPdf, mainDoc);
@@ -898,6 +1047,7 @@ export async function buildNavlogFormPdf({
         firstRowIndex: PDF_CONTINUATION_FIRST_ROW,
         totalOnNextRow: false,
         fillContinuationTotal: true,
+        alternateInfo,
       });
 
       await appendPdf(outputPdf, continuationDoc);

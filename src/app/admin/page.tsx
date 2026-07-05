@@ -245,6 +245,20 @@ export default function AdminUsagePage() {
               {busy ? "Refreshing..." : "Refresh"}
             </button>
 
+            <a
+              href="/admin/performance-graphs"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+            >
+              Performance graph tools
+            </a>
+
+            <a
+              href="/admin/p2006-performance"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
+            >
+              P2006T performance
+            </a>
+
             <button
               type="button"
               onClick={handleLogout}

@@ -1,7 +1,7 @@
 "use client";
 
 import { logUsageEvent } from "@/lib/usage-events";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { WorkflowChecklist, type WorkflowStep } from "@/components/workflow-checklist";
 import { piperRegistrations, tecnamRegistrations } from "@/lib/navlog";
 import {
@@ -314,11 +314,13 @@ function TecnamPerformanceTable({
               </td>
               <td className="px-3 py-3">{row.todaM.toFixed(0)}</td>
               <td className="px-3 py-3">
-                <FitBadge
-                  ok={row.takeoffOk}
-                  margin={row.takeoffMarginM}
-                  pct={row.takeoffPct}
-                />
+                <div className="space-y-1">
+                  <FitBadge
+                    ok={row.takeoffOk}
+                    margin={row.takeoffMarginM}
+                    pct={row.takeoffPct}
+                  />
+                </div>
               </td>
               <td className="px-3 py-3">
                 {row.landing50M.toFixed(0)}
@@ -328,11 +330,13 @@ function TecnamPerformanceTable({
               </td>
               <td className="px-3 py-3">{row.ldaM.toFixed(0)}</td>
               <td className="px-3 py-3">
-                <FitBadge
-                  ok={row.landingOk}
-                  margin={row.landingMarginM}
-                  pct={row.landingPct}
-                />
+                <div className="space-y-1">
+                  <FitBadge
+                    ok={row.landingOk}
+                    margin={row.landingMarginM}
+                    pct={row.landingPct}
+                  />
+                </div>
               </td>
               <td className="px-3 py-3">
                 {row.headwindKt >= 0 ? "HW" : "TW"}{" "}
@@ -345,6 +349,40 @@ function TecnamPerformanceTable({
           ))}
         </tbody>
       </table>
+    </div>
+  );
+}
+
+
+function OmRuleBadge({
+  ok,
+  label,
+  availableM,
+  requiredM,
+  pct,
+}: {
+  ok: boolean;
+  label: string;
+  availableM: number;
+  requiredM: number;
+  pct: number;
+}) {
+  return (
+    <div
+      className={[
+        "rounded-xl border px-3 py-2 text-xs",
+        ok
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-red-200 bg-red-50 text-red-800",
+      ].join(" ")}
+    >
+      <p className="font-semibold">
+        {label}: {ok ? "COMPLIANT" : "NOT COMPLIANT"}
+      </p>
+      <p className="mt-1">
+        Required ≥ {requiredM.toFixed(0)} m · Available{" "}
+        {availableM.toFixed(0)} m · {pct.toFixed(0)}%
+      </p>
     </div>
   );
 }
@@ -364,15 +402,16 @@ function Pa28PerformanceTable({
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-zinc-200">
-      <table className="w-full min-w-[780px] text-left text-sm">
+      <table className="w-full min-w-[1080px] text-left text-sm">
         <thead className="bg-zinc-50 text-xs uppercase tracking-wide text-zinc-500">
           <tr>
             <th className="px-4 py-3">Leg</th>
-            <th className="px-4 py-3">Takeoff (ft)</th>
+            <th className="px-4 py-3">Takeoff 50 ft</th>
             <th className="px-4 py-3">Climb</th>
-            <th className="px-4 py-3">Landing (ft)</th>
-            <th className="px-4 py-3">TODR PDF (m)</th>
-            <th className="px-4 py-3">LDR PDF (m)</th>
+            <th className="px-4 py-3">Landing 50 ft</th>
+            <th className="px-4 py-3">TODR PDF</th>
+            <th className="px-4 py-3">LDR PDF</th>
+            <th className="px-4 py-3">OM/POH 125%</th>
           </tr>
         </thead>
 
@@ -382,15 +421,261 @@ function Pa28PerformanceTable({
               <td className="px-4 py-3 font-medium text-zinc-950">
                 {row.label}
               </td>
+
               <td className="px-4 py-3">{row.toFt.toFixed(0)} ft</td>
               <td className="px-4 py-3">{row.rocFpm.toFixed(0)} fpm</td>
               <td className="px-4 py-3">{row.ldgFt.toFixed(0)} ft</td>
               <td className="px-4 py-3">{row.toMWithPct}</td>
               <td className="px-4 py-3">{row.ldgMWithPct}</td>
+
+              <td className="px-4 py-3">
+                <div className="grid gap-2">
+                  <OmRuleBadge
+                    ok={row.takeoffOmOk}
+                    label="Takeoff"
+                    availableM={row.todaM}
+                    requiredM={row.takeoffOmRequiredM}
+                    pct={row.takeoffOmPct}
+                  />
+
+                  <OmRuleBadge
+                    ok={row.landingOmOk}
+                    label="Landing"
+                    availableM={row.ldaM}
+                    requiredM={row.landingOmRequiredM}
+                    pct={row.landingOmPct}
+                  />
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>
       </table>
+
+      <p className="border-t border-zinc-100 px-4 py-3 text-xs leading-5 text-zinc-500">
+        OM/POH rule used: available distance must exceed required distance by
+        25%. Equivalent landing shorthand: LDR must be ≤ 80% of LDA.
+      </p>
+    </div>
+  );
+}
+
+function Pa28ChartPreviewSvg({
+  chart,
+  fileStem,
+}: {
+  chart: Pa28PerformanceRow["charts"]["takeoff"];
+  fileStem: string;
+}) {
+  const svgRef = useRef<SVGSVGElement | null>(null);
+
+  const pathPoints = chart.trace
+    .map((point) => `${point.x},${point.y}`)
+    .join(" ");
+
+  async function renderPngBlob(scale = 2) {
+    const image = new Image();
+    image.crossOrigin = "anonymous";
+
+    const loaded = new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("Could not load chart image."));
+    });
+
+    image.src = chart.imageUrl;
+    await loaded;
+
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(chart.imageWidth * scale);
+    canvas.height = Math.round(chart.imageHeight * scale);
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+
+    ctx.scale(scale, scale);
+    ctx.drawImage(image, 0, 0, chart.imageWidth, chart.imageHeight);
+
+    if (chart.trace.length > 1) {
+      ctx.lineWidth = 7;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.strokeStyle = "#f59e0b";
+      ctx.beginPath();
+
+      chart.trace.forEach((point, index) => {
+        if (index === 0) {
+          ctx.moveTo(point.x, point.y);
+        } else {
+          ctx.lineTo(point.x, point.y);
+        }
+      });
+
+      ctx.stroke();
+
+      ctx.fillStyle = "#f59e0b";
+      for (const point of chart.trace) {
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, 6, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    return new Promise<Blob | null>((resolve) => {
+      canvas.toBlob((blob) => resolve(blob), "image/png", 0.95);
+    });
+  }
+
+  async function handleSaveImage() {
+    const blob = await renderPngBlob(2.5);
+    if (!blob) return;
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+
+    link.href = url;
+    link.download = `${fileStem}.png`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  async function handleOpenLarge() {
+    const blob = await renderPngBlob(2.5);
+    if (!blob) return;
+
+    const url = URL.createObjectURL(blob);
+    window.open(url, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-3">
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-zinc-950">{chart.title}</p>
+          <p className="text-xs font-semibold text-zinc-500">{chart.valueLabel}</p>
+        </div>
+
+        <div className="flex shrink-0 gap-2">
+          <button
+            type="button"
+            onClick={handleOpenLarge}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+          >
+            Open large
+          </button>
+
+          <button
+            type="button"
+            onClick={handleSaveImage}
+            className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-700 hover:bg-zinc-50"
+          >
+            Save PNG
+          </button>
+        </div>
+      </div>
+
+      <svg
+        ref={svgRef}
+        viewBox={`0 0 ${chart.imageWidth} ${chart.imageHeight}`}
+        className="h-72 w-full rounded-xl bg-zinc-50"
+      >
+        <image
+          href={chart.imageUrl}
+          x={0}
+          y={0}
+          width={chart.imageWidth}
+          height={chart.imageHeight}
+          preserveAspectRatio="xMidYMid meet"
+        />
+
+        {chart.trace.length > 1 ? (
+          <polyline
+            points={pathPoints}
+            fill="none"
+            className="stroke-amber-500"
+            strokeWidth={7}
+            strokeLinejoin="round"
+            strokeLinecap="round"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
+
+        {chart.trace.map((point) => (
+          <g key={`${point.label}-${point.x}-${point.y}`}>
+            <circle
+              cx={point.x}
+              cy={point.y}
+              r={5}
+              className="fill-amber-500"
+              vectorEffect="non-scaling-stroke"
+            />
+          </g>
+        ))}
+      </svg>
+    </div>
+  );
+}
+
+function Pa28VisualPerformanceVerification({
+  rows,
+}: {
+  rows: Pa28PerformanceRow[];
+}) {
+  if (rows.length === 0) return null;
+
+  return (
+    <div className="mt-5 space-y-4">
+      {rows.map((row) => (
+        <details
+          key={`${row.role}-${row.icao}-visual`}
+          className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+        >
+          <summary className="cursor-pointer text-sm font-semibold text-zinc-950">
+            Visual check · {row.label}
+          </summary>
+
+          <div className="mt-4 grid gap-4 xl:grid-cols-3">
+            <Pa28ChartPreviewSvg
+              chart={row.charts.takeoff}
+              fileStem={`${row.label.replace(/\s+/g, "_").toLowerCase()}_takeoff_50ft`}
+            />
+            <Pa28ChartPreviewSvg
+              chart={row.charts.climb}
+              fileStem={`${row.label.replace(/\s+/g, "_").toLowerCase()}_climb`}
+            />
+            <Pa28ChartPreviewSvg
+              chart={row.charts.landing}
+              fileStem={`${row.label.replace(/\s+/g, "_").toLowerCase()}_landing_50ft`}
+            />
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <OmRuleBadge
+              ok={row.takeoffOmOk}
+              label="Takeoff OM/POH 125% rule"
+              availableM={row.todaM}
+              requiredM={row.takeoffOmRequiredM}
+              pct={row.takeoffOmPct}
+            />
+
+            <OmRuleBadge
+              ok={row.landingOmOk}
+              label="Landing OM/POH 125% rule"
+              availableM={row.ldaM}
+              requiredM={row.landingOmRequiredM}
+              pct={row.landingOmPct}
+            />
+          </div>
+
+          <p className="mt-3 text-xs text-zinc-500">
+            Rule used: available distance must exceed required distance by 25%.
+            Equivalent landing shorthand: LDR must be ≤ 80% of LDA.
+          </p>
+        </details>
+      ))}
     </div>
   );
 }
@@ -711,6 +996,8 @@ function ExportPdfSection({
 export function PerformanceClient() {
   const [aircraft, setAircraft] =
     useState<PerformanceAircraft>("Piper PA-28");
+  const [showPa28VisualVerification, setShowPa28VisualVerification] =
+    useState(false);
 
   const registrationOptions =
     aircraft === "Piper PA-28" ? piperRegistrations : tecnamRegistrations;
@@ -1542,6 +1829,29 @@ export function PerformanceClient() {
           <div className="mt-5">
             <Pa28PerformanceTable rows={pa28PerformanceRows} />
           </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() =>
+                setShowPa28VisualVerification((current) => !current)
+              }
+              className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-50"
+            >
+              {showPa28VisualVerification
+                ? "Hide visual performance check"
+                : "Show visual performance check"}
+            </button>
+
+            <p className="text-xs leading-5 text-zinc-500">
+              Uses the operational PA-28 JSON files from src/lib/performance/pa28-graphs.
+              Ground-roll charts are legacy; takeoff and landing checks use over-50-ft distance.
+            </p>
+          </div>
+
+          {showPa28VisualVerification ? (
+            <Pa28VisualPerformanceVerification rows={pa28PerformanceRows} />
+          ) : null}
         </section>
       ) : null}
 

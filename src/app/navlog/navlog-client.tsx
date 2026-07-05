@@ -55,6 +55,26 @@ const NavlogMap = dynamic(
 type BottomMode = "waypoints" | "navlog";
 type SidebarMode = "routes" | "search" | "layers";
 
+
+function isLpfrProcedurePoint(point: NavlogPoint) {
+  return (
+    point.routes.toUpperCase().includes("LPFR") ||
+    point.remarks.toUpperCase().includes("AIRAC 005-26")
+  );
+}
+
+function pointSearchScore(point: NavlogPoint, query: string) {
+  let score = 0;
+
+  if (point.code === query) score += 1000;
+  if (point.code.startsWith(query)) score += 300;
+  if (point.name.toUpperCase().includes(query)) score += 100;
+  if (point.routes.toUpperCase().includes(query)) score += 80;
+  if (isLpfrProcedurePoint(point)) score += 500;
+
+  return score;
+}
+
 const emptyNavlogData: NavlogDataBundle = {
   points: [],
   vors: [],
@@ -145,6 +165,38 @@ function manualPointCode(index: number) {
   return `MAP${String(index + 1).padStart(2, "0")}`;
 }
 
+const FINAL_RESERVE_MIN = 45;
+
+function roundToNearestFiveMinutesSec(seconds: number) {
+  return Math.max(0, Math.round((seconds || 0) / 300) * 300);
+}
+
+
+function holdStatusClass(status: "ok" | "caution" | "blocked") {
+  if (status === "ok") {
+    return "border-sky-200 bg-sky-50 text-sky-800";
+  }
+
+  if (status === "caution") {
+    return "border-amber-200 bg-amber-50 text-amber-800";
+  }
+
+  return "border-red-200 bg-red-50 text-red-800";
+}
+
+function holdMaxClass(status: string) {
+  if (status === "blocked") {
+    return "border-red-200 bg-red-50 !text-red-800";
+  }
+
+  if (status === "caution") {
+    return "border-amber-200 bg-amber-50 !text-amber-800";
+  }
+
+  return "border-emerald-300 bg-emerald-50 !text-emerald-800";
+}
+
+
 function SidebarTabButton({
   active,
   label,
@@ -220,6 +272,73 @@ export function NavlogClient() {
     () => navlogSummary(calculation.legs),
     [calculation.legs]
   );
+
+  const alternatePlanning = useMemo(() => {
+    const markerIndex = routeWaypoints.findIndex(
+      (waypoint) => waypoint.alternateMarker === true
+    );
+
+    if (markerIndex < 0 || calculation.legs.length === 0) {
+      return null;
+    }
+
+    const markerWaypoint = routeWaypoints[markerIndex];
+    const markerLegIndex = calculation.legs.findIndex(
+      (leg) => leg.to.id === markerWaypoint.id
+    );
+
+    if (markerLegIndex < 0) {
+      return null;
+    }
+
+    const destinationLeg = calculation.legs[markerLegIndex];
+    const alternateLegs = calculation.legs.slice(markerLegIndex + 1);
+    const alternateTripFuelL = alternateLegs.reduce(
+      (sum, leg) => sum + leg.burnL + leg.holdBurnL,
+      0
+    );
+    const alternateTripSecRaw = alternateLegs.reduce(
+      (sum, leg) => sum + leg.eteSec + leg.holdSec,
+      0
+    );
+    const alternateTripSec = roundToNearestFiveMinutesSec(alternateTripSecRaw);
+    const finalReserveFuelL = (setup.fuelFlowLh * FINAL_RESERVE_MIN) / 60;
+    const minimumFuelAtMarkerL = alternateTripFuelL + finalReserveFuelL;
+    const destinationArrivalEfobL = destinationLeg.efobAfterLegL;
+    const plannedHoldFuelL = destinationLeg.holdBurnL;
+    const holdAvailableFuelL =
+      destinationArrivalEfobL - alternateTripFuelL - finalReserveFuelL;
+    const holdAvailableSecRaw =
+      setup.fuelFlowLh > 0
+        ? Math.max(0, (holdAvailableFuelL / setup.fuelFlowLh) * 3600)
+        : 0;
+    const holdAvailableSec = roundToNearestFiveMinutesSec(holdAvailableSecRaw);
+    const fuelAfterPlannedHoldL = holdAvailableFuelL - plannedHoldFuelL;
+
+    const status =
+      holdAvailableFuelL < 0
+        ? "blocked"
+        : fuelAfterPlannedHoldL < 0
+          ? "caution"
+          : "ok";
+
+    return {
+      markerWaypointId: markerWaypoint.id,
+      markerCode:
+        markerWaypoint.point.code || markerWaypoint.point.name || "Arrival",
+      markerIndex,
+      destinationArrivalEfobL,
+      alternateTripFuelL,
+      alternateTripSec,
+      finalReserveFuelL,
+      minimumFuelAtMarkerL,
+      holdAvailableFuelL,
+      holdAvailableSec,
+      plannedHoldFuelL,
+      fuelAfterPlannedHoldL,
+      status,
+    };
+  }, [calculation.legs, routeWaypoints, setup.fuelFlowLh]);
 
   const calculatedOnBlockClock = calculation.legs.at(-1)?.clockEnd ?? "";
 
@@ -345,9 +464,11 @@ export function NavlogClient() {
           point.code.includes(query) ||
           point.name.toUpperCase().includes(query) ||
           point.src.includes(query) ||
-          point.routes.toUpperCase().includes(query)
+          point.routes.toUpperCase().includes(query) ||
+          point.remarks.toUpperCase().includes(query)
         );
       })
+      .sort((a, b) => pointSearchScore(b, query) - pointSearchScore(a, query))
       .slice(0, 14);
   }, [navlogData, pointSearch]);
 
@@ -656,6 +777,16 @@ export function NavlogClient() {
   }
 
 
+  function toggleAlternateMarker(id: string) {
+    setRouteWaypoints((current) =>
+      current.map((waypoint) => ({
+        ...waypoint,
+        alternateMarker:
+          waypoint.id === id ? !waypoint.alternateMarker : false,
+      }))
+    );
+  }
+
   function removeWaypoint(id: string) {
     setRouteWaypoints((current) =>
       current.filter((waypoint) => waypoint.id !== id)
@@ -902,6 +1033,7 @@ export function NavlogClient() {
           vorIdent: waypoint.vorIdent,
           note: waypoint.note,
           suppressAutoVertical: waypoint.suppressAutoVertical ?? false,
+          alternateMarker: waypoint.alternateMarker === true,
         })),
         legs: calculation.legs.map((leg) => ({
           from: leg.from.code || leg.from.name,
@@ -1586,10 +1718,12 @@ export function NavlogClient() {
                                 <p className="mt-0.5 truncate text-xs text-zinc-500">
                                   {point.name}
                                 </p>
-                                <p className="mt-0.5 text-xs text-zinc-400">
-                                  {point.src} · {point.lat.toFixed(5)},{" "}
-                                  {point.lon.toFixed(5)}
-                                </p>
+                                <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-zinc-400">
+                                  <span>
+                                    {point.src} · {point.lat.toFixed(5)},{" "}
+                                    {point.lon.toFixed(5)}
+                                  </span>
+                                </div>
                               </div>
 
                               <button
@@ -1931,6 +2065,79 @@ export function NavlogClient() {
           </div>
         </div>
 
+        {alternatePlanning ? (
+          <div
+            className={[
+              "mx-4 mb-4 rounded-2xl border p-4 text-sm shadow-sm",
+              holdMaxClass(alternatePlanning.status),
+            ].join(" ")}
+          >
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide">
+                  Alternate holding check
+                </p>
+                <p className="mt-1 font-semibold">
+                  Arrival marker: {alternatePlanning.markerCode}
+                </p>
+                <p className="mt-1 leading-6">
+                  You may hold for{" "}
+                  <span className="font-bold">
+                    {formatDuration(alternatePlanning.holdAvailableSec)}
+                  </span>{" "}
+                  before continuing to the alternate while preserving the
+                  45 min final reserve.
+                </p>
+              </div>
+
+              <div className="grid gap-2 text-xs sm:grid-cols-2 lg:min-w-[520px]">
+                <p>
+                  Destination EFOB:{" "}
+                  <span className="font-semibold">
+                    {formatFuelDisplay(alternatePlanning.destinationArrivalEfobL)}
+                  </span>
+                </p>
+                <p>
+                  Alternate fuel:{" "}
+                  <span className="font-semibold">
+                    {formatFuelDisplay(alternatePlanning.alternateTripFuelL)}
+                  </span>
+                </p>
+                <p>
+                  Final reserve 45 min:{" "}
+                  <span className="font-semibold">
+                    {formatFuelDisplay(alternatePlanning.finalReserveFuelL)}
+                  </span>
+                </p>
+                <p>
+                  Minimum FOB at marker:{" "}
+                  <span className="font-semibold text-emerald-800">
+                    {formatFuelDisplay(alternatePlanning.minimumFuelAtMarkerL)}
+                  </span>
+                </p>
+                <p>
+                  Planned hold here:{" "}
+                  <span className="font-semibold">
+                    {formatFuelDisplay(alternatePlanning.plannedHoldFuelL)}
+                  </span>
+                </p>
+                <p>
+                  Alternate time:{" "}
+                  <span className="font-semibold">
+                    {formatDuration(alternatePlanning.alternateTripSec)}
+                  </span>
+                </p>
+                <p>
+                  Fuel after planned hold margin:{" "}
+                  <span className="font-semibold">
+                    {formatFuelDisplay(alternatePlanning.fuelAfterPlannedHoldL)}
+                  </span>
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {bottomMode === "waypoints" ? (
           <div className="overflow-hidden">
             {routeWaypoints.length === 0 ? (
@@ -2050,7 +2257,7 @@ export function NavlogClient() {
                       const { waypoint, index } = row;
 
                       return (
-                        <tr key={waypoint.id}>
+                        <tr key={waypoint.id} className={waypoint.alternateMarker ? "bg-sky-100/80 ring-1 ring-inset ring-sky-200" : undefined}>
                           <td className="px-4 py-3 align-top text-zinc-500">
                             {index + 1}
                           </td>
@@ -2079,9 +2286,17 @@ export function NavlogClient() {
                                 className="w-44 rounded-lg border border-zinc-200 px-2 py-1.5 text-xs text-zinc-600 outline-none focus:border-zinc-400"
                               />
 
-                              <p className="text-xs text-zinc-400">
-                                {waypoint.point.src}
-                              </p>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-xs text-zinc-400">
+                                  {waypoint.point.src}
+                                </p>
+
+                                {waypoint.alternateMarker ? (
+                                  <span className="rounded-full border border-sky-200 bg-sky-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-sky-700">
+                                    Alternate starts here
+                                  </span>
+                                ) : null}
+                              </div>
                             </div>
                           </td>
 
@@ -2112,6 +2327,20 @@ export function NavlogClient() {
                               }
                               className="w-20 rounded-lg border border-zinc-200 px-2 py-1.5 outline-none focus:border-zinc-400"
                             />
+
+                            {waypoint.alternateMarker && alternatePlanning ? (
+                              <div
+                                className={[
+                                  "mt-2 rounded-xl border px-2 py-1 text-xs font-semibold",
+                                  holdMaxClass(alternatePlanning.status),
+                                ].join(" ")}
+                              >
+                                HOLD MAX {formatDuration(alternatePlanning.holdAvailableSec)}
+                                <span className="block font-normal">
+                                  {formatFuelDisplay(alternatePlanning.holdAvailableFuelL)} before alternate + 45 min reserve
+                                </span>
+                              </div>
+                            ) : null}
                           </td>
 
                           <td className="px-4 py-3 align-top">
@@ -2231,6 +2460,21 @@ export function NavlogClient() {
 
                               <button
                                 type="button"
+                                onClick={() => toggleAlternateMarker(waypoint.id)}
+                                className={[
+                                  "rounded-lg px-2 py-1 text-xs font-semibold transition",
+                                  waypoint.alternateMarker
+                                    ? "bg-sky-100 text-sky-800 hover:bg-sky-200"
+                                    : "border border-sky-200 text-sky-700 hover:bg-sky-50",
+                                ].join(" ")}
+                              >
+                                {waypoint.alternateMarker
+                                  ? "Unset alternate"
+                                  : "Start alternate"}
+                              </button>
+
+                              <button
+                                type="button"
                                 onClick={() => removeWaypoint(waypoint.id)}
                                 className="rounded-lg px-2 py-1 text-xs font-medium text-red-600 hover:bg-zinc-50"
                               >
@@ -2305,12 +2549,41 @@ export function NavlogClient() {
                         <td className="px-3 py-3">{leg.tas.toFixed(0)}</td>
                         <td className="px-3 py-3">{leg.gs.toFixed(0)}</td>
                         <td className="px-3 py-3">{leg.distNm.toFixed(1)}</td>
-                        <td className="px-3 py-3 font-semibold text-orange-600">
-                          {formatDuration(leg.eteSec)}
+                        <td className="px-3 py-3">
+                          <div className="space-y-1">
+                            <p className="font-semibold text-orange-600">
+                              {formatDuration(leg.eteSec)}
+                            </p>
+
+                            {leg.holdSec > 0 ? (
+                              <p className="inline-flex rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700">
+                                +{formatDuration(leg.holdSec)} hold
+                              </p>
+                            ) : null}
+
+                            {alternatePlanning?.markerWaypointId === leg.to.id ? (
+                              <p
+                                className={[
+                                  "inline-flex rounded-full border px-2 py-0.5 text-xs font-semibold",
+                                  holdMaxClass(alternatePlanning.status),
+                                ].join(" ")}
+                              >
+                                HM {formatDuration(alternatePlanning.holdAvailableSec)}
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-3">{formatFuelDisplay(leg.burnL)}</td>
                         <td className="px-3 py-3">
-                          {formatFuelDisplay(leg.efobEndL)}
+                          <div className="space-y-1">
+                            <p>{formatFuelDisplay(leg.efobEndL)}</p>
+
+                            {alternatePlanning?.markerWaypointId === leg.to.id ? (
+                              <p className="inline-flex rounded-full border border-emerald-300 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-800">
+                                MIN {formatFuelDisplay(alternatePlanning.minimumFuelAtMarkerL)}
+                              </p>
+                            ) : null}
+                          </div>
                         </td>
                         <td className="px-3 py-3">
                           {leg.clockStart} → {leg.clockArrive}
