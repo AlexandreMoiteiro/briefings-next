@@ -40,6 +40,7 @@ type VfrKmzOverlayItem = {
 };
 
 type VfrKmzManifest = {
+  levels?: number[];
   overlays: VfrKmzOverlayItem[];
 };
 
@@ -188,13 +189,24 @@ function FlyToSelectedPoint({ point }: { point: NavlogPoint | null }) {
   return null;
 }
 
-function getKmzLevelForZoom(zoom: number) {
+function getKmzTargetLevelForZoom(zoom: number) {
   if (zoom <= 6) return 3;
   if (zoom === 7) return 4;
   if (zoom === 8) return 5;
   if (zoom === 9) return 6;
 
   return 7;
+}
+
+function getBestAvailableKmzLevel(zoom: number, availableLevels?: number[]) {
+  const targetLevel = getKmzTargetLevelForZoom(zoom);
+
+  if (!availableLevels?.length) return targetLevel;
+
+  const sortedLevels = [...availableLevels].sort((a, b) => a - b);
+  const lowerOrEqualLevels = sortedLevels.filter((level) => level <= targetLevel);
+
+  return lowerOrEqualLevels.at(-1) ?? sortedLevels[0] ?? targetLevel;
 }
 
 function overlayIntersectsBounds(
@@ -269,7 +281,7 @@ function VfrKmzImageOverlay({
   const visibleOverlays = useMemo(() => {
     if (!manifest) return [];
 
-    const level = getKmzLevelForZoom(view.zoom);
+    const level = getBestAvailableKmzLevel(view.zoom, manifest.levels);
 
     return manifest.overlays
       .filter((overlay) => overlay.level === level)
