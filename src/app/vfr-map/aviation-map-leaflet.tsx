@@ -40,6 +40,11 @@ type VfrKmzOverlayItem = {
   west: number;
 };
 
+type VfrKmzVisibleOverlay = VfrKmzOverlayItem & {
+  renderPass: "fallback" | "detail";
+  zIndex: number;
+};
+
 type VfrKmzManifest = {
   levels?: number[];
   overlays: VfrKmzOverlayItem[];
@@ -210,6 +215,12 @@ function getBestAvailableKmzLevel(zoom: number, availableLevels?: number[]) {
   return lowerOrEqualLevels.at(-1) ?? sortedLevels[0] ?? targetLevel;
 }
 
+function getFallbackKmzLevel(availableLevels?: number[]) {
+  if (!availableLevels?.length) return null;
+
+  return [...availableLevels].sort((a, b) => a - b)[0] ?? null;
+}
+
 function overlayIntersectsBounds(
   overlay: VfrKmzOverlayItem,
   bounds: LatLngBounds
@@ -222,8 +233,24 @@ function overlayIntersectsBounds(
   );
 }
 
-function getOverlayKey(overlay: VfrKmzOverlayItem, index: number) {
+function getVisibleOverlaysForLevel(
+  manifest: VfrKmzManifest,
+  bounds: LatLngBounds,
+  level: number,
+  renderPass: VfrKmzVisibleOverlay["renderPass"],
+  zIndex: number,
+  maxItems: number
+): VfrKmzVisibleOverlay[] {
+  return manifest.overlays
+    .filter((overlay) => overlay.level === level)
+    .filter((overlay) => overlayIntersectsBounds(overlay, bounds))
+    .slice(0, maxItems)
+    .map((overlay) => ({ ...overlay, renderPass, zIndex }));
+}
+
+function getOverlayKey(overlay: VfrKmzVisibleOverlay, index: number) {
   return [
+    overlay.renderPass,
     overlay.href,
     overlay.level,
     overlay.south,
@@ -294,12 +321,29 @@ function VfrKmzImageOverlay({
   const visibleOverlays = useMemo(() => {
     if (!manifest) return [];
 
-    const level = getBestAvailableKmzLevel(view.zoom, manifest.levels);
+    const detailLevel = getBestAvailableKmzLevel(view.zoom, manifest.levels);
+    const fallbackLevel = getFallbackKmzLevel(manifest.levels);
+    const fallbackOverlays =
+      fallbackLevel !== null && fallbackLevel !== detailLevel
+        ? getVisibleOverlaysForLevel(
+            manifest,
+            view.bounds,
+            fallbackLevel,
+            "fallback",
+            210,
+            80
+          )
+        : [];
+    const detailOverlays = getVisibleOverlaysForLevel(
+      manifest,
+      view.bounds,
+      detailLevel,
+      "detail",
+      220,
+      260
+    );
 
-    return manifest.overlays
-      .filter((overlay) => overlay.level === level)
-      .filter((overlay) => overlayIntersectsBounds(overlay, view.bounds))
-      .slice(0, 220);
+    return [...fallbackOverlays, ...detailOverlays];
   }, [manifest, view.bounds, view.zoom]);
 
   return (
@@ -312,9 +356,9 @@ function VfrKmzImageOverlay({
             [overlay.south, overlay.west],
             [overlay.north, overlay.east],
           ]}
-          opacity={opacity}
+          opacity={overlay.renderPass === "fallback" ? Math.min(opacity, 0.55) : opacity}
           url={resolveManifestAssetUrl(manifestUrl, overlay.href)}
-          zIndex={220}
+          zIndex={overlay.zIndex}
         />
       ))}
     </>
@@ -417,8 +461,7 @@ export function AviationMapLeaflet({
                     <p className="text-sm font-semibold">{point.code}</p>
                     <p className="text-xs text-zinc-600">{point.name}</p>
                     <p className="mt-1 text-xs text-zinc-500">
-                      {point.src} · {point.lat.toFixed(5)},{" "}
-                      {point.lon.toFixed(5)}
+                      {point.src} · {point.lat.toFixed(5)}, {point.lon.toFixed(5)}
                     </p>
                   </div>
 
