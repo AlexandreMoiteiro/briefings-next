@@ -1,17 +1,20 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ImageOverlay,
   MapContainer,
   Marker,
   Popup,
   TileLayer,
   Tooltip,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import {
   divIcon,
   type DivIcon,
+  type LatLngBounds,
   type LatLngBoundsExpression,
   type LatLngExpression,
 } from "leaflet";
@@ -27,6 +30,19 @@ type AviationMapLeafletProps = {
   showVfrChart: boolean;
 };
 
+type VfrKmzOverlayItem = {
+  href: string;
+  level: number;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
+type VfrKmzManifest = {
+  overlays: VfrKmzOverlayItem[];
+};
+
 const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
 
 const openAipTilesUrl = openAipApiKey
@@ -35,6 +51,10 @@ const openAipTilesUrl = openAipApiKey
 
 const vfrChartTilesUrl = (
   process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? ""
+).trim();
+
+const vfrChartManifestUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? ""
 ).trim();
 
 const vfrChartAttribution =
@@ -168,6 +188,114 @@ function FlyToSelectedPoint({ point }: { point: NavlogPoint | null }) {
   return null;
 }
 
+function getKmzLevelForZoom(zoom: number) {
+  if (zoom <= 6) return 3;
+  if (zoom === 7) return 4;
+  if (zoom === 8) return 5;
+  if (zoom === 9) return 6;
+
+  return 7;
+}
+
+function overlayIntersectsBounds(
+  overlay: VfrKmzOverlayItem,
+  bounds: LatLngBounds
+) {
+  return (
+    overlay.south <= bounds.getNorth() &&
+    overlay.north >= bounds.getSouth() &&
+    overlay.west <= bounds.getEast() &&
+    overlay.east >= bounds.getWest()
+  );
+}
+
+function resolveManifestAssetUrl(manifestUrl: string, assetHref: string) {
+  if (typeof window === "undefined") return assetHref;
+
+  const absoluteManifestUrl = new URL(manifestUrl, window.location.href);
+
+  return new URL(assetHref, absoluteManifestUrl).toString();
+}
+
+function VfrKmzImageOverlay({
+  manifestUrl,
+  opacity,
+}: {
+  manifestUrl: string;
+  opacity: number;
+}) {
+  const map = useMap();
+  const [manifest, setManifest] = useState<VfrKmzManifest | null>(null);
+  const [view, setView] = useState(() => ({
+    bounds: map.getBounds(),
+    zoom: map.getZoom(),
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadManifest() {
+      const response = await fetch(manifestUrl);
+
+      if (!response.ok) {
+        throw new Error(`Could not load VFR chart manifest: ${response.status}`);
+      }
+
+      const loaded = (await response.json()) as VfrKmzManifest;
+
+      if (!cancelled) {
+        setManifest(loaded);
+      }
+    }
+
+    loadManifest().catch((error) => {
+      console.error(error);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manifestUrl]);
+
+  useMapEvents({
+    moveend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+    zoomend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+  });
+
+  const visibleOverlays = useMemo(() => {
+    if (!manifest) return [];
+
+    const level = getKmzLevelForZoom(view.zoom);
+
+    return manifest.overlays
+      .filter((overlay) => overlay.level === level)
+      .filter((overlay) => overlayIntersectsBounds(overlay, view.bounds))
+      .slice(0, 220);
+  }, [manifest, view.bounds, view.zoom]);
+
+  return (
+    <>
+      {visibleOverlays.map((overlay) => (
+        <ImageOverlay
+          key={overlay.href}
+          attribution={vfrChartAttribution}
+          bounds={[
+            [overlay.south, overlay.west],
+            [overlay.north, overlay.east],
+          ]}
+          opacity={opacity}
+          url={resolveManifestAssetUrl(manifestUrl, overlay.href)}
+          zIndex={220}
+        />
+      ))}
+    </>
+  );
+}
+
 export function AviationMapLeaflet({
   points,
   activeLayers,
@@ -215,6 +343,13 @@ export function AviationMapLeaflet({
             opacity={vfrChartOpacity}
             url={vfrChartTilesUrl}
             zIndex={220}
+          />
+        ) : null}
+
+        {showVfrChart && !vfrChartTilesUrl && vfrChartManifestUrl ? (
+          <VfrKmzImageOverlay
+            manifestUrl={vfrChartManifestUrl}
+            opacity={vfrChartOpacity}
           />
         ) : null}
 
