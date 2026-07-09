@@ -13,6 +13,7 @@ import {
 } from "react-leaflet";
 import { divIcon, latLngBounds, type DivIcon } from "leaflet";
 import type { LatLngExpression } from "leaflet";
+import { buildNavlogRouteMapPdf } from "@/lib/pdf/navlog-route-map-pdf";
 import type {
   NavlogPoint,
   NavlogReferenceLayer,
@@ -58,6 +59,29 @@ const openAipTilesUrl = openAipApiKey
 
 function navlogMapPointKey(point: NavlogPoint) {
   return `${point.src}:${point.code.trim().toUpperCase()}:${point.lat.toFixed(6)}:${point.lon.toFixed(6)}`;
+}
+
+function downloadBinaryFile(bytes: Uint8Array, filename: string, mime: string) {
+  const arrayBuffer = bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength
+  ) as ArrayBuffer;
+
+  const blob = new Blob([arrayBuffer], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+
+  URL.revokeObjectURL(url);
+}
+
+function safeFilenameToken(value: string) {
+  return value.trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "ROUTE";
 }
 
 function InvalidateMapSize() {
@@ -271,6 +295,7 @@ function makeIcon(src: string, emphasized = false): DivIcon {
 
 export function NavlogMap({
   points,
+  routeWaypoints,
   calculatedNodes,
   searchQuery,
   showReferencePoints,
@@ -332,8 +357,42 @@ export function NavlogMap({
 
   const shouldLabelReferencePoints = searchQuery.trim().length > 0;
 
+  async function exportRouteMapPdf() {
+    if (calculatedNodes.length < 2) return;
+
+    const bytes = await buildNavlogRouteMapPdf({
+      routeWaypoints,
+      calculatedNodes,
+    });
+    const firstPoint = routeWaypoints[0]?.point.code || routeWaypoints[0]?.point.name || "ROUTE";
+    const lastPoint = routeWaypoints.at(-1)?.point.code || routeWaypoints.at(-1)?.point.name || "MAP";
+    const filename = `ROUTE_MAP_${safeFilenameToken(firstPoint)}_${safeFilenameToken(lastPoint)}_${new Date().toISOString().slice(0, 10)}.pdf`;
+
+    downloadBinaryFile(bytes, filename, "application/pdf");
+  }
+
   return (
     <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+            Route map
+          </p>
+          <p className="text-sm text-zinc-500">
+            Plot the calculated route on the map and export a simple route-map PDF.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={exportRouteMapPdf}
+          disabled={calculatedNodes.length < 2}
+          className="rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
+        >
+          Download route map PDF
+        </button>
+      </div>
+
       <div className="h-[720px] bg-zinc-100">
         <MapContainer
           center={center}
