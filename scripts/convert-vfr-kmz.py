@@ -147,8 +147,8 @@ def main() -> int:
     parser.add_argument(
         "--max-level",
         type=int,
-        default=7,
-        help="Highest KMZ pyramid level to convert.",
+        default=6,
+        help="Highest KMZ pyramid level to convert. Use 6 by default to avoid corrupted high-resolution L7 members in some KMZ downloads.",
     )
     parser.add_argument(
         "--workers",
