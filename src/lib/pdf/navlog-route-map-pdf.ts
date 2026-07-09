@@ -8,16 +8,24 @@ import {
   rectangle,
   rgb,
 } from "pdf-lib";
-import type { NavlogRouteNode, NavlogRouteWaypoint } from "@/lib/navlog";
+import type { NavlogRouteWaypoint } from "@/lib/navlog";
 
 type MapSourceMode = "standard" | "vfr-chart";
 
 type BuildNavlogRouteMapPdfInput = {
   routeWaypoints: NavlogRouteWaypoint[];
-  calculatedNodes: NavlogRouteNode[];
+  calculatedNodes: unknown[];
   mapSourceMode?: MapSourceMode;
   vfrChartManifestUrl?: string;
   vfrChartManifestLevel?: number | null;
+};
+
+type PlotNode = {
+  id: string;
+  code: string;
+  name: string;
+  lat: number;
+  lon: number;
 };
 
 type PlotPoint = {
@@ -55,7 +63,7 @@ type VfrKmzManifest = {
 
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
-const MAP_FRAME: PlotFrame = { x: 36, y: 42, width: 770, height: 486 };
+const MAP_FRAME: PlotFrame = { x: 24, y: 24, width: 794, height: 547 };
 
 function safeText(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -63,23 +71,23 @@ function safeText(value: unknown) {
   return String(value).replace(/[\n\r]+/g, " ").trim();
 }
 
-function nodeLabel(node: NavlogRouteNode) {
+function nodeLabel(node: PlotNode) {
   return safeText(node.code || node.name || "WP").slice(0, 18);
 }
 
-function routeLabel(routeWaypoints: NavlogRouteWaypoint[]) {
-  const labels = routeWaypoints
-    .map((waypoint) => waypoint.point.code || waypoint.point.name)
-    .map((label) => safeText(label).toUpperCase())
-    .filter(Boolean);
-
-  if (labels.length === 0) return "Working route";
-  if (labels.length <= 8) return labels.join(" - ");
-
-  return `${labels.slice(0, 5).join(" - ")} - ... - ${labels.at(-1)}`;
+function getPlottedRouteNodes(routeWaypoints: NavlogRouteWaypoint[]): PlotNode[] {
+  return routeWaypoints
+    .map((waypoint, index) => ({
+      id: waypoint.id || `wp-${index}`,
+      code: waypoint.point.code || waypoint.point.name || `WP${index + 1}`,
+      name: waypoint.point.name || waypoint.point.code || `WP${index + 1}`,
+      lat: waypoint.point.lat,
+      lon: waypoint.point.lon,
+    }))
+    .filter((node) => Number.isFinite(node.lat) && Number.isFinite(node.lon));
 }
 
-function expandRouteBounds(nodes: NavlogRouteNode[]): GeoBounds {
+function expandRouteBounds(nodes: PlotNode[]): GeoBounds {
   const latitudes = nodes.map((node) => node.lat);
   const longitudes = nodes.map((node) => node.lon);
   const north = Math.max(...latitudes);
@@ -220,7 +228,7 @@ async function drawVfrChartBackground({
   const overlays = manifest.overlays
     .filter((overlay) => overlay.level === level)
     .filter((overlay) => overlayIntersectsBounds(overlay, bounds))
-    .slice(0, 180);
+    .slice(0, 220);
 
   let drawn = 0;
 
@@ -286,34 +294,14 @@ function drawNorthArrow(page: any, boldFont: any) {
 
 export async function buildNavlogRouteMapPdf({
   routeWaypoints,
-  calculatedNodes,
   mapSourceMode = "standard",
   vfrChartManifestUrl = "",
   vfrChartManifestLevel = null,
 }: BuildNavlogRouteMapPdfInput) {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
-  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const nodes = calculatedNodes.filter(
-    (node) => Number.isFinite(node.lat) && Number.isFinite(node.lon)
-  );
-
-  page.drawText("Route map", {
-    x: 36,
-    y: 558,
-    size: 18,
-    font: boldFont,
-    color: rgb(0.05, 0.05, 0.05),
-  });
-
-  page.drawText(routeLabel(routeWaypoints), {
-    x: 36,
-    y: 538,
-    size: 9,
-    font: regularFont,
-    color: rgb(0.25, 0.25, 0.25),
-  });
+  const nodes = getPlottedRouteNodes(routeWaypoints);
 
   page.drawRectangle({
     x: MAP_FRAME.x,
@@ -325,18 +313,9 @@ export async function buildNavlogRouteMapPdf({
     borderWidth: 0.8,
   });
 
-  if (nodes.length < 2) {
-    page.drawText("Build a route with at least two plotted points.", {
-      x: MAP_FRAME.x + 24,
-      y: MAP_FRAME.y + MAP_FRAME.height / 2,
-      size: 12,
-      font: regularFont,
-      color: rgb(0.45, 0.45, 0.45),
-    });
-  } else {
+  if (nodes.length >= 2) {
     const bounds = expandRouteBounds(nodes);
     const project = buildProjector(bounds, MAP_FRAME);
-    const userWaypointIds = new Set(routeWaypoints.map((waypoint) => waypoint.id));
 
     if (mapSourceMode === "vfr-chart" && vfrChartManifestUrl) {
       await drawVfrChartBackground({
@@ -355,42 +334,38 @@ export async function buildNavlogRouteMapPdf({
       page.drawLine({
         start: positions[i - 1],
         end: positions[i],
-        thickness: 3.4,
+        thickness: 3.6,
         color: rgb(0.95, 0.12, 0.08),
-        opacity: 0.9,
+        opacity: 0.92,
       });
       page.drawLine({
         start: positions[i - 1],
         end: positions[i],
-        thickness: 1.25,
+        thickness: 1.35,
         color: rgb(1, 1, 1),
-        opacity: 0.95,
+        opacity: 0.98,
       });
     }
 
     nodes.forEach((node, index) => {
       const position = positions[index];
-      const isUserWaypoint = userWaypointIds.has(node.id);
-      const isEndpoint = index === 0 || index === nodes.length - 1;
 
       page.drawCircle({
         x: position.x,
         y: position.y,
-        size: isUserWaypoint ? 4.8 : 3,
+        size: 4.8,
         color: rgb(1, 1, 1),
         borderColor: rgb(0.05, 0.05, 0.05),
-        borderWidth: isUserWaypoint ? 1.1 : 0.8,
+        borderWidth: 1.1,
       });
 
-      if (isUserWaypoint || isEndpoint) {
-        page.drawText(nodeLabel(node), {
-          x: position.x + 6,
-          y: position.y + 6,
-          size: 7.5,
-          font: boldFont,
-          color: rgb(0.02, 0.02, 0.02),
-        });
-      }
+      page.drawText(nodeLabel(node), {
+        x: position.x + 6,
+        y: position.y + (index % 2 === 0 ? 6 : -12),
+        size: 7.5,
+        font: boldFont,
+        color: rgb(0.02, 0.02, 0.02),
+      });
     });
   }
 
