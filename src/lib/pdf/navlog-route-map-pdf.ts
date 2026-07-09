@@ -17,6 +17,7 @@ type BuildNavlogRouteMapPdfInput = {
   calculatedNodes: NavlogRouteNode[];
   mapSourceMode?: MapSourceMode;
   vfrChartManifestUrl?: string;
+  vfrChartManifestLevel?: number | null;
 };
 
 type PlotPoint = {
@@ -54,7 +55,7 @@ type VfrKmzManifest = {
 
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
-const MAP_FRAME: PlotFrame = { x: 36, y: 58, width: 770, height: 468 };
+const MAP_FRAME: PlotFrame = { x: 36, y: 42, width: 770, height: 486 };
 
 function safeText(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -85,16 +86,27 @@ function expandRouteBounds(nodes: NavlogRouteNode[]): GeoBounds {
   const south = Math.min(...latitudes);
   const east = Math.max(...longitudes);
   const west = Math.min(...longitudes);
-  const latSpan = Math.max(0.12, north - south);
-  const lonSpan = Math.max(0.12, east - west);
-  const latMargin = Math.max(0.08, latSpan * 0.35);
-  const lonMargin = Math.max(0.08, lonSpan * 0.35);
+  const centerLat = (north + south) / 2;
+  const centerLon = (east + west) / 2;
+  const meanLatRad = (centerLat * Math.PI) / 180;
+  const cosMeanLat = Math.max(0.25, Math.cos(meanLatRad));
+  const frameAspect = MAP_FRAME.width / MAP_FRAME.height;
+
+  let latSpan = Math.max(0.22, north - south) * 1.35;
+  let lonSpan = Math.max(0.22, east - west) * 1.35;
+  const projectedAspect = (lonSpan * cosMeanLat) / latSpan;
+
+  if (projectedAspect < frameAspect) {
+    lonSpan = (frameAspect * latSpan) / cosMeanLat;
+  } else {
+    latSpan = (lonSpan * cosMeanLat) / frameAspect;
+  }
 
   return {
-    north: north + latMargin,
-    south: south - latMargin,
-    east: east + lonMargin,
-    west: west - lonMargin,
+    north: centerLat + latSpan / 2,
+    south: centerLat - latSpan / 2,
+    east: centerLon + lonSpan / 2,
+    west: centerLon - lonSpan / 2,
   };
 }
 
@@ -141,12 +153,22 @@ function overlayIntersectsBounds(overlay: VfrKmzOverlayItem, bounds: GeoBounds) 
   );
 }
 
-function getBestVfrLevel(manifest: VfrKmzManifest) {
+function getBestVfrLevel(
+  manifest: VfrKmzManifest,
+  preferredLevel?: number | null
+) {
   const levels = manifest.levels?.length
     ? manifest.levels
     : Array.from(new Set(manifest.overlays.map((overlay) => overlay.level)));
+  const sortedLevels = [...levels].sort((a, b) => a - b);
 
-  return [...levels].sort((a, b) => a - b).at(-1) ?? null;
+  if (preferredLevel !== null && preferredLevel !== undefined) {
+    return sortedLevels.includes(preferredLevel)
+      ? preferredLevel
+      : sortedLevels.at(-1) ?? null;
+  }
+
+  return sortedLevels.at(-1) ?? null;
 }
 
 async function fetchJson<T>(url: string): Promise<T | null> {
@@ -176,12 +198,14 @@ async function drawVfrChartBackground({
   pdfDoc,
   page,
   manifestUrl,
+  manifestLevel,
   bounds,
   project,
 }: {
   pdfDoc: PDFDocument;
   page: any;
   manifestUrl: string;
+  manifestLevel?: number | null;
   bounds: GeoBounds;
   project: (lat: number, lon: number) => PlotPoint;
 }) {
@@ -189,14 +213,14 @@ async function drawVfrChartBackground({
 
   if (!manifest) return 0;
 
-  const level = getBestVfrLevel(manifest);
+  const level = getBestVfrLevel(manifest, manifestLevel);
 
   if (level === null) return 0;
 
   const overlays = manifest.overlays
     .filter((overlay) => overlay.level === level)
     .filter((overlay) => overlayIntersectsBounds(overlay, bounds))
-    .slice(0, 80);
+    .slice(0, 180);
 
   let drawn = 0;
 
@@ -265,6 +289,7 @@ export async function buildNavlogRouteMapPdf({
   calculatedNodes,
   mapSourceMode = "standard",
   vfrChartManifestUrl = "",
+  vfrChartManifestLevel = null,
 }: BuildNavlogRouteMapPdfInput) {
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
@@ -276,7 +301,7 @@ export async function buildNavlogRouteMapPdf({
 
   page.drawText("Route map", {
     x: 36,
-    y: 556,
+    y: 558,
     size: 18,
     font: boldFont,
     color: rgb(0.05, 0.05, 0.05),
@@ -284,7 +309,7 @@ export async function buildNavlogRouteMapPdf({
 
   page.drawText(routeLabel(routeWaypoints), {
     x: 36,
-    y: 536,
+    y: 538,
     size: 9,
     font: regularFont,
     color: rgb(0.25, 0.25, 0.25),
@@ -318,6 +343,7 @@ export async function buildNavlogRouteMapPdf({
         pdfDoc,
         page,
         manifestUrl: vfrChartManifestUrl,
+        manifestLevel: vfrChartManifestLevel,
         bounds,
         project,
       });
@@ -329,14 +355,14 @@ export async function buildNavlogRouteMapPdf({
       page.drawLine({
         start: positions[i - 1],
         end: positions[i],
-        thickness: 3.2,
+        thickness: 3.4,
         color: rgb(0.95, 0.12, 0.08),
         opacity: 0.9,
       });
       page.drawLine({
         start: positions[i - 1],
         end: positions[i],
-        thickness: 1.2,
+        thickness: 1.25,
         color: rgb(1, 1, 1),
         opacity: 0.95,
       });
@@ -369,14 +395,6 @@ export async function buildNavlogRouteMapPdf({
   }
 
   drawNorthArrow(page, boldFont);
-
-  page.drawText("Planning review only — validate against current charts, AIP and NOTAM.", {
-    x: 36,
-    y: 28,
-    size: 7.5,
-    font: regularFont,
-    color: rgb(0.36, 0.36, 0.36),
-  });
 
   return pdfDoc.save();
 }
