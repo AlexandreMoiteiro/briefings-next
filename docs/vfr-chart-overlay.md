@@ -1,31 +1,26 @@
 # ANC Portugal VFR chart overlay
 
-The `/vfr-map` page can display the ANC Portugal 1:500 000 chart as a raster overlay on top of the base map.
+The `/vfr-map`, `/navlog` route map, and `/area-map` can display the ANC Portugal 1:500 000 chart as a VFR map source.
 
-The original chart files should stay out of GitHub because they are large aviation raster assets. Keep them locally or in storage/CDN and serve the web-optimized tiles from there.
+The original chart files should stay out of GitHub because they are large aviation raster assets. Keep them locally or in storage/CDN and serve web-optimized tiles from there.
 
-## Source files checked
+## Recommended approach
 
-Recommended source when clean: `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif`.
+Use **XYZ tiles** through `NEXT_PUBLIC_VFR_CHART_TILES_URL` for production. This is faster, sharper, and more reliable than loading a KMZ-derived manifest in the browser.
 
-Useful fallback source: `ANC_Portugal_500k_KMZ_2022_600dpi.kmz`.
+Recommended sources, in order:
 
-The KMZ is a Google Earth SuperOverlay with TIFF image tiles and these approximate coverage bounds:
+1. `ANC_Portugal_500k_Geospatial_PDF_2022.pdf` converted to XYZ tiles.
+2. A clean `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif` converted to XYZ tiles.
+3. `ANC_Portugal_500k_KMZ_2022_600dpi.kmz` converted to a manifest + PNG overlays only as a temporary fallback.
 
-```txt
-North: 42.3125
-South: 35.124950538548724
-East:  -6.00004279020789
-West:  -10.25
-```
-
-The app can display either a standard XYZ tile URL or a KMZ-derived image-overlay manifest.
+The tested GeoTIFF/KMZ copies had corrupted internal imagery, which causes missing grey blocks at high detail levels. A clean GeoPDF/GeoTIFF converted to XYZ tiles is the real fix.
 
 ## Runtime configuration
 
-### Preferred: XYZ tiles from a clean GeoTIFF
+### Preferred: XYZ tiles
 
-Add this to `.env.local` for local development or to the Vercel project environment variables for deployment:
+Add this to `.env.local` for local development or to Vercel environment variables for deployment:
 
 ```bash
 NEXT_PUBLIC_VFR_CHART_TILES_URL=/vfr-chart/{z}/{x}/{y}.png
@@ -41,9 +36,15 @@ For externally hosted tiles, use the public URL template instead:
 NEXT_PUBLIC_VFR_CHART_TILES_URL=https://your-storage.example.com/vfr-chart/{z}/{x}/{y}.png
 ```
 
-### Fallback: PNG overlays from the KMZ
+When using XYZ tiles, leave this empty or remove it:
 
-If the GeoTIFF fails `gdalinfo -checksum` with LZW/TIFF read errors, use the KMZ fallback instead:
+```bash
+NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=
+```
+
+### Temporary fallback: PNG overlays from the KMZ
+
+If you only have the KMZ fallback:
 
 ```bash
 NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json
@@ -51,15 +52,17 @@ NEXT_PUBLIC_VFR_CHART_OPACITY=0.78
 NEXT_PUBLIC_VFR_CHART_ATTRIBUTION="ANC Portugal 1:500 000 / NAV Portugal"
 ```
 
-For external hosting:
+If high-level KMZ images are corrupted, force a uniform lower level:
 
 ```bash
-NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=https://your-storage.example.com/vfr-chart/manifest.json
+NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL=5
 ```
 
-## Convert the GeoTIFF to XYZ tiles
+This avoids mixed levels, but it reduces detail. It is not a long-term replacement for proper XYZ tiles.
 
-Install GDAL locally first.
+## Convert the GeoPDF to XYZ tiles
+
+Install GDAL first.
 
 macOS:
 
@@ -74,14 +77,14 @@ sudo apt-get update
 sudo apt-get install -y gdal-bin
 ```
 
-Put the GeoTIFF somewhere outside Git or in the project root temporarily, then run:
+Then run:
 
 ```bash
-chmod +x scripts/convert-vfr-chart.sh
-scripts/convert-vfr-chart.sh /path/to/ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif
+chmod +x scripts/convert-vfr-geopdf.sh
+scripts/convert-vfr-geopdf.sh /path/to/ANC_Portugal_500k_Geospatial_PDF_2022.pdf
 ```
 
-By default the script generates:
+By default this generates:
 
 ```txt
 public/vfr-chart/{z}/{x}/{y}.png
@@ -91,11 +94,27 @@ Then use this locally in `.env.local`:
 
 ```bash
 NEXT_PUBLIC_VFR_CHART_TILES_URL=/vfr-chart/{z}/{x}/{y}.png
+NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=
+```
+
+## Convert the GeoTIFF to XYZ tiles
+
+If you have a clean GeoTIFF, run:
+
+```bash
+chmod +x scripts/convert-vfr-chart.sh
+scripts/convert-vfr-chart.sh /path/to/ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif
+```
+
+By default this also generates:
+
+```txt
+public/vfr-chart/{z}/{x}/{y}.png
 ```
 
 ## Convert the KMZ fallback to PNG overlays
 
-Put the KMZ somewhere outside Git or in the project root temporarily, then run:
+Use this only as a temporary fallback:
 
 ```bash
 python3 scripts/convert-vfr-kmz.py /path/to/ANC_Portugal_500k_KMZ_2022_600dpi.kmz
@@ -115,10 +134,8 @@ NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json
 NEXT_PUBLIC_VFR_CHART_OPACITY=0.78
 ```
 
-For production, prefer uploading the generated `public/vfr-chart` contents to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set the matching public URL in Vercel.
+For production, prefer uploading the generated XYZ tiles to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set the public URL in Vercel.
 
 ## Why not load the TIFF/KMZ directly?
 
-The GeoTIFF and KMZ are around 200 MB each. Loading either directly in the browser would be slow, memory-heavy and fragile. Leaflet is much happier with small map tiles or viewport-limited PNG image overlays.
-
-The uploaded KMZ stores its imagery as TIFF tiles. Browser image layers generally expect PNG, JPEG, WebP or other web-native image formats, so the KMZ is converted into PNG images plus a JSON manifest before runtime.
+The GeoTIFF and KMZ are around 200 MB each. Loading either directly in the browser is slow, memory-heavy and fragile. Leaflet is faster with small XYZ map tiles that are requested only for the current viewport and zoom.
