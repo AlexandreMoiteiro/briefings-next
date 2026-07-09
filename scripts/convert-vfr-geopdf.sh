@@ -3,13 +3,14 @@ set -euo pipefail
 
 SOURCE_FILE="${1:-ANC_Portugal_500k_Geospatial_PDF_2022.pdf}"
 MIN_ZOOM="${MIN_ZOOM:-6}"
-MAX_ZOOM="${MAX_ZOOM:-13}"
+MAX_ZOOM="${MAX_ZOOM:-14}"
+PDF_DPI="${PDF_DPI:-300}"
 WORK_DIR="${WORK_DIR:-data/vfr-chart}"
 OUTPUT_DIR="${OUTPUT_DIR:-public/vfr-chart}"
 RESAMPLING="${RESAMPLING:-near}"
 PROCESSES="${PROCESSES:-4}"
-EXTRACTED_FILE="$WORK_DIR/anc-portugal-500k-from-geopdf.tif"
-WARPED_FILE="$WORK_DIR/anc-portugal-500k-3857.tif"
+EXTRACTED_FILE="$WORK_DIR/anc-portugal-500k-from-geopdf-${PDF_DPI}dpi.tif"
+WARPED_FILE="$WORK_DIR/anc-portugal-500k-3857-${PDF_DPI}dpi.tif"
 
 if ! command -v gdalinfo >/dev/null 2>&1; then
   echo "gdalinfo was not found. Install GDAL first." >&2
@@ -42,11 +43,12 @@ fi
 rm -rf "$OUTPUT_DIR"
 mkdir -p "$WORK_DIR" "$OUTPUT_DIR"
 
-echo "Checking GeoPDF..."
-gdalinfo "$SOURCE_FILE" >/dev/null
+echo "Checking GeoPDF at ${PDF_DPI} DPI..."
+gdalinfo --config GDAL_PDF_DPI "$PDF_DPI" "$SOURCE_FILE" >/dev/null
 
-echo "Extracting GeoPDF raster to GeoTIFF..."
+echo "Extracting GeoPDF raster to GeoTIFF at ${PDF_DPI} DPI..."
 gdal_translate \
+  --config GDAL_PDF_DPI "$PDF_DPI" \
   -of GTiff \
   -co TILED=YES \
   -co COMPRESS=DEFLATE \
@@ -80,4 +82,5 @@ gdal2tiles.py \
 echo "Done. Tiles are in: $OUTPUT_DIR"
 echo "Use this locally in .env.local:"
 echo "NEXT_PUBLIC_VFR_CHART_TILES_URL=/vfr-chart/{z}/{x}/{y}.png"
+echo "NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM=${MAX_ZOOM}"
 echo "Remove NEXT_PUBLIC_VFR_CHART_MANIFEST_URL while testing the XYZ tiles."
