@@ -6,6 +6,7 @@ import { loadAllNavlogData } from "@/lib/navlog-data";
 import type { NavlogDataBundle, NavlogPoint } from "@/lib/navlog";
 
 type AviationLayer = "AD" | "VFR" | "IFR" | "VOR";
+type MapSourceMode = "standard" | "vfr-chart";
 
 const hasVfrChartOverlay = Boolean(
   (process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? "").trim() ||
@@ -84,7 +85,9 @@ export function AviationMapClient() {
   const [loading, setLoading] = useState(true);
   const [dataError, setDataError] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [showVfrChart, setShowVfrChart] = useState(hasVfrChartOverlay);
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>(
+    hasVfrChartOverlay ? "vfr-chart" : "standard"
+  );
   const [activeLayers, setActiveLayers] = useState<AviationLayer[]>([
     "AD",
     "VFR",
@@ -175,7 +178,7 @@ export function AviationMapClient() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              General overview of Portuguese aviation data: airspace context, aerodromes, VFR points, IFR fixes, VOR/NAVAIDs, OpenAIP and optional ANC Portugal VFR chart overlay.
+              General overview of Portuguese aviation data: airspace context, aerodromes, VFR points, IFR fixes, VOR/NAVAIDs, OpenAIP or the ANC Portugal VFR chart.
             </p>
 
             <div className="mt-5 max-w-4xl rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm leading-6 text-sky-900">
@@ -281,25 +284,46 @@ export function AviationMapClient() {
           </section>
 
           <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <h2 className="text-sm font-semibold text-zinc-950">Chart overlay</h2>
+            <h2 className="text-sm font-semibold text-zinc-950">Map source</h2>
 
-            <label className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
-              <span>
-                <span className="block font-medium text-zinc-700">
-                  ANC Portugal 500k
+            <div className="mt-4 space-y-2">
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                <span>
+                  <span className="block font-medium text-zinc-700">
+                    OpenTopoMap + OpenAIP
+                  </span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">
+                    Terrain base with OpenAIP overlay.
+                  </span>
                 </span>
-                <span className="mt-0.5 block text-xs text-zinc-500">
-                  Carta VFR raster, served as XYZ tiles or KMZ manifest
-                </span>
-              </span>
 
-              <input
-                type="checkbox"
-                disabled={!hasVfrChartOverlay}
-                checked={hasVfrChartOverlay && showVfrChart}
-                onChange={(event) => setShowVfrChart(event.target.checked)}
-              />
-            </label>
+                <input
+                  type="radio"
+                  name="aviation-map-source"
+                  checked={mapSourceMode === "standard"}
+                  onChange={() => setMapSourceMode("standard")}
+                />
+              </label>
+
+              <label className="flex items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                <span>
+                  <span className="block font-medium text-zinc-700">
+                    ANC Portugal 500k
+                  </span>
+                  <span className="mt-0.5 block text-xs text-zinc-500">
+                    Carta VFR only, without OpenTopoMap or OpenAIP.
+                  </span>
+                </span>
+
+                <input
+                  type="radio"
+                  name="aviation-map-source"
+                  disabled={!hasVfrChartOverlay}
+                  checked={mapSourceMode === "vfr-chart"}
+                  onChange={() => setMapSourceMode("vfr-chart")}
+                />
+              </label>
+            </div>
 
             {!hasVfrChartOverlay ? (
               <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
@@ -346,7 +370,7 @@ export function AviationMapClient() {
             activeLayers={activeLayers}
             searchQuery={searchQuery}
             selectedPoint={selectedPoint}
-            showVfrChart={showVfrChart}
+            mapSourceMode={mapSourceMode}
           />
         </main>
       </section>
