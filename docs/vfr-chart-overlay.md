@@ -6,9 +6,9 @@ The original chart files should stay out of GitHub because they are large aviati
 
 ## Source files checked
 
-Recommended source: `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif`.
+Recommended source when clean: `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif`.
 
-Useful validation source: `ANC_Portugal_500k_KMZ_2022_600dpi.kmz`.
+Useful fallback source: `ANC_Portugal_500k_KMZ_2022_600dpi.kmz`.
 
 The KMZ is a Google Earth SuperOverlay with TIFF image tiles and these approximate coverage bounds:
 
@@ -19,9 +19,11 @@ East:  -6.00004279020789
 West:  -10.25
 ```
 
-The app uses those bounds when drawing the tile layer so Leaflet will not request the chart far outside mainland Portugal / the chart coverage area.
+The app can display either a standard XYZ tile URL or a KMZ-derived image-overlay manifest.
 
 ## Runtime configuration
+
+### Preferred: XYZ tiles from a clean GeoTIFF
 
 Add this to `.env.local` for local development or to the Vercel project environment variables for deployment:
 
@@ -39,6 +41,22 @@ For externally hosted tiles, use the public URL template instead:
 NEXT_PUBLIC_VFR_CHART_TILES_URL=https://your-storage.example.com/vfr-chart/{z}/{x}/{y}.png
 ```
 
+### Fallback: PNG overlays from the KMZ
+
+If the GeoTIFF fails `gdalinfo -checksum` with LZW/TIFF read errors, use the KMZ fallback instead:
+
+```bash
+NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json
+NEXT_PUBLIC_VFR_CHART_OPACITY=0.78
+NEXT_PUBLIC_VFR_CHART_ATTRIBUTION="ANC Portugal 1:500 000 / NAV Portugal"
+```
+
+For external hosting:
+
+```bash
+NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=https://your-storage.example.com/vfr-chart/manifest.json
+```
+
 ## Convert the GeoTIFF to XYZ tiles
 
 Install GDAL locally first.
@@ -49,7 +67,7 @@ macOS:
 brew install gdal
 ```
 
-Ubuntu/Debian:
+Ubuntu/Debian/Codespaces:
 
 ```bash
 sudo apt-get update
@@ -75,10 +93,32 @@ Then use this locally in `.env.local`:
 NEXT_PUBLIC_VFR_CHART_TILES_URL=/vfr-chart/{z}/{x}/{y}.png
 ```
 
-For production, prefer uploading the generated `public/vfr-chart` contents to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set `NEXT_PUBLIC_VFR_CHART_TILES_URL` to that public URL template.
+## Convert the KMZ fallback to PNG overlays
+
+Put the KMZ somewhere outside Git or in the project root temporarily, then run:
+
+```bash
+python3 scripts/convert-vfr-kmz.py /path/to/ANC_Portugal_500k_KMZ_2022_600dpi.kmz
+```
+
+By default the script generates:
+
+```txt
+public/vfr-chart/manifest.json
+public/vfr-chart/images/*.png
+```
+
+Then use this locally in `.env.local`:
+
+```bash
+NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json
+NEXT_PUBLIC_VFR_CHART_OPACITY=0.78
+```
+
+For production, prefer uploading the generated `public/vfr-chart` contents to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set the matching public URL in Vercel.
 
 ## Why not load the TIFF/KMZ directly?
 
-The GeoTIFF and KMZ are around 200 MB each. Loading either directly in the browser would be slow, memory-heavy and fragile. Leaflet is much happier with small map tiles that are requested only for the current viewport and zoom.
+The GeoTIFF and KMZ are around 200 MB each. Loading either directly in the browser would be slow, memory-heavy and fragile. Leaflet is much happier with small map tiles or viewport-limited PNG image overlays.
 
-The uploaded KMZ also stores its imagery as TIFF tiles. Browser image layers generally expect PNG, JPEG, WebP or other web-native image formats, so the KMZ is useful for validation but not ideal as the direct runtime asset.
+The uploaded KMZ stores its imagery as TIFF tiles. Browser image layers generally expect PNG, JPEG, WebP or other web-native image formats, so the KMZ is converted into PNG images plus a JSON manifest before runtime.
