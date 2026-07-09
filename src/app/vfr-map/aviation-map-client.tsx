@@ -8,7 +8,8 @@ import type { NavlogDataBundle, NavlogPoint } from "@/lib/navlog";
 type AviationLayer = "AD" | "VFR" | "IFR" | "VOR";
 
 const hasVfrChartOverlay = Boolean(
-  (process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? "").trim()
+  (process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? "").trim() ||
+    (process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? "").trim()
 );
 
 const AviationMapLeaflet = dynamic(
@@ -288,7 +289,7 @@ export function AviationMapClient() {
                   ANC Portugal 500k
                 </span>
                 <span className="mt-0.5 block text-xs text-zinc-500">
-                  Carta VFR raster, served as XYZ tiles
+                  Carta VFR raster, served as XYZ tiles or KMZ manifest
                 </span>
               </span>
 
@@ -302,7 +303,7 @@ export function AviationMapClient() {
 
             {!hasVfrChartOverlay ? (
               <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                Configure NEXT_PUBLIC_VFR_CHART_TILES_URL after converting the GeoTIFF/KMZ into web tiles.
+                Configure NEXT_PUBLIC_VFR_CHART_TILES_URL or NEXT_PUBLIC_VFR_CHART_MANIFEST_URL after converting the GeoTIFF/KMZ into web assets.
               </p>
             ) : null}
           </section>
