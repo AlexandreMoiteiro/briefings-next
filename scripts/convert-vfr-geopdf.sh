@@ -48,7 +48,6 @@ gdalinfo "$SOURCE_FILE" >/dev/null
 echo "Extracting GeoPDF raster to GeoTIFF..."
 gdal_translate \
   -of GTiff \
-  -expand rgba \
   -co TILED=YES \
   -co COMPRESS=DEFLATE \
   -co BIGTIFF=IF_SAFER \
