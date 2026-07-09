@@ -115,7 +115,7 @@ def convert_overlay(
                 ],
                 check=True,
             )
-    except (KeyError, zipfile.BadZipFile, subprocess.CalledProcessError, OSError) as error:
+    except Exception as error:
         if output_path.exists():
             output_path.unlink()
 
