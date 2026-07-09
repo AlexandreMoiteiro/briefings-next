@@ -9,7 +9,12 @@ import {
   Tooltip,
   useMap,
 } from "react-leaflet";
-import { divIcon, type DivIcon, type LatLngExpression } from "leaflet";
+import {
+  divIcon,
+  type DivIcon,
+  type LatLngBoundsExpression,
+  type LatLngExpression,
+} from "leaflet";
 import type { NavlogPoint } from "@/lib/navlog";
 
 type AviationLayer = "AD" | "VFR" | "IFR" | "VOR";
@@ -19,6 +24,7 @@ type AviationMapLeafletProps = {
   activeLayers: AviationLayer[];
   searchQuery: string;
   selectedPoint: NavlogPoint | null;
+  showVfrChart: boolean;
 };
 
 const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
@@ -26,6 +32,38 @@ const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
 const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
+
+const vfrChartTilesUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? ""
+).trim();
+
+const vfrChartAttribution =
+  process.env.NEXT_PUBLIC_VFR_CHART_ATTRIBUTION ??
+  "ANC Portugal 1:500 000 / NAV Portugal";
+
+function parseMapNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const vfrChartMinZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MIN_ZOOM,
+  6
+);
+const vfrChartMaxNativeZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM,
+  13
+);
+const vfrChartOpacity = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,
+  0.78
+);
+
+const vfrChartBounds: LatLngBoundsExpression = [
+  [35.124950538548724, -10.25],
+  [42.3125, -6.00004279020789],
+];
 
 function pointMatchesQuery(point: NavlogPoint, query: string) {
   const normalized = query.trim().toUpperCase();
@@ -135,6 +173,7 @@ export function AviationMapLeaflet({
   activeLayers,
   searchQuery,
   selectedPoint,
+  showVfrChart,
 }: AviationMapLeafletProps) {
   const activeLayerSet = useMemo(() => new Set(activeLayers), [activeLayers]);
 
@@ -165,6 +204,20 @@ export function AviationMapLeaflet({
           maxZoom={17}
         />
 
+        {showVfrChart && vfrChartTilesUrl ? (
+          <TileLayer
+            attribution={vfrChartAttribution}
+            bounds={vfrChartBounds}
+            detectRetina
+            maxNativeZoom={vfrChartMaxNativeZoom}
+            maxZoom={20}
+            minZoom={vfrChartMinZoom}
+            opacity={vfrChartOpacity}
+            url={vfrChartTilesUrl}
+            zIndex={220}
+          />
+        ) : null}
+
         {openAipTilesUrl ? (
           <TileLayer
             attribution="openAIP"
@@ -174,6 +227,7 @@ export function AviationMapLeaflet({
             maxNativeZoom={16}
             maxZoom={20}
             detectRetina
+            zIndex={260}
           />
         ) : null}
 
