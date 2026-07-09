@@ -1,30 +1,90 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import L from "leaflet";
+import L, { type LatLngBounds, type LatLngBoundsExpression } from "leaflet";
 import {
   CircleMarker,
+  ImageOverlay,
   MapContainer,
   Marker,
   Polygon,
   Polyline,
   TileLayer,
   useMap,
+  useMapEvents,
 } from "react-leaflet";
 import type { CoordinateMapArea, ParsedCoordinatePoint } from "./area-map-client";
+
+type MapSourceMode = "standard" | "vfr-chart";
 
 type CoordinateLeafletMapProps = {
   areas: CoordinateMapArea[];
   selectedAreaId?: string;
 };
 
+type VfrKmzOverlayItem = {
+  href: string;
+  level: number;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
+type VfrKmzManifest = {
+  levels?: number[];
+  overlays: VfrKmzOverlayItem[];
+};
+
 const defaultCenter: [number, number] = [38.7223, -9.1393];
 
 const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
-
 const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
+
+const vfrChartTilesUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? ""
+).trim();
+const vfrChartManifestUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? ""
+).trim();
+const vfrChartAttribution =
+  process.env.NEXT_PUBLIC_VFR_CHART_ATTRIBUTION ??
+  "ANC Portugal 1:500 000 / NAV Portugal";
+const hasVfrChartOverlay = Boolean(vfrChartTilesUrl || vfrChartManifestUrl);
+
+function parseMapNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function parseOptionalMapNumber(value: string | undefined) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+const vfrChartMinZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MIN_ZOOM,
+  6
+);
+const vfrChartMaxNativeZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM,
+  13
+);
+const vfrChartOpacity = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,
+  0.78
+);
+const forcedVfrChartManifestLevel = parseOptionalMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL
+);
+const vfrChartBounds: LatLngBoundsExpression = [
+  [35.124950538548724, -10.25],
+  [42.3125, -6.00004279020789],
+];
 
 function closePolygon(points: ParsedCoordinatePoint[]) {
   if (points.length < 3) return points;
@@ -60,7 +120,6 @@ function getPolygonCentroid(points: ParsedCoordinatePoint[]): [number, number] {
   for (let index = 0; index < closed.length - 1; index += 1) {
     const current = closed[index];
     const next = closed[index + 1];
-
     const x0 = current.lon;
     const y0 = current.lat;
     const x1 = next.lon;
@@ -144,12 +203,151 @@ function FitToAreas({
   return null;
 }
 
+function getKmzTargetLevelForZoom(zoom: number) {
+  if (zoom <= 6) return 3;
+  if (zoom === 7) return 4;
+  if (zoom === 8) return 5;
+  if (zoom === 9) return 6;
+
+  return 7;
+}
+
+function getBestAvailableKmzLevel(zoom: number, availableLevels?: number[]) {
+  const sortedLevels = [...(availableLevels ?? [])].sort((a, b) => a - b);
+
+  if (forcedVfrChartManifestLevel !== null) {
+    return sortedLevels.includes(forcedVfrChartManifestLevel)
+      ? forcedVfrChartManifestLevel
+      : sortedLevels.at(-1) ?? forcedVfrChartManifestLevel;
+  }
+
+  const targetLevel = getKmzTargetLevelForZoom(zoom);
+
+  if (!sortedLevels.length) return targetLevel;
+
+  const lowerOrEqualLevels = sortedLevels.filter((level) => level <= targetLevel);
+
+  return lowerOrEqualLevels.at(-1) ?? sortedLevels[0] ?? targetLevel;
+}
+
+function overlayIntersectsBounds(
+  overlay: VfrKmzOverlayItem,
+  bounds: LatLngBounds
+) {
+  return (
+    overlay.south <= bounds.getNorth() &&
+    overlay.north >= bounds.getSouth() &&
+    overlay.west <= bounds.getEast() &&
+    overlay.east >= bounds.getWest()
+  );
+}
+
+function getOverlayKey(overlay: VfrKmzOverlayItem, index: number) {
+  return [
+    overlay.href,
+    overlay.level,
+    overlay.south,
+    overlay.west,
+    overlay.north,
+    overlay.east,
+    index,
+  ].join(":");
+}
+
+function resolveManifestAssetUrl(manifestUrl: string, assetHref: string) {
+  if (typeof window === "undefined") return assetHref;
+
+  const absoluteManifestUrl = new URL(manifestUrl, window.location.href);
+
+  return new URL(assetHref, absoluteManifestUrl).toString();
+}
+
+function VfrKmzImageOverlay({
+  manifestUrl,
+  opacity,
+}: {
+  manifestUrl: string;
+  opacity: number;
+}) {
+  const map = useMap();
+  const [manifest, setManifest] = useState<VfrKmzManifest | null>(null);
+  const [view, setView] = useState(() => ({
+    bounds: map.getBounds(),
+    zoom: map.getZoom(),
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadManifest() {
+      const response = await fetch(manifestUrl);
+
+      if (!response.ok) {
+        throw new Error(`Could not load VFR chart manifest: ${response.status}`);
+      }
+
+      const loaded = (await response.json()) as VfrKmzManifest;
+
+      if (!cancelled) {
+        setManifest(loaded);
+      }
+    }
+
+    loadManifest().catch((error) => console.error(error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manifestUrl]);
+
+  useMapEvents({
+    moveend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+    zoomend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+  });
+
+  const visibleOverlays = useMemo(() => {
+    if (!manifest) return [];
+
+    const level = getBestAvailableKmzLevel(view.zoom, manifest.levels);
+
+    return manifest.overlays
+      .filter((overlay) => overlay.level === level)
+      .filter((overlay) => overlayIntersectsBounds(overlay, view.bounds))
+      .slice(0, 260);
+  }, [manifest, view.bounds, view.zoom]);
+
+  return (
+    <>
+      {visibleOverlays.map((overlay, index) => (
+        <ImageOverlay
+          key={getOverlayKey(overlay, index)}
+          attribution={vfrChartAttribution}
+          bounds={[
+            [overlay.south, overlay.west],
+            [overlay.north, overlay.east],
+          ]}
+          opacity={opacity}
+          url={resolveManifestAssetUrl(manifestUrl, overlay.href)}
+          zIndex={220}
+        />
+      ))}
+    </>
+  );
+}
+
 export function CoordinateLeafletMap({
   areas,
   selectedAreaId,
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("standard");
+  const showStandardMap = mapSourceMode === "standard";
+  const showVfrChart = mapSourceMode === "vfr-chart";
 
   const drawableAreas = useMemo(
     () => areas.filter((area) => area.points.length > 0),
@@ -202,6 +400,28 @@ export function CoordinateLeafletMap({
           : "relative overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm"
       }
     >
+      <div className="absolute left-3 top-3 z-[10000] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 text-xs font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200">
+        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
+          <input
+            type="radio"
+            name="area-map-source"
+            checked={mapSourceMode === "standard"}
+            onChange={() => setMapSourceMode("standard")}
+          />
+          OpenTopo + OpenAIP
+        </label>
+        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
+          <input
+            type="radio"
+            name="area-map-source"
+            disabled={!hasVfrChartOverlay}
+            checked={mapSourceMode === "vfr-chart"}
+            onChange={() => setMapSourceMode("vfr-chart")}
+          />
+          VFR map
+        </label>
+      </div>
+
       <button
         type="button"
         onClick={toggleFullscreen}
@@ -214,17 +434,40 @@ export function CoordinateLeafletMap({
         <MapContainer
           center={defaultCenter}
           zoom={9}
-          maxZoom={17}
+          maxZoom={20}
           scrollWheelZoom
           className="h-full w-full"
         >
-          <TileLayer
-            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
-            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-            maxZoom={17}
-          />
+          {showStandardMap ? (
+            <TileLayer
+              attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              maxZoom={17}
+            />
+          ) : null}
 
-          {openAipTilesUrl ? (
+          {showVfrChart && vfrChartTilesUrl ? (
+            <TileLayer
+              attribution={vfrChartAttribution}
+              bounds={vfrChartBounds}
+              detectRetina
+              maxNativeZoom={vfrChartMaxNativeZoom}
+              maxZoom={20}
+              minZoom={vfrChartMinZoom}
+              opacity={vfrChartOpacity}
+              url={vfrChartTilesUrl}
+              zIndex={220}
+            />
+          ) : null}
+
+          {showVfrChart && !vfrChartTilesUrl && vfrChartManifestUrl ? (
+            <VfrKmzImageOverlay
+              manifestUrl={vfrChartManifestUrl}
+              opacity={vfrChartOpacity}
+            />
+          ) : null}
+
+          {showStandardMap && openAipTilesUrl ? (
             <TileLayer
               attribution="openAIP"
               url={openAipTilesUrl}
@@ -233,6 +476,7 @@ export function CoordinateLeafletMap({
               maxNativeZoom={16}
               maxZoom={20}
               detectRetina
+              zIndex={260}
             />
           ) : null}
 
@@ -248,7 +492,6 @@ export function CoordinateLeafletMap({
               fillOpacity: selected ? 0.22 : 0.12,
               dashArray: area.isDraft ? "6 6" : undefined,
             };
-
             const labelPosition = getLabelPosition(area.points);
 
             return (
