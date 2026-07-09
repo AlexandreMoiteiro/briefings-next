@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ImageOverlay,
   MapContainer,
   Marker,
   Polyline,
@@ -11,8 +12,14 @@ import {
   useMap,
   useMapEvents,
 } from "react-leaflet";
-import { divIcon, latLngBounds, type DivIcon } from "leaflet";
-import type { LatLngExpression } from "leaflet";
+import {
+  divIcon,
+  latLngBounds,
+  type DivIcon,
+  type LatLngBounds,
+  type LatLngBoundsExpression,
+  type LatLngExpression,
+} from "leaflet";
 import { buildNavlogRouteMapPdf } from "@/lib/pdf/navlog-route-map-pdf";
 import type {
   NavlogPoint,
@@ -20,6 +27,8 @@ import type {
   NavlogRouteNode,
   NavlogRouteWaypoint,
 } from "@/lib/navlog";
+
+type MapSourceMode = "standard" | "vfr-chart";
 
 type NavlogMapProps = {
   points: NavlogPoint[];
@@ -31,6 +40,25 @@ type NavlogMapProps = {
   manualMapClickEnabled: boolean;
   onAddPoint: (point: NavlogPoint) => void;
   onAddMapPoint: (lat: number, lon: number) => void;
+};
+
+type VfrKmzOverlayItem = {
+  href: string;
+  level: number;
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+};
+
+type VfrKmzVisibleOverlay = VfrKmzOverlayItem & {
+  renderPass: "fallback" | "detail";
+  zIndex: number;
+};
+
+type VfrKmzManifest = {
+  levels?: number[];
+  overlays: VfrKmzOverlayItem[];
 };
 
 const LPFR_REQUIRED_NAVLOG_MAP_POINTS: NavlogPoint[] = [
@@ -46,16 +74,49 @@ const LPFR_REQUIRED_NAVLOG_MAP_POINTS: NavlogPoint[] = [
   { code: "KOPAV", name: "KOPAV", lat: 37.057094, lon: -8.269211, alt: 0, src: "IFR", routes: "LPFR EVURA1C STAR ILS LOC RWY10", remarks: "LPFR STAR/IAP clearance limit AIRAC 005-26" },
   { code: "FR910", name: "FR910", lat: 37.043778, lon: -8.174000, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR ILS/LOC RWY10 FAP waypoint AIRAC 005-26" },
   { code: "THR10", name: "THR RWY 10", lat: 37.017222, lon: -7.985611, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10", remarks: "LPFR RWY10 threshold / MAPt AIRAC 005-26" },
-  { code: "FR728", name: "FR728", lat: 36.997000, lon: -7.842167, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach waypoint AIRAC 005-26" },
+  { code: "FR728", name: "FR728", lat: 36.997, lon: -7.842167, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach waypoint AIRAC 005-26" },
   { code: "GIMAL", name: "GIMAL", lat: 36.764444, lon: -8.005861, alt: 0, src: "IFR", routes: "LPFR ILS LOC RWY10 MISSED APPROACH", remarks: "LPFR missed approach holding waypoint AIRAC 005-26" },
   { code: "FR609", name: "FR609", lat: 36.930906, lon: -8.346689, alt: 0, src: "IFR", routes: "LPFR GIMAL9C STAR ILS LOC RWY10", remarks: "LPFR RNAV STAR/IAP chart waypoint AIRAC 005-26" },
 ];
 
 const openAipApiKey = process.env.NEXT_PUBLIC_OPENAIP_API_KEY ?? "";
-
 const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
+
+const vfrChartTilesUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? ""
+).trim();
+const vfrChartManifestUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? ""
+).trim();
+const vfrChartAttribution =
+  process.env.NEXT_PUBLIC_VFR_CHART_ATTRIBUTION ??
+  "ANC Portugal 1:500 000 / NAV Portugal";
+const hasVfrChartOverlay = Boolean(vfrChartTilesUrl || vfrChartManifestUrl);
+
+function parseMapNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+const vfrChartMinZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MIN_ZOOM,
+  6
+);
+const vfrChartMaxNativeZoom = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM,
+  13
+);
+const vfrChartOpacity = parseMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,
+  0.78
+);
+const vfrChartBounds: LatLngBoundsExpression = [
+  [35.124950538548724, -10.25],
+  [42.3125, -6.00004279020789],
+];
 
 function navlogMapPointKey(point: NavlogPoint) {
   return `${point.src}:${point.code.trim().toUpperCase()}:${point.lat.toFixed(6)}:${point.lon.toFixed(6)}`;
@@ -66,7 +127,6 @@ function downloadBinaryFile(bytes: Uint8Array, filename: string, mime: string) {
     bytes.byteOffset,
     bytes.byteOffset + bytes.byteLength
   ) as ArrayBuffer;
-
   const blob = new Blob([arrayBuffer], { type: mime });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -76,12 +136,14 @@ function downloadBinaryFile(bytes: Uint8Array, filename: string, mime: string) {
   document.body.appendChild(link);
   link.click();
   link.remove();
-
   URL.revokeObjectURL(url);
 }
 
 function safeFilenameToken(value: string) {
-  return value.trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") || "ROUTE";
+  return (
+    value.trim().replace(/[^A-Za-z0-9_-]+/g, "_").replace(/^_+|_+$/g, "") ||
+    "ROUTE"
+  );
 }
 
 function InvalidateMapSize() {
@@ -98,18 +160,12 @@ function InvalidateMapSize() {
   return null;
 }
 
-function FitToRoute({
-  routePositions,
-}: {
-  routePositions: [number, number][];
-}) {
+function FitToRoute({ routePositions }: { routePositions: [number, number][] }) {
   const map = useMap();
 
   useEffect(() => {
     if (routePositions.length > 1) {
-      map.fitBounds(latLngBounds(routePositions), {
-        padding: [32, 32],
-      });
+      map.fitBounds(latLngBounds(routePositions), { padding: [32, 32] });
       return;
     }
 
@@ -170,6 +226,174 @@ function MapClickHandler({
   return null;
 }
 
+function getKmzTargetLevelForZoom(zoom: number) {
+  if (zoom <= 6) return 3;
+  if (zoom === 7) return 4;
+  if (zoom === 8) return 5;
+  if (zoom === 9) return 6;
+
+  return 7;
+}
+
+function getBestAvailableKmzLevel(zoom: number, availableLevels?: number[]) {
+  const targetLevel = getKmzTargetLevelForZoom(zoom);
+
+  if (!availableLevels?.length) return targetLevel;
+
+  const sortedLevels = [...availableLevels].sort((a, b) => a - b);
+  const lowerOrEqualLevels = sortedLevels.filter((level) => level <= targetLevel);
+
+  return lowerOrEqualLevels.at(-1) ?? sortedLevels[0] ?? targetLevel;
+}
+
+function getFallbackKmzLevel(availableLevels?: number[]) {
+  if (!availableLevels?.length) return null;
+
+  return [...availableLevels].sort((a, b) => a - b)[0] ?? null;
+}
+
+function overlayIntersectsBounds(
+  overlay: VfrKmzOverlayItem,
+  bounds: LatLngBounds
+) {
+  return (
+    overlay.south <= bounds.getNorth() &&
+    overlay.north >= bounds.getSouth() &&
+    overlay.west <= bounds.getEast() &&
+    overlay.east >= bounds.getWest()
+  );
+}
+
+function getVisibleOverlaysForLevel(
+  manifest: VfrKmzManifest,
+  bounds: LatLngBounds,
+  level: number,
+  renderPass: VfrKmzVisibleOverlay["renderPass"],
+  zIndex: number,
+  maxItems: number
+): VfrKmzVisibleOverlay[] {
+  return manifest.overlays
+    .filter((overlay) => overlay.level === level)
+    .filter((overlay) => overlayIntersectsBounds(overlay, bounds))
+    .slice(0, maxItems)
+    .map((overlay) => ({ ...overlay, renderPass, zIndex }));
+}
+
+function getOverlayKey(overlay: VfrKmzVisibleOverlay, index: number) {
+  return [
+    overlay.renderPass,
+    overlay.href,
+    overlay.level,
+    overlay.south,
+    overlay.west,
+    overlay.north,
+    overlay.east,
+    index,
+  ].join(":");
+}
+
+function resolveManifestAssetUrl(manifestUrl: string, assetHref: string) {
+  if (typeof window === "undefined") return assetHref;
+
+  const absoluteManifestUrl = new URL(manifestUrl, window.location.href);
+
+  return new URL(assetHref, absoluteManifestUrl).toString();
+}
+
+function VfrKmzImageOverlay({
+  manifestUrl,
+  opacity,
+}: {
+  manifestUrl: string;
+  opacity: number;
+}) {
+  const map = useMap();
+  const [manifest, setManifest] = useState<VfrKmzManifest | null>(null);
+  const [view, setView] = useState(() => ({
+    bounds: map.getBounds(),
+    zoom: map.getZoom(),
+  }));
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadManifest() {
+      const response = await fetch(manifestUrl);
+
+      if (!response.ok) {
+        throw new Error(`Could not load VFR chart manifest: ${response.status}`);
+      }
+
+      const loaded = (await response.json()) as VfrKmzManifest;
+
+      if (!cancelled) {
+        setManifest(loaded);
+      }
+    }
+
+    loadManifest().catch((error) => console.error(error));
+
+    return () => {
+      cancelled = true;
+    };
+  }, [manifestUrl]);
+
+  useMapEvents({
+    moveend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+    zoomend() {
+      setView({ bounds: map.getBounds(), zoom: map.getZoom() });
+    },
+  });
+
+  const visibleOverlays = useMemo(() => {
+    if (!manifest) return [];
+
+    const detailLevel = getBestAvailableKmzLevel(view.zoom, manifest.levels);
+    const fallbackLevel = getFallbackKmzLevel(manifest.levels);
+    const fallbackOverlays =
+      fallbackLevel !== null && fallbackLevel !== detailLevel
+        ? getVisibleOverlaysForLevel(
+            manifest,
+            view.bounds,
+            fallbackLevel,
+            "fallback",
+            210,
+            80
+          )
+        : [];
+    const detailOverlays = getVisibleOverlaysForLevel(
+      manifest,
+      view.bounds,
+      detailLevel,
+      "detail",
+      220,
+      260
+    );
+
+    return [...fallbackOverlays, ...detailOverlays];
+  }, [manifest, view.bounds, view.zoom]);
+
+  return (
+    <>
+      {visibleOverlays.map((overlay, index) => (
+        <ImageOverlay
+          key={getOverlayKey(overlay, index)}
+          attribution={vfrChartAttribution}
+          bounds={[
+            [overlay.south, overlay.west],
+            [overlay.north, overlay.east],
+          ]}
+          opacity={overlay.renderPass === "fallback" ? Math.min(opacity, 0.55) : opacity}
+          url={resolveManifestAssetUrl(manifestUrl, overlay.href)}
+          zIndex={overlay.zIndex}
+        />
+      ))}
+    </>
+  );
+}
+
 function pointMatchesQuery(point: NavlogPoint, query: string) {
   const normalized = query.trim().toUpperCase();
 
@@ -187,58 +411,17 @@ function pointMatchesQuery(point: NavlogPoint, query: string) {
 function getIconSpec(src: string) {
   switch (src) {
     case "AD":
-      return {
-        label: "AD",
-        bg: "#ef4444",
-        border: "#991b1b",
-        shape: "circle",
-        size: 16,
-      };
-
+      return { label: "AD", bg: "#ef4444", border: "#991b1b", shape: "circle", size: 16 };
     case "VOR":
-      return {
-        label: "VOR",
-        bg: "#a855f7",
-        border: "#6d28d9",
-        shape: "diamond",
-        size: 15,
-      };
-
+      return { label: "VOR", bg: "#a855f7", border: "#6d28d9", shape: "diamond", size: 15 };
     case "IFR":
-      return {
-        label: "IFR",
-        bg: "#60a5fa",
-        border: "#1d4ed8",
-        shape: "diamond-small",
-        size: 12,
-      };
-
+      return { label: "IFR", bg: "#60a5fa", border: "#1d4ed8", shape: "diamond-small", size: 12 };
     case "VFR":
-      return {
-        label: "VFR",
-        bg: "#22c55e",
-        border: "#166534",
-        shape: "circle-small",
-        size: 12,
-      };
-
+      return { label: "VFR", bg: "#22c55e", border: "#166534", shape: "circle-small", size: 12 };
     case "CALC":
-      return {
-        label: "CALC",
-        bg: "#ffffff",
-        border: "#111827",
-        shape: "square",
-        size: 14,
-      };
-
+      return { label: "CALC", bg: "#ffffff", border: "#111827", shape: "square", size: 14 };
     default:
-      return {
-        label: src,
-        bg: "#a1a1aa",
-        border: "#52525b",
-        shape: "circle-small",
-        size: 12,
-      };
+      return { label: src, bg: "#a1a1aa", border: "#52525b", shape: "circle-small", size: 12 };
   }
 }
 
@@ -246,7 +429,6 @@ function makeIcon(src: string, emphasized = false): DivIcon {
   const spec = getIconSpec(src);
   const size = emphasized ? spec.size + 4 : spec.size;
   const borderWidth = emphasized ? 2.5 : 2;
-
   let shapeStyle = "";
 
   if (spec.shape === "diamond" || spec.shape === "diamond-small") {
@@ -279,14 +461,8 @@ function makeIcon(src: string, emphasized = false): DivIcon {
     `;
   }
 
-  const html = `
-    <div style="display:flex;align-items:center;justify-content:center;">
-      <div style="${shapeStyle}"></div>
-    </div>
-  `;
-
   return divIcon({
-    html,
+    html: `<div style="display:flex;align-items:center;justify-content:center;"><div style="${shapeStyle}"></div></div>`,
     className: "navlog-map-icon",
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
@@ -304,14 +480,16 @@ export function NavlogMap({
   onAddPoint,
   onAddMapPoint,
 }: NavlogMapProps) {
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("standard");
   const selectedLayerSet = useMemo(
     () => new Set(referenceLayers),
     [referenceLayers]
   );
+  const showStandardMap = mapSourceMode === "standard";
+  const showVfrChart = mapSourceMode === "vfr-chart";
 
   const routePositions = useMemo(
-    () =>
-      calculatedNodes.map((node) => [node.lat, node.lon] as [number, number]),
+    () => calculatedNodes.map((node) => [node.lat, node.lon] as [number, number]),
     [calculatedNodes]
   );
 
@@ -327,27 +505,22 @@ export function NavlogMap({
 
     const filtered = points
       .filter((point) => point.code.trim().toUpperCase() !== "RUWIB")
-      .filter((point) =>
-        selectedLayerSet.has(point.src as NavlogReferenceLayer)
-      )
+      .filter((point) => selectedLayerSet.has(point.src as NavlogReferenceLayer))
       .filter((point) => {
         if (!query) return true;
         return pointMatchesQuery(point, query);
       });
-
     const requiredLpfrPoints = LPFR_REQUIRED_NAVLOG_MAP_POINTS.filter(
       (point) =>
         selectedLayerSet.has(point.src as NavlogReferenceLayer) &&
         (!query || pointMatchesQuery(point, query))
     );
-
     const limited = filtered.slice(0, query ? 1000 : 1500);
     const merged = new Map<string, NavlogPoint>();
 
     for (const point of requiredLpfrPoints) {
       merged.set(navlogMapPointKey(point), point);
     }
-
     for (const point of limited) {
       merged.set(navlogMapPointKey(point), point);
     }
@@ -363,6 +536,8 @@ export function NavlogMap({
     const bytes = await buildNavlogRouteMapPdf({
       routeWaypoints,
       calculatedNodes,
+      mapSourceMode,
+      vfrChartManifestUrl: showVfrChart ? vfrChartManifestUrl : "",
     });
     const firstPoint = routeWaypoints[0]?.point.code || routeWaypoints[0]?.point.name || "ROUTE";
     const lastPoint = routeWaypoints.at(-1)?.point.code || routeWaypoints.at(-1)?.point.name || "MAP";
@@ -373,31 +548,54 @@ export function NavlogMap({
 
   return (
     <div className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-      <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 md:flex-row md:items-center md:justify-between">
+      <div className="flex flex-col gap-3 border-b border-zinc-200 p-4 xl:flex-row xl:items-center xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
             Route map
           </p>
           <p className="text-sm text-zinc-500">
-            Plot the calculated route on the map and export a simple route-map PDF.
+            Plot the calculated route and export a clean PDF using the selected map source.
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={exportRouteMapPdf}
-          disabled={calculatedNodes.length < 2}
-          className="rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
-        >
-          Download route map PDF
-        </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            <input
+              type="radio"
+              name="navlog-map-source"
+              checked={mapSourceMode === "standard"}
+              onChange={() => setMapSourceMode("standard")}
+            />
+            OpenTopoMap + OpenAIP
+          </label>
+
+          <label className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+            <input
+              type="radio"
+              name="navlog-map-source"
+              disabled={!hasVfrChartOverlay}
+              checked={mapSourceMode === "vfr-chart"}
+              onChange={() => setMapSourceMode("vfr-chart")}
+            />
+            VFR map
+          </label>
+
+          <button
+            type="button"
+            onClick={exportRouteMapPdf}
+            disabled={calculatedNodes.length < 2}
+            className="rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
+          >
+            Download plotted PDF
+          </button>
+        </div>
       </div>
 
       <div className="h-[720px] bg-zinc-100">
         <MapContainer
           center={center}
           zoom={7}
-          maxZoom={17}
+          maxZoom={20}
           scrollWheelZoom
           className="h-full w-full"
         >
@@ -408,13 +606,36 @@ export function NavlogMap({
             visiblePoints={visiblePoints}
           />
 
-          <TileLayer
-            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
-            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-            maxZoom={17}
-          />
+          {showStandardMap ? (
+            <TileLayer
+              attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              maxZoom={17}
+            />
+          ) : null}
 
-          {openAipTilesUrl ? (
+          {showVfrChart && vfrChartTilesUrl ? (
+            <TileLayer
+              attribution={vfrChartAttribution}
+              bounds={vfrChartBounds}
+              detectRetina
+              maxNativeZoom={vfrChartMaxNativeZoom}
+              maxZoom={20}
+              minZoom={vfrChartMinZoom}
+              opacity={vfrChartOpacity}
+              url={vfrChartTilesUrl}
+              zIndex={220}
+            />
+          ) : null}
+
+          {showVfrChart && !vfrChartTilesUrl && vfrChartManifestUrl ? (
+            <VfrKmzImageOverlay
+              manifestUrl={vfrChartManifestUrl}
+              opacity={vfrChartOpacity}
+            />
+          ) : null}
+
+          {showStandardMap && openAipTilesUrl ? (
             <TileLayer
               attribution="openAIP"
               url={openAipTilesUrl}
@@ -423,6 +644,7 @@ export function NavlogMap({
               maxNativeZoom={16}
               maxZoom={20}
               detectRetina
+              zIndex={260}
             />
           ) : null}
 
@@ -443,8 +665,7 @@ export function NavlogMap({
                     <div className="text-sm font-semibold">{point.code}</div>
                     <div className="text-xs text-zinc-600">{point.name}</div>
                     <div className="text-xs text-zinc-500">
-                      {point.src} · {point.lat.toFixed(5)},{" "}
-                      {point.lon.toFixed(5)}
+                      {point.src} · {point.lat.toFixed(5)}, {point.lon.toFixed(5)}
                     </div>
                     {point.routes ? (
                       <div className="mt-1 text-xs text-zinc-500">
