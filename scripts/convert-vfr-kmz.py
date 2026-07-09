@@ -26,6 +26,13 @@ class Overlay:
     west: float
 
 
+@dataclass(frozen=True)
+class ConversionResult:
+    overlay: Overlay
+    status: str
+    error: str | None = None
+
+
 def require_command(name: str) -> None:
     if shutil.which(name) is None:
         print(f"{name} was not found. Install GDAL first.", file=sys.stderr)
@@ -78,37 +85,47 @@ def convert_overlay(
     output_dir: Path,
     overlay: Overlay,
     overwrite: bool,
-) -> tuple[str, bool]:
+) -> ConversionResult:
     output_path = output_dir / overlay.output_href
 
     if output_path.exists() and not overwrite:
-        return overlay.output_href, False
+        return ConversionResult(overlay=overlay, status="skipped")
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    with tempfile.TemporaryDirectory(prefix="vfr-kmz-") as tmp_name:
-        tmp_path = Path(tmp_name)
-        extracted_path = tmp_path / Path(overlay.source_href).name
+    try:
+        with tempfile.TemporaryDirectory(prefix="vfr-kmz-") as tmp_name:
+            tmp_path = Path(tmp_name)
+            extracted_path = tmp_path / Path(overlay.source_href).name
 
-        with zipfile.ZipFile(kmz_path) as kmz:
-            with kmz.open(overlay.source_href) as source, extracted_path.open("wb") as target:
-                shutil.copyfileobj(source, target)
+            with zipfile.ZipFile(kmz_path) as kmz:
+                with kmz.open(overlay.source_href) as source, extracted_path.open("wb") as target:
+                    shutil.copyfileobj(source, target)
 
-        subprocess.run(
-            [
-                "gdal_translate",
-                "-q",
-                "-of",
-                "PNG",
-                "-expand",
-                "rgba",
-                str(extracted_path),
-                str(output_path),
-            ],
-            check=True,
+            subprocess.run(
+                [
+                    "gdal_translate",
+                    "-q",
+                    "-of",
+                    "PNG",
+                    "-expand",
+                    "rgba",
+                    str(extracted_path),
+                    str(output_path),
+                ],
+                check=True,
+            )
+    except (KeyError, zipfile.BadZipFile, subprocess.CalledProcessError, OSError) as error:
+        if output_path.exists():
+            output_path.unlink()
+
+        return ConversionResult(
+            overlay=overlay,
+            status="failed",
+            error=f"{type(error).__name__}: {error}",
         )
 
-    return overlay.output_href, True
+    return ConversionResult(overlay=overlay, status="converted")
 
 
 def main() -> int:
@@ -181,6 +198,8 @@ def main() -> int:
 
     converted = 0
     skipped = 0
+    failed_results: list[ConversionResult] = []
+    available_overlays: list[Overlay] = []
 
     with ThreadPoolExecutor(max_workers=args.workers) as executor:
         futures = [
@@ -189,20 +208,28 @@ def main() -> int:
         ]
 
         for index, future in enumerate(as_completed(futures), start=1):
-            href, did_convert = future.result()
+            result = future.result()
 
-            if did_convert:
+            if result.status == "converted":
                 converted += 1
-            else:
+                available_overlays.append(result.overlay)
+            elif result.status == "skipped":
                 skipped += 1
+                available_overlays.append(result.overlay)
+            else:
+                failed_results.append(result)
 
             if index == 1 or index % 25 == 0 or index == len(futures):
-                print(f"{index}/{len(futures)} images processed; latest: {href}")
+                print(f"{index}/{len(futures)} images processed; latest: {result.overlay.output_href}")
 
-    min_south = min(overlay.south for overlay in overlays)
-    max_north = max(overlay.north for overlay in overlays)
-    min_west = min(overlay.west for overlay in overlays)
-    max_east = max(overlay.east for overlay in overlays)
+    if not available_overlays:
+        print("No valid overlay images were generated.", file=sys.stderr)
+        return 1
+
+    min_south = min(overlay.south for overlay in available_overlays)
+    max_north = max(overlay.north for overlay in available_overlays)
+    min_west = min(overlay.west for overlay in available_overlays)
+    max_east = max(overlay.east for overlay in available_overlays)
 
     manifest = {
         "type": "kml-superoverlay-image-manifest",
@@ -213,7 +240,7 @@ def main() -> int:
             "east": max_east,
             "west": min_west,
         },
-        "levels": sorted({overlay.level for overlay in overlays}),
+        "levels": sorted({overlay.level for overlay in available_overlays}),
         "overlays": [
             {
                 "href": overlay.output_href,
@@ -224,16 +251,42 @@ def main() -> int:
                 "west": overlay.west,
             }
             for overlay in sorted(
-                overlays,
+                available_overlays,
                 key=lambda item: (item.level, item.west, item.north, item.output_href),
             )
         ],
+        "conversion": {
+            "converted": converted,
+            "skipped_existing": skipped,
+            "failed": len(failed_results),
+        },
     }
 
     manifest_path = output_dir / "manifest.json"
     manifest_path.write_text(json.dumps(manifest, indent=2), encoding="utf-8")
 
-    print(f"Converted: {converted}; skipped existing: {skipped}")
+    if failed_results:
+        failed_log_path = output_dir / "failed-overlays.json"
+        failed_log_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "source_href": result.overlay.source_href,
+                        "output_href": result.overlay.output_href,
+                        "level": result.overlay.level,
+                        "error": result.error,
+                    }
+                    for result in failed_results
+                ],
+                indent=2,
+            ),
+            encoding="utf-8",
+        )
+
+        print(f"Warning: {len(failed_results)} images failed. See: {failed_log_path}", file=sys.stderr)
+        print("The chart may have small blank areas where corrupted KMZ members were skipped.", file=sys.stderr)
+
+    print(f"Converted: {converted}; skipped existing: {skipped}; failed: {len(failed_results)}")
     print(f"Manifest: {manifest_path}")
     print("Use this locally in .env.local:")
     print("NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json")
