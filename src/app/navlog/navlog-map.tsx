@@ -5,6 +5,7 @@ import {
   ImageOverlay,
   MapContainer,
   Marker,
+  Pane,
   Polyline,
   Popup,
   TileLayer,
@@ -49,11 +50,6 @@ type VfrKmzOverlayItem = {
   south: number;
   east: number;
   west: number;
-};
-
-type VfrKmzVisibleOverlay = VfrKmzOverlayItem & {
-  renderPass: "fallback" | "detail";
-  zIndex: number;
 };
 
 type VfrKmzManifest = {
@@ -101,6 +97,12 @@ function parseMapNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function parseOptionalMapNumber(value: string | undefined) {
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 const vfrChartMinZoom = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MIN_ZOOM,
   6
@@ -112,6 +114,9 @@ const vfrChartMaxNativeZoom = parseMapNumber(
 const vfrChartOpacity = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,
   0.78
+);
+const forcedVfrChartManifestLevel = parseOptionalMapNumber(
+  process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL
 );
 const vfrChartBounds: LatLngBoundsExpression = [
   [35.124950538548724, -10.25],
@@ -236,20 +241,21 @@ function getKmzTargetLevelForZoom(zoom: number) {
 }
 
 function getBestAvailableKmzLevel(zoom: number, availableLevels?: number[]) {
+  const sortedLevels = [...(availableLevels ?? [])].sort((a, b) => a - b);
+
+  if (forcedVfrChartManifestLevel !== null) {
+    return sortedLevels.includes(forcedVfrChartManifestLevel)
+      ? forcedVfrChartManifestLevel
+      : sortedLevels.at(-1) ?? forcedVfrChartManifestLevel;
+  }
+
   const targetLevel = getKmzTargetLevelForZoom(zoom);
 
-  if (!availableLevels?.length) return targetLevel;
+  if (!sortedLevels.length) return targetLevel;
 
-  const sortedLevels = [...availableLevels].sort((a, b) => a - b);
   const lowerOrEqualLevels = sortedLevels.filter((level) => level <= targetLevel);
 
   return lowerOrEqualLevels.at(-1) ?? sortedLevels[0] ?? targetLevel;
-}
-
-function getFallbackKmzLevel(availableLevels?: number[]) {
-  if (!availableLevels?.length) return null;
-
-  return [...availableLevels].sort((a, b) => a - b)[0] ?? null;
 }
 
 function overlayIntersectsBounds(
@@ -264,24 +270,8 @@ function overlayIntersectsBounds(
   );
 }
 
-function getVisibleOverlaysForLevel(
-  manifest: VfrKmzManifest,
-  bounds: LatLngBounds,
-  level: number,
-  renderPass: VfrKmzVisibleOverlay["renderPass"],
-  zIndex: number,
-  maxItems: number
-): VfrKmzVisibleOverlay[] {
-  return manifest.overlays
-    .filter((overlay) => overlay.level === level)
-    .filter((overlay) => overlayIntersectsBounds(overlay, bounds))
-    .slice(0, maxItems)
-    .map((overlay) => ({ ...overlay, renderPass, zIndex }));
-}
-
-function getOverlayKey(overlay: VfrKmzVisibleOverlay, index: number) {
+function getOverlayKey(overlay: VfrKmzOverlayItem, index: number) {
   return [
-    overlay.renderPass,
     overlay.href,
     overlay.level,
     overlay.south,
@@ -350,29 +340,12 @@ function VfrKmzImageOverlay({
   const visibleOverlays = useMemo(() => {
     if (!manifest) return [];
 
-    const detailLevel = getBestAvailableKmzLevel(view.zoom, manifest.levels);
-    const fallbackLevel = getFallbackKmzLevel(manifest.levels);
-    const fallbackOverlays =
-      fallbackLevel !== null && fallbackLevel !== detailLevel
-        ? getVisibleOverlaysForLevel(
-            manifest,
-            view.bounds,
-            fallbackLevel,
-            "fallback",
-            210,
-            80
-          )
-        : [];
-    const detailOverlays = getVisibleOverlaysForLevel(
-      manifest,
-      view.bounds,
-      detailLevel,
-      "detail",
-      220,
-      260
-    );
+    const level = getBestAvailableKmzLevel(view.zoom, manifest.levels);
 
-    return [...fallbackOverlays, ...detailOverlays];
+    return manifest.overlays
+      .filter((overlay) => overlay.level === level)
+      .filter((overlay) => overlayIntersectsBounds(overlay, view.bounds))
+      .slice(0, 260);
   }, [manifest, view.bounds, view.zoom]);
 
   return (
@@ -385,9 +358,9 @@ function VfrKmzImageOverlay({
             [overlay.south, overlay.west],
             [overlay.north, overlay.east],
           ]}
-          opacity={overlay.renderPass === "fallback" ? Math.min(opacity, 0.55) : opacity}
+          opacity={opacity}
           url={resolveManifestAssetUrl(manifestUrl, overlay.href)}
-          zIndex={overlay.zIndex}
+          zIndex={220}
         />
       ))}
     </>
@@ -538,6 +511,7 @@ export function NavlogMap({
       calculatedNodes,
       mapSourceMode,
       vfrChartManifestUrl: showVfrChart ? vfrChartManifestUrl : "",
+      vfrChartManifestLevel: forcedVfrChartManifestLevel,
     });
     const firstPoint = routeWaypoints[0]?.point.code || routeWaypoints[0]?.point.name || "ROUTE";
     const lastPoint = routeWaypoints.at(-1)?.point.code || routeWaypoints.at(-1)?.point.name || "MAP";
@@ -692,12 +666,14 @@ export function NavlogMap({
             </Marker>
           ))}
 
-          {routePositions.length > 1 ? (
-            <Polyline
-              positions={routePositions}
-              pathOptions={{ color: "#111827", weight: 4, opacity: 0.9 }}
-            />
-          ) : null}
+          <Pane name="navlog-route-line" style={{ zIndex: 550 }}>
+            {routePositions.length > 1 ? (
+              <Polyline
+                positions={routePositions}
+                pathOptions={{ color: "#ef4444", weight: 4, opacity: 0.95 }}
+              />
+            ) : null}
+          </Pane>
 
           {calculatedNodes.map((node, index) => (
             <Marker
