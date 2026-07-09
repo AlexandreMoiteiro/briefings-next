@@ -221,6 +221,18 @@ function overlayIntersectsBounds(
   );
 }
 
+function getOverlayKey(overlay: VfrKmzOverlayItem, index: number) {
+  return [
+    overlay.href,
+    overlay.level,
+    overlay.south,
+    overlay.west,
+    overlay.north,
+    overlay.east,
+    index,
+  ].join(":");
+}
+
 function resolveManifestAssetUrl(manifestUrl: string, assetHref: string) {
   if (typeof window === "undefined") return assetHref;
 
@@ -291,9 +303,9 @@ function VfrKmzImageOverlay({
 
   return (
     <>
-      {visibleOverlays.map((overlay) => (
+      {visibleOverlays.map((overlay, index) => (
         <ImageOverlay
-          key={overlay.href}
+          key={getOverlayKey(overlay, index)}
           attribution={vfrChartAttribution}
           bounds={[
             [overlay.south, overlay.west],
