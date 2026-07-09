@@ -49,6 +49,12 @@ legacy/streamlit/
 .env.local
 .env.*.local
 
+# VFR chart source files and generated raster tiles
+/data/vfr-chart/
+/public/vfr-chart/
+*.mbtiles
+*.pmtiles
+
 # Vercel local project link
 .vercel/
 local-afm/
