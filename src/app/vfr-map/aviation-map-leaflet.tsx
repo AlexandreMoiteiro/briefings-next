@@ -21,13 +21,14 @@ import {
 import type { NavlogPoint } from "@/lib/navlog";
 
 type AviationLayer = "AD" | "VFR" | "IFR" | "VOR";
+type MapSourceMode = "standard" | "vfr-chart";
 
 type AviationMapLeafletProps = {
   points: NavlogPoint[];
   activeLayers: AviationLayer[];
   searchQuery: string;
   selectedPoint: NavlogPoint | null;
-  showVfrChart: boolean;
+  mapSourceMode: MapSourceMode;
 };
 
 type VfrKmzOverlayItem = {
@@ -325,9 +326,11 @@ export function AviationMapLeaflet({
   activeLayers,
   searchQuery,
   selectedPoint,
-  showVfrChart,
+  mapSourceMode,
 }: AviationMapLeafletProps) {
   const activeLayerSet = useMemo(() => new Set(activeLayers), [activeLayers]);
+  const showStandardMap = mapSourceMode === "standard";
+  const showVfrChart = mapSourceMode === "vfr-chart";
 
   const visiblePoints = useMemo(() => {
     const query = searchQuery.trim();
@@ -350,11 +353,13 @@ export function AviationMapLeaflet({
         scrollWheelZoom
         className="h-full w-full"
       >
-        <TileLayer
-          attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
-          url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-          maxZoom={17}
-        />
+        {showStandardMap ? (
+          <TileLayer
+            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+            maxZoom={17}
+          />
+        ) : null}
 
         {showVfrChart && vfrChartTilesUrl ? (
           <TileLayer
@@ -377,7 +382,7 @@ export function AviationMapLeaflet({
           />
         ) : null}
 
-        {openAipTilesUrl ? (
+        {showStandardMap && openAipTilesUrl ? (
           <TileLayer
             attribution="openAIP"
             url={openAipTilesUrl}
