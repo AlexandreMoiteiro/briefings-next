@@ -41,26 +41,38 @@ NEXT_PUBLIC_VFR_CHART_TILES_URL=https://your-storage.example.com/vfr-chart/{z}/{
 
 ## Convert the GeoTIFF to XYZ tiles
 
-Install GDAL locally first. Then run something like this from the project root, adjusting filenames as needed:
+Install GDAL locally first.
+
+macOS:
 
 ```bash
-mkdir -p data/vfr-chart public/vfr-chart
+brew install gdal
+```
 
-gdalwarp \
-  -t_srs EPSG:3857 \
-  -r bilinear \
-  -dstalpha \
-  ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif \
-  data/vfr-chart/anc-portugal-500k-3857.tif
+Ubuntu/Debian:
 
-gdal2tiles.py \
-  --xyz \
-  -p mercator \
-  -r bilinear \
-  -z 6-13 \
-  --processes=4 \
-  data/vfr-chart/anc-portugal-500k-3857.tif \
-  public/vfr-chart
+```bash
+sudo apt-get update
+sudo apt-get install -y gdal-bin
+```
+
+Put the GeoTIFF somewhere outside Git or in the project root temporarily, then run:
+
+```bash
+chmod +x scripts/convert-vfr-chart.sh
+scripts/convert-vfr-chart.sh /path/to/ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif
+```
+
+By default the script generates:
+
+```txt
+public/vfr-chart/{z}/{x}/{y}.png
+```
+
+Then use this locally in `.env.local`:
+
+```bash
+NEXT_PUBLIC_VFR_CHART_TILES_URL=/vfr-chart/{z}/{x}/{y}.png
 ```
 
 For production, prefer uploading the generated `public/vfr-chart` contents to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set `NEXT_PUBLIC_VFR_CHART_TILES_URL` to that public URL template.
