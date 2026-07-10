@@ -10,9 +10,10 @@ Use **XYZ tiles** through `NEXT_PUBLIC_VFR_CHART_TILES_URL` for production. This
 
 Recommended sources, in order:
 
-1. `ANC_Portugal_500k_Geospatial_PDF_2022.pdf` converted to XYZ tiles.
-2. A clean `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif` converted to XYZ tiles.
-3. `ANC_Portugal_500k_KMZ_2022_600dpi.kmz` converted to a manifest + PNG overlays only as a temporary fallback.
+1. A clean `ANC_Portugal_500k_GeoTIFF_600dpi_2022.tif` kept as the original master and converted to XYZ tiles for the app.
+2. `ANC_Portugal_500k_Geospatial_PDF_2022.pdf` converted to XYZ tiles when a clean GeoTIFF is unavailable.
+3. A clean full-chart PNG georeferenced with the published ANC bounds, as a fallback source.
+4. `ANC_Portugal_500k_KMZ_2022_600dpi.kmz` converted to a manifest + PNG overlays only as a temporary fallback.
 
 The tested GeoTIFF/KMZ copies had corrupted internal imagery, which causes missing grey blocks at high detail levels. A clean GeoPDF/GeoTIFF converted to XYZ tiles is the real fix.
 
@@ -134,7 +135,47 @@ NEXT_PUBLIC_VFR_CHART_MANIFEST_URL=/vfr-chart/manifest.json
 NEXT_PUBLIC_VFR_CHART_OPACITY=0.78
 ```
 
-For production, prefer uploading the generated XYZ tiles to Supabase Storage, Vercel Blob, S3, Cloudflare R2, or another CDN-backed bucket, then set the public URL in Vercel.
+## Convert a full-chart PNG fallback to XYZ tiles
+
+If the only clean raster is a full-chart PNG with the same ANC coverage, run:
+
+```bash
+chmod +x scripts/convert-vfr-png.sh
+scripts/convert-vfr-png.sh /path/to/ANC_Portugal_500k_2022.png
+```
+
+This assigns the published ANC bounds before reprojecting and generating XYZ tiles. Prefer the original georeferenced GeoTIFF whenever it is available.
+
+## Upload the XYZ tiles to Supabase Storage
+
+The project includes an uploader that creates/updates a public `vfr-chart` bucket and uploads only files matching the XYZ path pattern `{z}/{x}/{y}.png`.
+
+Use a server-side Supabase secret key only in the terminal. Never prefix it with `NEXT_PUBLIC_` and never save it in Git:
+
+```bash
+export SUPABASE_URL="https://xyyodgojcrdkleuyicjn.supabase.co"
+export SUPABASE_SECRET_KEY="your-secret-key"
+export VFR_STORAGE_PREFIX="anc-portugal-500k/2022"
+npm run upload:vfr-tiles -- public/vfr-chart
+```
+
+The uploader stores the tiles with a one-year CDN cache. Keep the version in `VFR_STORAGE_PREFIX`; use a new prefix when the chart edition changes rather than overwriting a published edition.
+
+For this project, the resulting Vercel value is:
+
+```bash
+NEXT_PUBLIC_VFR_CHART_TILES_URL=https://xyyodgojcrdkleuyicjn.supabase.co/storage/v1/object/public/vfr-chart/anc-portugal-500k/2022/{z}/{x}/{y}.png
+```
+
+Set the value for Production, Preview, and Development in Vercel, then redeploy. `NEXT_PUBLIC_` variables are embedded during `next build`, so changing the variable without a new deployment is not enough.
+
+Verify one real tile before redeploying:
+
+```bash
+curl -I "https://xyyodgojcrdkleuyicjn.supabase.co/storage/v1/object/public/vfr-chart/anc-portugal-500k/2022/6/30/24.png"
+```
+
+For production, Supabase Storage is the selected CDN-backed location for this project.
 
 ## Why not load the TIFF/KMZ directly?
 

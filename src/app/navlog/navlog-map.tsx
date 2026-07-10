@@ -508,8 +508,9 @@ export function NavlogMap({
 
     const bytes = await buildNavlogRouteMapPdf({
       routeWaypoints,
-      calculatedNodes,
       mapSourceMode,
+      vfrChartTilesUrl: showVfrChart ? vfrChartTilesUrl : "",
+      vfrChartMaxNativeZoom,
       vfrChartManifestUrl: showVfrChart ? vfrChartManifestUrl : "",
       vfrChartManifestLevel: forcedVfrChartManifestLevel,
     });

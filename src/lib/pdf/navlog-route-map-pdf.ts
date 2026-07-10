@@ -1,5 +1,7 @@
 import {
   PDFDocument,
+  PDFFont,
+  PDFPage,
   StandardFonts,
   clip,
   endPath,
@@ -14,8 +16,9 @@ type MapSourceMode = "standard" | "vfr-chart";
 
 type BuildNavlogRouteMapPdfInput = {
   routeWaypoints: NavlogRouteWaypoint[];
-  calculatedNodes: unknown[];
   mapSourceMode?: MapSourceMode;
+  vfrChartTilesUrl?: string;
+  vfrChartMaxNativeZoom?: number;
   vfrChartManifestUrl?: string;
   vfrChartManifestLevel?: number | null;
 };
@@ -64,6 +67,8 @@ type VfrKmzManifest = {
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
 const MAP_FRAME: PlotFrame = { x: 24, y: 24, width: 794, height: 547 };
+const MAX_PDF_TILE_COUNT = 96;
+const WEB_MERCATOR_MAX_LATITUDE = 85.05112878;
 
 function safeText(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -202,6 +207,180 @@ async function fetchArrayBuffer(url: string) {
   return response.arrayBuffer();
 }
 
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
+}
+
+function longitudeToTileX(longitude: number, zoom: number) {
+  const tileCount = 2 ** zoom;
+
+  return Math.floor(((longitude + 180) / 360) * tileCount);
+}
+
+function latitudeToTileY(latitude: number, zoom: number) {
+  const tileCount = 2 ** zoom;
+  const clampedLatitude = clamp(
+    latitude,
+    -WEB_MERCATOR_MAX_LATITUDE,
+    WEB_MERCATOR_MAX_LATITUDE
+  );
+  const latitudeRadians = (clampedLatitude * Math.PI) / 180;
+  const mercator = Math.log(
+    Math.tan(latitudeRadians) + 1 / Math.cos(latitudeRadians)
+  );
+
+  return Math.floor((1 - mercator / Math.PI) * 0.5 * tileCount);
+}
+
+function tileXToLongitude(tileX: number, zoom: number) {
+  return (tileX / 2 ** zoom) * 360 - 180;
+}
+
+function tileYToLatitude(tileY: number, zoom: number) {
+  const mercator = Math.PI * (1 - (2 * tileY) / 2 ** zoom);
+
+  return (Math.atan(Math.sinh(mercator)) * 180) / Math.PI;
+}
+
+function getTileRange(bounds: GeoBounds, zoom: number) {
+  const maximumTileIndex = 2 ** zoom - 1;
+  const west = clamp(
+    longitudeToTileX(bounds.west, zoom),
+    0,
+    maximumTileIndex
+  );
+  const east = clamp(
+    longitudeToTileX(bounds.east, zoom),
+    0,
+    maximumTileIndex
+  );
+  const north = clamp(
+    latitudeToTileY(bounds.north, zoom),
+    0,
+    maximumTileIndex
+  );
+  const south = clamp(
+    latitudeToTileY(bounds.south, zoom),
+    0,
+    maximumTileIndex
+  );
+
+  return {
+    west: Math.min(west, east),
+    east: Math.max(west, east),
+    north: Math.min(north, south),
+    south: Math.max(north, south),
+  };
+}
+
+function getTileRangeCount(range: ReturnType<typeof getTileRange>) {
+  return (range.east - range.west + 1) * (range.south - range.north + 1);
+}
+
+function choosePdfTileZoom(bounds: GeoBounds, maximumZoom: number) {
+  for (let zoom = Math.max(0, maximumZoom); zoom >= 0; zoom -= 1) {
+    if (getTileRangeCount(getTileRange(bounds, zoom)) <= MAX_PDF_TILE_COUNT) {
+      return zoom;
+    }
+  }
+
+  return 0;
+}
+
+function resolveTileUrl(template: string, zoom: number, x: number, y: number) {
+  const resolvedTemplate =
+    typeof window === "undefined"
+      ? template
+      : new URL(template, window.location.href).toString();
+
+  return resolvedTemplate
+    .replaceAll("{z}", String(zoom))
+    .replaceAll("{x}", String(x))
+    .replaceAll("{y}", String(y));
+}
+
+async function drawVfrXyzTileBackground({
+  pdfDoc,
+  page,
+  tilesUrl,
+  maximumZoom,
+  bounds,
+  project,
+}: {
+  pdfDoc: PDFDocument;
+  page: PDFPage;
+  tilesUrl: string;
+  maximumZoom: number;
+  bounds: GeoBounds;
+  project: (lat: number, lon: number) => PlotPoint;
+}) {
+  const zoom = choosePdfTileZoom(bounds, maximumZoom);
+  const range = getTileRange(bounds, zoom);
+  const tiles: { x: number; y: number; bytes: ArrayBuffer | null }[] = [];
+
+  for (let y = range.north; y <= range.south; y += 1) {
+    for (let x = range.west; x <= range.east; x += 1) {
+      tiles.push({ x, y, bytes: null });
+    }
+  }
+
+  const loadedTiles = await Promise.all(
+    tiles.map(async (tile) => {
+      try {
+        return {
+          ...tile,
+          bytes: await fetchArrayBuffer(
+            resolveTileUrl(tilesUrl, zoom, tile.x, tile.y)
+          ),
+        };
+      } catch (error) {
+        console.error(error);
+        return tile;
+      }
+    })
+  );
+
+  let drawn = 0;
+
+  page.pushOperators(
+    pushGraphicsState(),
+    rectangle(MAP_FRAME.x, MAP_FRAME.y, MAP_FRAME.width, MAP_FRAME.height),
+    clip(),
+    endPath()
+  );
+
+  for (const tile of loadedTiles) {
+    if (!tile.bytes) continue;
+
+    try {
+      const image = await pdfDoc.embedPng(tile.bytes);
+      const northWest = project(
+        tileYToLatitude(tile.y, zoom),
+        tileXToLongitude(tile.x, zoom)
+      );
+      const southEast = project(
+        tileYToLatitude(tile.y + 1, zoom),
+        tileXToLongitude(tile.x + 1, zoom)
+      );
+
+      page.drawImage(image, {
+        x: Math.min(northWest.x, southEast.x),
+        y: Math.min(northWest.y, southEast.y),
+        width: Math.abs(southEast.x - northWest.x),
+        height: Math.abs(northWest.y - southEast.y),
+        opacity: 0.98,
+      });
+      drawn += 1;
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
+  page.pushOperators(popGraphicsState());
+
+  return drawn;
+}
+
 async function drawVfrChartBackground({
   pdfDoc,
   page,
@@ -211,7 +390,7 @@ async function drawVfrChartBackground({
   project,
 }: {
   pdfDoc: PDFDocument;
-  page: any;
+  page: PDFPage;
   manifestUrl: string;
   manifestLevel?: number | null;
   bounds: GeoBounds;
@@ -270,7 +449,7 @@ async function drawVfrChartBackground({
   return drawn;
 }
 
-function drawNorthArrow(page: any, boldFont: any) {
+function drawNorthArrow(page: PDFPage, boldFont: PDFFont) {
   page.drawText("N", {
     x: MAP_FRAME.x + MAP_FRAME.width - 24,
     y: MAP_FRAME.y + MAP_FRAME.height - 28,
@@ -295,6 +474,8 @@ function drawNorthArrow(page: any, boldFont: any) {
 export async function buildNavlogRouteMapPdf({
   routeWaypoints,
   mapSourceMode = "standard",
+  vfrChartTilesUrl = "",
+  vfrChartMaxNativeZoom = 13,
   vfrChartManifestUrl = "",
   vfrChartManifestLevel = null,
 }: BuildNavlogRouteMapPdfInput) {
@@ -317,7 +498,16 @@ export async function buildNavlogRouteMapPdf({
     const bounds = expandRouteBounds(nodes);
     const project = buildProjector(bounds, MAP_FRAME);
 
-    if (mapSourceMode === "vfr-chart" && vfrChartManifestUrl) {
+    if (mapSourceMode === "vfr-chart" && vfrChartTilesUrl) {
+      await drawVfrXyzTileBackground({
+        pdfDoc,
+        page,
+        tilesUrl: vfrChartTilesUrl,
+        maximumZoom: vfrChartMaxNativeZoom,
+        bounds,
+        project,
+      });
+    } else if (mapSourceMode === "vfr-chart" && vfrChartManifestUrl) {
       await drawVfrChartBackground({
         pdfDoc,
         page,
