@@ -80,9 +80,7 @@ const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
 
-const vfrChartTilesUrl = (
-  process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? ""
-).trim();
+const vfrChartTilesUrl = "/vfr-chart/{z}/{x}/{y}.png";
 const vfrChartManifestUrl = (
   process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? ""
 ).trim();
@@ -109,7 +107,7 @@ const vfrChartMinZoom = parseMapNumber(
 );
 const vfrChartMaxNativeZoom = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM,
-  13
+  12
 );
 const vfrChartOpacity = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,

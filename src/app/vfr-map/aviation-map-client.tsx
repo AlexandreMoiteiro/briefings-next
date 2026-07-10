@@ -8,10 +8,7 @@ import type { NavlogDataBundle, NavlogPoint } from "@/lib/navlog";
 type AviationLayer = "AD" | "VFR" | "IFR" | "VOR";
 type MapSourceMode = "standard" | "vfr-chart";
 
-const hasVfrChartOverlay = Boolean(
-  (process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? "").trim() ||
-    (process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? "").trim()
-);
+const hasVfrChartOverlay = true;
 
 const AviationMapLeaflet = dynamic(
   () =>
@@ -325,11 +322,6 @@ export function AviationMapClient() {
               </label>
             </div>
 
-            {!hasVfrChartOverlay ? (
-              <p className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">
-                Configure NEXT_PUBLIC_VFR_CHART_TILES_URL or NEXT_PUBLIC_VFR_CHART_MANIFEST_URL after converting the GeoTIFF/KMZ into web assets.
-              </p>
-            ) : null}
           </section>
 
           <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
