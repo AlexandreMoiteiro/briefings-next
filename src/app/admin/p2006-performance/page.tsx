@@ -22,6 +22,14 @@ export default function AdminP2006PerformancePage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <a
+              href="/api/p2006-form"
+              target="_blank"
+              rel="noreferrer"
+              className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100"
+            >
+              Open original P2006T PDF
+            </a>
             <Link
               href="/performance"
               className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
