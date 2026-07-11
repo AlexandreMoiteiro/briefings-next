@@ -429,9 +429,9 @@ export function P2006TPerformanceBuilder() {
               Select the aircraft-specific dataset
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-500">
-              No values are shared automatically between registrations. Source
-              image and text paths remain editable so the exact GitHub assets can
-              be connected and corrected without changing calculation code.
+              The visual mapper above is the source of truth for image coordinates.
+              These source paths and extracted text remain editable metadata for the
+              reviewed dataset and eventual repository commit.
             </p>
           </div>
 
@@ -589,8 +589,8 @@ export function P2006TPerformanceBuilder() {
               </div>
             ) : (
               <div className="mt-5 rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 p-8 text-center text-sm text-zinc-500">
-                Enter the existing GitHub public image path to display the original
-                performance page beside the editable values.
+                The real source page and coordinate mapper are shown above. Save its
+                final repository path here when the image asset is committed.
               </div>
             )}
 
@@ -730,9 +730,9 @@ export function P2006TPerformanceBuilder() {
                   ["Paved factor", "pavedFactor"],
                   ["Slope factor / 1%", "uphillFactorPerPct"],
                 ] as const
-              ).map(([label, key]) => (
+              ).map(([labelText, key]) => (
                 <label key={key} className="space-y-1">
-                  <FieldLabel>{label}</FieldLabel>
+                  <FieldLabel>{labelText}</FieldLabel>
                   <input
                     type="number"
                     step="any"
@@ -833,13 +833,11 @@ export function P2006TPerformanceBuilder() {
           </section>
 
           <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-            <p className="font-semibold">P2006T PDF template queued next</p>
+            <p className="font-semibold">P2006T PDF template is now in the mapper</p>
             <p className="mt-1">
-              Page 1 contains loading entries and the graphical M&B worksheet. Page
-              2 contains Departure, Arrival and Alternate airfield data, TODA/TODR,
-              LDA/LDR, ROC and the eleven-line fuel plan. The PDF mapping builder
-              will use the same reviewed values and calculation trace rather than a
-              separate calculation path.
+              Both pages of RVP.CFI.071.02 can now be displayed, downloaded and
+              coordinate-mapped above. The final generator will use those saved field
+              coordinates together with the reviewed calculation trace.
             </p>
           </section>
         </aside>
