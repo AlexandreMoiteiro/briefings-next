@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ImageOverlay,
   MapContainer,
@@ -197,6 +197,20 @@ function FlyToSelectedPoint({ point }: { point: NavlogPoint | null }) {
   return null;
 }
 
+function InvalidateMapSize({ expanded }: { expanded: boolean }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => {
+      map.invalidateSize();
+    }, 150);
+
+    return () => window.clearTimeout(timeout);
+  }, [expanded, map]);
+
+  return null;
+}
+
 function getKmzTargetLevelForZoom(zoom: number) {
   if (zoom <= 6) return 3;
   if (zoom === 7) return 4;
@@ -340,6 +354,8 @@ export function AviationMapLeaflet({
   selectedPoint,
   mapSourceMode,
 }: AviationMapLeafletProps) {
+  const rootRef = useRef<HTMLElement | null>(null);
+  const [expanded, setExpanded] = useState(false);
   const activeLayerSet = useMemo(() => new Set(activeLayers), [activeLayers]);
   const showStandardMap = mapSourceMode === "standard";
   const showVfrChart = mapSourceMode === "vfr-chart";
@@ -355,103 +371,159 @@ export function AviationMapLeaflet({
 
   const center: LatLngExpression = [39.55, -8.0];
 
+  useEffect(() => {
+    function onFullscreenChange() {
+      setExpanded(document.fullscreenElement === rootRef.current);
+    }
+
+    document.addEventListener("fullscreenchange", onFullscreenChange);
+
+    return () => {
+      document.removeEventListener("fullscreenchange", onFullscreenChange);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [expanded]);
+
+  async function toggleFullscreen() {
+    if (document.fullscreenElement) {
+      await document.exitFullscreen();
+      return;
+    }
+
+    if (rootRef.current?.requestFullscreen) {
+      await rootRef.current.requestFullscreen();
+      return;
+    }
+
+    setExpanded((value) => !value);
+  }
+
   return (
-    <div className="h-[780px] overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-100 shadow-sm">
-      <MapContainer
-        center={center}
-        zoom={7}
-        minZoom={5}
-        maxZoom={20}
-        scrollWheelZoom
-        className="h-full w-full"
+    <section
+      ref={rootRef}
+      className={
+        expanded
+          ? "fixed inset-0 z-[9999] overflow-hidden bg-white"
+          : "relative overflow-hidden rounded-3xl border border-zinc-200 bg-zinc-100 shadow-sm"
+      }
+    >
+      <button
+        type="button"
+        onClick={toggleFullscreen}
+        className="absolute right-3 top-3 z-[10000] rounded-xl bg-white/95 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
       >
-        {showStandardMap ? (
-          <TileLayer
-            attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
-            url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
-            maxZoom={17}
-          />
-        ) : null}
+        {expanded ? "Fechar" : "Fullscreen"}
+      </button>
 
-        {showVfrChart && vfrChartTilesUrl ? (
-          <TileLayer
-            attribution={vfrChartAttribution}
-            bounds={vfrChartBounds}
-            detectRetina
-            maxNativeZoom={vfrChartMaxNativeZoom}
-            maxZoom={20}
-            minZoom={vfrChartMinZoom}
-            opacity={vfrChartOpacity}
-            url={vfrChartTilesUrl}
-            zIndex={220}
-          />
-        ) : null}
+      <div className={expanded ? "h-screen w-screen" : "h-[780px] w-full"}>
+        <MapContainer
+          center={center}
+          zoom={7}
+          minZoom={5}
+          maxZoom={20}
+          scrollWheelZoom
+          className="h-full w-full"
+        >
+          <InvalidateMapSize expanded={expanded} />
 
-        {showVfrChart && !vfrChartTilesUrl && vfrChartManifestUrl ? (
-          <VfrKmzImageOverlay
-            manifestUrl={vfrChartManifestUrl}
-            opacity={vfrChartOpacity}
-          />
-        ) : null}
+          {showStandardMap ? (
+            <TileLayer
+              attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
+              url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
+              maxZoom={17}
+            />
+          ) : null}
 
-        {showStandardMap && openAipTilesUrl ? (
-          <TileLayer
-            attribution="openAIP"
-            url={openAipTilesUrl}
-            opacity={0.65}
-            minZoom={4}
-            maxNativeZoom={16}
-            maxZoom={20}
-            detectRetina
-            zIndex={260}
-          />
-        ) : null}
+          {showVfrChart && vfrChartTilesUrl ? (
+            <TileLayer
+              attribution={vfrChartAttribution}
+              bounds={vfrChartBounds}
+              detectRetina
+              maxNativeZoom={vfrChartMaxNativeZoom}
+              maxZoom={20}
+              minZoom={vfrChartMinZoom}
+              opacity={vfrChartOpacity}
+              url={vfrChartTilesUrl}
+              zIndex={220}
+            />
+          ) : null}
 
-        <FlyToSelectedPoint point={selectedPoint} />
+          {showVfrChart && !vfrChartTilesUrl && vfrChartManifestUrl ? (
+            <VfrKmzImageOverlay
+              manifestUrl={vfrChartManifestUrl}
+              opacity={vfrChartOpacity}
+            />
+          ) : null}
 
-        {visiblePoints.map((point) => {
-          const selected =
-            selectedPoint &&
-            selectedPoint.code === point.code &&
-            selectedPoint.lat === point.lat &&
-            selectedPoint.lon === point.lon &&
-            selectedPoint.src === point.src;
+          {showStandardMap && openAipTilesUrl ? (
+            <TileLayer
+              attribution="openAIP"
+              url={openAipTilesUrl}
+              opacity={0.65}
+              minZoom={4}
+              maxNativeZoom={16}
+              maxZoom={20}
+              detectRetina
+              zIndex={260}
+            />
+          ) : null}
 
-          return (
-            <Marker
-              key={`${point.src}-${point.code}-${point.lat}-${point.lon}`}
-              position={[point.lat, point.lon]}
-              icon={makeIcon(point.src, Boolean(selected))}
-            >
-              <Popup>
-                <div className="space-y-2">
-                  <div>
-                    <p className="text-sm font-semibold">{point.code}</p>
-                    <p className="text-xs text-zinc-600">{point.name}</p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {point.src} · {point.lat.toFixed(5)}, {point.lon.toFixed(5)}
-                    </p>
+          <FlyToSelectedPoint point={selectedPoint} />
+
+          {visiblePoints.map((point) => {
+            const selected =
+              selectedPoint &&
+              selectedPoint.code === point.code &&
+              selectedPoint.lat === point.lat &&
+              selectedPoint.lon === point.lon &&
+              selectedPoint.src === point.src;
+
+            return (
+              <Marker
+                key={`${point.src}-${point.code}-${point.lat}-${point.lon}`}
+                position={[point.lat, point.lon]}
+                icon={makeIcon(point.src, Boolean(selected))}
+              >
+                <Popup>
+                  <div className="space-y-2">
+                    <div>
+                      <p className="text-sm font-semibold">{point.code}</p>
+                      <p className="text-xs text-zinc-600">{point.name}</p>
+                      <p className="mt-1 text-xs text-zinc-500">
+                        {point.src} · {point.lat.toFixed(5)}, {point.lon.toFixed(5)}
+                      </p>
+                    </div>
+
+                    {point.routes ? (
+                      <p className="text-xs text-zinc-500">{point.routes}</p>
+                    ) : null}
+
+                    {point.remarks ? (
+                      <p className="text-xs text-zinc-500">{point.remarks}</p>
+                    ) : null}
                   </div>
+                </Popup>
 
-                  {point.routes ? (
-                    <p className="text-xs text-zinc-500">{point.routes}</p>
-                  ) : null}
-
-                  {point.remarks ? (
-                    <p className="text-xs text-zinc-500">{point.remarks}</p>
-                  ) : null}
-                </div>
-              </Popup>
-
-              {searchQuery.trim() || selected ? (
-                <Tooltip permanent direction="right" offset={[10, 0]}>
-                  {point.code}
-                </Tooltip>
-              ) : null}
-            </Marker>
-          );
-        })}
-      </MapContainer>
-    </div>
+                {searchQuery.trim() || selected ? (
+                  <Tooltip permanent direction="right" offset={[10, 0]}>
+                    {point.code}
+                  </Tooltip>
+                ) : null}
+              </Marker>
+            );
+          })}
+        </MapContainer>
+      </div>
+    </section>
   );
 }
