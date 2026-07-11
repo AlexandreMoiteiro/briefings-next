@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { P2006TPerformanceBuilder } from "./p2006-performance-builder";
 import { P2006TSourceMapper } from "./p2006-source-mapper";
 
 export default function AdminP2006PerformancePage() {
@@ -12,12 +11,12 @@ export default function AdminP2006PerformancePage() {
               Admin · Tecnam P2006T
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Guided performance builder
+              Guided source and form mapper
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Validate the real AFM pages beside the transcribed values, map PDF
-              fields and graphical paths, and then review every interpolation step
-              before approving an operational dataset.
+              Map the real AFM source regions and the writable areas of the original
+              two-page form. Operational calculations and their visual proof will be
+              shown later on the Performance page.
             </p>
           </div>
 
@@ -46,7 +45,6 @@ export default function AdminP2006PerformancePage() {
         </header>
 
         <P2006TSourceMapper />
-        <P2006TPerformanceBuilder />
       </section>
     </main>
   );
