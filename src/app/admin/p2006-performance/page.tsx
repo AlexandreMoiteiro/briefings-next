@@ -1,0 +1,43 @@
+import Link from "next/link";
+import { P2006TPerformanceBuilder } from "./p2006-performance-builder";
+
+export default function AdminP2006PerformancePage() {
+  return (
+    <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6 lg:px-8">
+      <section className="mx-auto max-w-[1600px] space-y-6">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-zinc-400">
+              Admin · Tecnam P2006T
+            </p>
+            <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
+              Guided performance builder
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
+              Validate each aircraft and source table cell-by-cell, then inspect the
+              exact interpolation steps before a dataset can be approved for the
+              operational Performance page.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/performance"
+              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100"
+            >
+              Open Performance
+            </Link>
+            <Link
+              href="/admin"
+              className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
+            >
+              Back to Admin
+            </Link>
+          </div>
+        </header>
+
+        <P2006TPerformanceBuilder />
+      </section>
+    </main>
+  );
+}
