@@ -51,7 +51,9 @@ const openAipTilesUrl = openAipApiKey
   ? `https://api.tiles.openaip.net/api/data/openaip/{z}/{x}/{y}.png?apiKey=${openAipApiKey}`
   : "";
 
-const vfrChartTilesUrl = "/vfr-chart/{z}/{x}/{y}.png";
+const vfrChartTilesUrl = (
+  process.env.NEXT_PUBLIC_VFR_CHART_TILES_URL ?? "/vfr-chart/{z}/{x}/{y}.png"
+).trim();
 
 const vfrChartManifestUrl = (
   process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_URL ?? ""
