@@ -1,0 +1,40 @@
+                                                                                Page 5 - 5
+
+
+
+6.   STALL SPEED
+
+
+Weight: 1180 kg / 2601 lb
+Throttle Levers: IDLE
+Landing Gear: Down
+CG: Most Forward (16.5%)
+No ground effect
+
+
+              BANK
+                                                STALL SPEED
+ WEIGHT
+              ANGLE         FLAPS 0°               FLAPS T/O              FLAPS FULL
+              [deg]     KIAS       KCAS        KIAS        KCAS        KIAS        KCAS
+                0        66         64          56          56          53          54
+ 1180 kg       15        67         65          57          57          54          55
+    -          30        70         69          60          60          58          58
+ 2601 lb
+ (FWD C.G.)
+               45        77         76          67          67          64          64
+               60        93         90          81          79          78          76
+
+
+
+
+          NOTE         Altitude loss during conventional stall recovery, as demonstrated
+                       during flight tests is approximately 200 ft with banking below 30°.
+
+
+
+
+                                                                         4th Edition, Rev. 21
+                      Section 5 - Performances
+                                   STALL SPEED
+

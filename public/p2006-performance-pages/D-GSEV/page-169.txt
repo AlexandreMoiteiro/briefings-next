@@ -1,0 +1,63 @@
+                G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                                                  Page S5 - 7
+
+
+  7. TAKEOFF PERFORMANCES
+Weight = 1230 kg (2712 lb)
+                                                                      Corrections
+                                                    Headwind: - 2.5m for each kt (8 ft/kt)
+Flaps: T/O
+                                                    Tailwind: + 10m for each kt (33ft/kt)
+Speed at Lift-Off = 65 KIAS
+                                                    Paved Runway: - 6% to Ground Roll
+Speed Over 50ft Obstacle = 70 KIAS
+                                                    Runway slope: + 5% to Ground Roll for each +1%
+Throttle Levers: Full Forward
+Runway: Grass
+   Pressure                                                      Distance [m]/(ft)
+   Altitude                                          Temperature [°C]/[°F]
+     [ft]                               -25/-13        0/32       25/77              50/122
+                                                                                                    ISA
+                     Ground Roll        207 (679)    263 (863)      328 (1076)   401 (1315)       301 (987)
+     S.L.
+                     At 50 ft AGL       271 (889)    345 (1132)     429 (1407)   525 (1722)      394 (1292)
+                     Ground Roll        231 (758)    294 (964)      366 (1200)   447 (1466)      330 (1082)
+    1000
+                     At 50 ft AGL       303 (994)    385 (1263)     479 (1571)   586 (1922)      432 (1417)
+                     Ground Roll        258 (846)    328 (1076)     409 (1342)   500 (1640)      362 (1187)
+    2000
+                     At 50 ft AGL      338 (1109)    430 (1410)     535 (1755)   654 (2145)      474 (1555)
+                     Ground Roll        289 (948)    367 (1204)     457 (1499)   559 (1834)      398 (1305)
+    3000
+                     At 50 ft AGL      378 (1240)    480 (1574)     598 (1961)   731 (2398)      521 (1709)
+                     Ground Roll       323 (1059)    411 (1348)     511 (1676)   625 (2050)      438 (1437)
+    4000
+                     At 50 ft AGL      423 (1387)    537 (1761)     669 (2194)   818 (2683)      573 (1879)
+                     Ground Roll       362 (1187)    460 (1509)     572 (1876)   700 (2296)      481 (1578)
+    5000
+                     At 50 ft AGL      473 (1551)    602 (1975)     749 (2457)   916 (3004)      630 (2066)
+                     Ground Roll       405 (1328)    515 (1689)     642 (2106)   785 (2575)      530 (1738)
+    6000
+                     At 50 ft AGL      531 (1742)    675 (2214)     840 (2755)   1027 (3369)     694 (2276)
+                     Ground Roll       455 (1492)    578 (1896)     720 (2362)   880 (2886)      584 (1916)
+    7000
+                     At 50 ft AGL      595 (1952)    757 (2483)     942 (3090)   1152 (3779)     765 (2509)
+                     Ground Roll       511 (1676)    650 (2132)     809 (2654)   989 (3244)      645 (2116)
+    8000
+                     At 50 ft AGL      669 (2194)    850 (2788)     1059 (3474) 1295 (4248)      844 (2768)
+                     Ground Roll       575 (1886)    730 (2394)     909 (2982)   1112 (3647)     712 (2335)
+    9000
+                     At 50 ft AGL      752 (2467)    956 (3136)     1190 (3903) 1456 (4776)      932 (3057)
+                     Ground Roll       647 (2122)    822 (2696)     1023 (3355) 1252 (4107)      786 (2578)
+    10000
+                     At 50 ft AGL      847 (2778)   1076 (3529)     1340 (4395) 1638 (5373) 1029 (3375)
+
+
+
+
+                                                                                              4th Edition, Rev. 11
+
+                           Section 5 - Performances
+                                    TAKEOFF PERFORMANCES
+

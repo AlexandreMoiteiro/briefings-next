@@ -1,0 +1,27 @@
+                                                                                      Page 5 - 3
+
+
+
+3.     AIRSPEED INDICATOR SYSTEM CALIBRATION
+
+
+     Graph shows calibrated airspeed VCAS as a function of indicated airspeed VIAS.
+
+
+
+
+                                     Figure 1 - IAS/CAS chart
+
+
+
+     Example:
+             Given                                Find
+        KIAS 75                                    KCAS 74
+
+
+
+
+                                                                                4th Edition, Rev. 0
+                          Section 5 - Performances
+                     AIRSPEED INDICATOR SYSTEM CALIBRATION
+

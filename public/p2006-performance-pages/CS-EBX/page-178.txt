@@ -1,0 +1,53 @@
+                 GARMIN G950 IFDS – Increased MTOW (1230 kg)
+
+                                                                                     Page SW5 - 14
+
+
+
+12. ONE-ENGINE RATE OF CLIMB AT VYSE
+ Power Setting: Maximum Continuous Power (operative engine)
+                propeller feathered (inoperative engine)
+ Flaps: Up
+ Landing Gear: Up
+
+                                 Climb                 Rate of Climb [ft/min]
+                 Pressure
+   Weight                        Speed
+                 Altitude
+                                  VySE             Temperature [°C]/[°F]
+                                                                                      ISA
+    [kg]            [ft]         [KIAS]   -25/-13     0/32    25/77    50/122
+                    S.L.           84        330       230      142        62          176
+                   1000            83        292       193      106        26          147
+                   2000            82        254       157      69          -9         117
+                   3000            81        216       120      33         -44         87
+    1230
+                   4000            80        179       83       -3         -80         58
+                   5000            79        141       46       -38        -115        28
+                   6000            79        104       10       -74        -150        -1
+                   7000            78         67       -27     -110        -185        -31
+                    S.L.           80        436       330      235        149         271
+                   1000            80        396       290      196        111         240
+                   2000            79        355       251      157        73          208
+                   3000            79        315       211      118        35          176
+    1080
+                   4000            79        275       172      80          -3         145
+                   5000            79        234       132      41         -41         113
+                   6000            78        194       93        3         -78         81
+                   7000            78        154       54       -35        -116        50
+                    S.L.           79        574       455      349        253         390
+                   1000            79        529       411      305        211         355
+                   2000            79        483       367      262        168         319
+                   3000            78        438       322      219        126         284
+     930
+                   4000            78        393       278      176        83          248
+                   5000            78        348       235      133        41          213
+                   6000            78        304       191      90          -1         178
+                   7000            77        259       147      47         -43         142
+
+
+                                                                                 4th Edition, Rev. 2
+
+                       Section 5 - Performances
+                      ONE-ENGINE RATE OF CLIMB AT VYSE
+

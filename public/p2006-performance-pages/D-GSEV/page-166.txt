@@ -1,0 +1,41 @@
+                    G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                                            Page S5 - 4
+
+
+
+4. ICAO STANDARD ATMOSPHERE
+
+
+
+
+   c. δA=2250 ft
+
+
+    A. δA=1600 ft
+
+
+
+
+                                      Figure 2 – ICAO chart
+ Examples:                                       B.    °C
+
+               G iven                                 Find
+      a. Temperature = 20°C
+                                                c. Corresponding Density Altitude = 2250’
+      b. Pressure altitude = 1600’
+
+
+              Given                                   Find
+      A. Pressure altitude = 1600’
+                                                B. ISA Air Temperature = 12°C
+      ISA condition
+
+
+
+
+                                                                                       4th Edition, Rev.0
+
+                             Section 5 - Performances
+                               ICAO STANDARD ATMOSPHERE
+

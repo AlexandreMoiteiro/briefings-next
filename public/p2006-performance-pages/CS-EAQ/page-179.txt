@@ -1,0 +1,52 @@
+                                                                                      Page 5 - 15
+
+
+
+14. ONE-ENGINE RATE OF CLIMB AT VXSE
+    Power Setting: Maximum Continuous Power (operative
+    engine), propeller feathered (inoperative engine)
+    Flaps: Up
+    Landing Gear: Up
+
+                                Climb            Rate of Climb at VxSE [ft/min]
+                  Pressure
+     Weight                     Speed
+                  Altitude
+                                 VxSE            Temperature [°C]/[°F]
+                                                                                    ISA
+                     [ft]       [KIAS]   -25/-13    0/32    25/77   50/122
+                     S.L.         79       356       257      168        88         203
+                    1000          79       319       220      132        53         173
+                    2000          79       281       183      96         17         144
+     1180 kg        3000          79       243       146      60         -18        114
+        -
+     2601 lb        4000          78       206       110      24         -53        84
+                    5000          78       168        73      -12        -89        55
+                    6000          78       131        36      -48     -124          25
+                    7000          78       93         0       -84     -159           -4
+                     S.L.         79       424       321      229     147           265
+                    1000          79       385       283      192     110           234
+                    2000          79       346       245      155        73         204
+     1080 kg        3000          79       307       207      117        37         173
+        -
+     2381 lb        4000          79       268       169      80         0          143
+                    5000          78       229       131      43         -36        112
+                    6000          78       190        93       6         -73        81
+                    7000          78       152        55      -31     -109          51
+                     S.L.         78       556       442      341     249           380
+                    1000          78       513       400      299     209           346
+                    2000          78       469       358      258     168           312
+     930 kg         3000          78       426       316      217     128           279
+        -
+     2050 lb        4000          78       383       274      176        87         245
+                    5000          78       340       232      134        47         211
+                    6000          77       298       190      93         7          177
+                    7000          77       255       148      52         -34        143
+
+
+
+
+                                                                               4th Edition, Rev. 21
+                     Section 5 - Performances
+                     ONE-ENGINE RATE OF CLIMB AT VXSE
+
