@@ -1,77 +1,97 @@
-# Tecnam P2006T performance data
+# Tecnam P2006T CS-EAQ performance data
 
-The P2006T distance engine is intentionally non-operational until the approved AFM/POH data has been entered and independently checked.
+The P2006T runway-performance implementation is aircraft-specific. The first active aircraft is CS-EAQ, serial number 046, in its basic 1180 kg configuration.
 
 ## Files
 
-- `src/lib/performance/p2006t-distance-tables.json` stores the transcribed AFM/POH values and source metadata.
+- `src/lib/performance/p2006t-distance-tables.json` stores the transcribed aircraft-specific AFM values and source metadata.
 - `src/lib/performance/p2006t-distance.ts` validates the dataset and performs interpolation inside the published table bounds.
+- `src/lib/performance/p2006t-cs-eaq-performance.ts` applies the CS-EAQ AFM wind, surface and slope corrections.
+- `src/app/performance/p2006t-cs-eaq-client.tsx` provides the operational CS-EAQ workspace on `/performance`.
 
 ## Authoritative source
 
-The current transcription is based on the aircraft-specific manual:
-
-- Aircraft: Tecnam P2006T CS-EAQ, serial number 046
+- Aircraft: Tecnam P2006T CS-EAQ
+- Serial number: 046
 - Document: Aircraft Flight Manual Doc. No. 2006/044
 - Edition: 4th Edition, Revision 22
 - Date: 11 September 2024
+- Configuration: basic 1180 kg MTOW
 
-The dataset must not combine the CS-EAQ basic 1180 kg performance pages with increased-MTOW supplement tables from another aircraft configuration.
+Increased-MTOW performance pages from Supplement G10 or from another aircraft are intentionally excluded.
 
-## Required distance tables
+## Active distance tables
 
-The verified dataset must contain one table for each kind:
+The verified dataset contains all four required kinds:
 
-- `takeoff-ground-roll`
-- `takeoff-50ft`
-- `landing-ground-roll`
-- `landing-50ft`
+- `takeoff-ground-roll`: 1180 kg, Section 5 page 5-7
+- `takeoff-50ft`: 1180 kg, Section 5 page 5-7
+- `landing-ground-roll`: 930 kg, Section 5 page 5-21
+- `landing-50ft`: 930 kg, Section 5 page 5-21
 
-Each table uses three ascending axes:
+All tables cover:
 
-- `weightKg`
-- `pressureAltitudeFt`
-- `oatC`
+- pressure altitude from 0 to 10,000 ft;
+- OAT values of -25, 0, 25 and 50 °C;
+- interpolation only inside those published bounds.
 
-The distance matrix order is:
+The matrix order remains:
 
 ```text
 valuesM[weightIndex][pressureAltitudeIndex][oatIndex]
 ```
 
-Every table must include its exact AFM/POH page in `sourcePage`.
+The single-item weight axes preserve the exact AFM reference weights. The application does not invent a distance-versus-weight correction.
 
-## Safety rules
+## Takeoff conditions and corrections
 
-- Only values transcribed from the approved aircraft AFM/POH may be entered.
-- Estimated, internet-sourced or visually guessed values are not acceptable.
-- The engine never extrapolates outside the loaded weight, pressure-altitude or temperature range.
-- Calculations remain blocked until the dataset status is explicitly changed to `verified`.
-- Before operational use, compare representative corner, edge and intermediate cases against the original AFM/POH pages.
-- Do not apply corrections twice: the raw table values and all wind, surface and slope corrections must remain distinguishable.
+Published conditions:
 
-## Current coverage
+- Weight: 1180 kg
+- Flaps: T/O
+- Lift-off speed: 65 KIAS
+- Speed over 50 ft: 70 KIAS
+- Throttle levers: full forward
+- Base runway: grass
 
-The dataset is marked `draft` and contains the grass-runway takeoff ground-roll values for 1180 kg from Section 5, page 5-7, over the published pressure-altitude and OAT grid.
+Corrections applied by the CS-EAQ calculator:
 
-The source page specifies:
+- headwind: subtract 2.5 m per kt;
+- tailwind: add 10 m per kt;
+- paved runway: reduce ground roll by 6%;
+- uphill slope: add 5% to ground roll per +1% slope.
 
-- Flaps T/O
-- Lift-off speed 65 KIAS
-- Throttle levers full forward
-- Headwind correction: subtract 2.5 m per kt
-- Tailwind correction: add 10 m per kt
-- Paved-runway correction: reduce ground roll by 6%
-- Uphill-slope correction: add 5% to ground roll per +1% slope
+Wind correction is applied to both ground roll and the 50 ft distance. The paved and slope corrections are applied only to ground roll, matching the wording of the AFM correction block.
 
-Those corrections are recorded in the table notes but are not yet applied by the calculation engine.
+## Landing conditions and corrections
 
-Still required before activation:
+Published conditions:
 
-- independent visual verification of every transcribed ground-roll cell;
-- takeoff distance over 50 ft;
-- landing ground roll;
-- landing distance over 50 ft;
-- correction-engine implementation and tests;
-- confirmation of the applicable aircraft configuration and weight pages;
-- final status change from `draft` to `verified`.
+- Weight: 930 kg
+- Flaps: LAND
+- Short-final approach speed: 70 KIAS
+- Throttle levers: idle
+- Base runway: grass
+
+Corrections applied by the CS-EAQ calculator:
+
+- headwind: subtract 5 m per kt;
+- tailwind: add 11 m per kt;
+- paved runway: reduce ground roll by 2%;
+- uphill slope: reduce ground roll by 2.5% per +1% slope.
+
+Wind correction is applied to both ground roll and the 50 ft distance. The paved and slope corrections are applied only to ground roll.
+
+## Operational safeguards
+
+- No extrapolation outside the published altitude or temperature grid.
+- No downhill-slope credit is applied because the loaded correction only supports the published positive/uphill case.
+- Surface and slope default to the selected runway database values and can be overridden visibly by the user.
+- Best runway is selected from calculated wind components.
+- Corrected 50 ft distances are compared with TODA and LDA and shown with margin and percentage used.
+- Raw AFM values remain separate from correction logic to prevent corrections being applied twice.
+- The aircraft selector exposes CS-EAQ separately from the existing PA-28/P2008 workspace.
+
+## Adding another P2006T
+
+A later aircraft must receive its own registration/configuration record and approved AFM dataset. Do not reuse CS-EAQ values merely because the aircraft type is the same; applicable supplements, MTOW and aircraft-specific documentation must be checked first.
