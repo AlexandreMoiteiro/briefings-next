@@ -118,10 +118,30 @@ const vfrChartOpacity = parseMapNumber(
 const forcedVfrChartManifestLevel = parseOptionalMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL
 );
+const vfrChartLatLonBounds = {
+  south: 35.124950538548724,
+  west: -10.25,
+  north: 42.3125,
+  east: -6.00004279020789,
+};
+
 const vfrChartBounds: LatLngBoundsExpression = [
-  [35.124950538548724, -10.25],
-  [42.3125, -6.00004279020789],
+  [vfrChartLatLonBounds.south, vfrChartLatLonBounds.west],
+  [vfrChartLatLonBounds.north, vfrChartLatLonBounds.east],
 ];
+
+function isInsideVfrChartBounds(lat: number, lon: number) {
+  return (
+    lat >= vfrChartLatLonBounds.south &&
+    lat <= vfrChartLatLonBounds.north &&
+    lon >= vfrChartLatLonBounds.west &&
+    lon <= vfrChartLatLonBounds.east
+  );
+}
+
+function pointInsideVfrChart(point: { lat: number; lon: number }) {
+  return isInsideVfrChartBounds(point.lat, point.lon);
+}
 
 function navlogMapPointKey(point: NavlogPoint) {
   return `${point.src}:${point.code.trim().toUpperCase()}:${point.lat.toFixed(6)}:${point.lon.toFixed(6)}`;
@@ -453,7 +473,9 @@ export function NavlogMap({
   onAddPoint,
   onAddMapPoint,
 }: NavlogMapProps) {
-  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("standard");
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>(
+    hasVfrChartOverlay ? "vfr-chart" : "standard"
+  );
   const selectedLayerSet = useMemo(
     () => new Set(referenceLayers),
     [referenceLayers]
@@ -461,9 +483,25 @@ export function NavlogMap({
   const showStandardMap = mapSourceMode === "standard";
   const showVfrChart = mapSourceMode === "vfr-chart";
 
+  const plottedCalculatedNodes = useMemo(
+    () =>
+      showVfrChart
+        ? calculatedNodes.filter((node) => pointInsideVfrChart(node))
+        : calculatedNodes,
+    [calculatedNodes, showVfrChart]
+  );
+
+  const plottedRouteWaypoints = useMemo(
+    () =>
+      showVfrChart
+        ? routeWaypoints.filter((waypoint) => pointInsideVfrChart(waypoint.point))
+        : routeWaypoints,
+    [routeWaypoints, showVfrChart]
+  );
+
   const routePositions = useMemo(
-    () => calculatedNodes.map((node) => [node.lat, node.lon] as [number, number]),
-    [calculatedNodes]
+    () => plottedCalculatedNodes.map((node) => [node.lat, node.lon] as [number, number]),
+    [plottedCalculatedNodes]
   );
 
   const center: LatLngExpression =
@@ -478,6 +516,7 @@ export function NavlogMap({
 
     const filtered = points
       .filter((point) => point.code.trim().toUpperCase() !== "RUWIB")
+      .filter((point) => !showVfrChart || pointInsideVfrChart(point))
       .filter((point) => selectedLayerSet.has(point.src as NavlogReferenceLayer))
       .filter((point) => {
         if (!query) return true;
@@ -485,6 +524,7 @@ export function NavlogMap({
       });
     const requiredLpfrPoints = LPFR_REQUIRED_NAVLOG_MAP_POINTS.filter(
       (point) =>
+        (!showVfrChart || pointInsideVfrChart(point)) &&
         selectedLayerSet.has(point.src as NavlogReferenceLayer) &&
         (!query || pointMatchesQuery(point, query))
     );
@@ -499,23 +539,23 @@ export function NavlogMap({
     }
 
     return Array.from(merged.values());
-  }, [points, searchQuery, selectedLayerSet, showReferencePoints]);
+  }, [points, searchQuery, selectedLayerSet, showReferencePoints, showVfrChart]);
 
   const shouldLabelReferencePoints = searchQuery.trim().length > 0;
 
   async function exportRouteMapPdf() {
-    if (calculatedNodes.length < 2) return;
+    if (plottedRouteWaypoints.length < 2) return;
 
     const bytes = await buildNavlogRouteMapPdf({
-      routeWaypoints,
+      routeWaypoints: plottedRouteWaypoints,
       mapSourceMode,
       vfrChartTilesUrl: showVfrChart ? vfrChartTilesUrl : "",
       vfrChartMaxNativeZoom,
       vfrChartManifestUrl: showVfrChart ? vfrChartManifestUrl : "",
       vfrChartManifestLevel: forcedVfrChartManifestLevel,
     });
-    const firstPoint = routeWaypoints[0]?.point.code || routeWaypoints[0]?.point.name || "ROUTE";
-    const lastPoint = routeWaypoints.at(-1)?.point.code || routeWaypoints.at(-1)?.point.name || "MAP";
+    const firstPoint = plottedRouteWaypoints[0]?.point.code || plottedRouteWaypoints[0]?.point.name || "ROUTE";
+    const lastPoint = plottedRouteWaypoints.at(-1)?.point.code || plottedRouteWaypoints.at(-1)?.point.name || "MAP";
     const filename = `ROUTE_MAP_${safeFilenameToken(firstPoint)}_${safeFilenameToken(lastPoint)}_${new Date().toISOString().slice(0, 10)}.pdf`;
 
     downloadBinaryFile(bytes, filename, "application/pdf");
@@ -558,7 +598,7 @@ export function NavlogMap({
           <button
             type="button"
             onClick={exportRouteMapPdf}
-            disabled={calculatedNodes.length < 2}
+            disabled={plottedRouteWaypoints.length < 2}
             className="rounded-xl bg-zinc-950 px-3 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
           >
             Download plotted PDF
@@ -625,7 +665,10 @@ export function NavlogMap({
 
           <MapClickHandler
             enabled={manualMapClickEnabled}
-            onAddMapPoint={onAddMapPoint}
+            onAddMapPoint={(lat, lon) => {
+              if (showVfrChart && !isInsideVfrChartBounds(lat, lon)) return;
+              onAddMapPoint(lat, lon);
+            }}
           />
 
           {visiblePoints.map((point) => (
@@ -676,7 +719,7 @@ export function NavlogMap({
             ) : null}
           </Pane>
 
-          {calculatedNodes.map((node, index) => (
+          {plottedCalculatedNodes.map((node, index) => (
             <Marker
               key={`${node.id}-${index}`}
               position={[node.lat, node.lon]}

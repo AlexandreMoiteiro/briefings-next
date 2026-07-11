@@ -81,10 +81,30 @@ const vfrChartOpacity = parseMapNumber(
 const forcedVfrChartManifestLevel = parseOptionalMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL
 );
+const vfrChartLatLonBounds = {
+  south: 35.124950538548724,
+  west: -10.25,
+  north: 42.3125,
+  east: -6.00004279020789,
+};
+
 const vfrChartBounds: LatLngBoundsExpression = [
-  [35.124950538548724, -10.25],
-  [42.3125, -6.00004279020789],
+  [vfrChartLatLonBounds.south, vfrChartLatLonBounds.west],
+  [vfrChartLatLonBounds.north, vfrChartLatLonBounds.east],
 ];
+
+function isInsideVfrChartBounds(lat: number, lon: number) {
+  return (
+    lat >= vfrChartLatLonBounds.south &&
+    lat <= vfrChartLatLonBounds.north &&
+    lon >= vfrChartLatLonBounds.west &&
+    lon <= vfrChartLatLonBounds.east
+  );
+}
+
+function pointInsideVfrChart(point: { lat: number; lon: number }) {
+  return isInsideVfrChartBounds(point.lat, point.lon);
+}
 
 function closePolygon(points: ParsedCoordinatePoint[]) {
   if (points.length < 3) return points;
@@ -345,14 +365,24 @@ export function CoordinateLeafletMap({
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("standard");
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>(
+    hasVfrChartOverlay ? "vfr-chart" : "standard"
+  );
   const showStandardMap = mapSourceMode === "standard";
   const showVfrChart = mapSourceMode === "vfr-chart";
 
-  const drawableAreas = useMemo(
-    () => areas.filter((area) => area.points.length > 0),
-    [areas]
-  );
+  const drawableAreas = useMemo(() => {
+    const nonEmptyAreas = areas.filter((area) => area.points.length > 0);
+
+    if (!showVfrChart) return nonEmptyAreas;
+
+    return nonEmptyAreas
+      .map((area) => ({
+        ...area,
+        points: area.points.filter((point) => pointInsideVfrChart(point)),
+      }))
+      .filter((area) => area.points.length > 0);
+  }, [areas, showVfrChart]);
 
   useEffect(() => {
     function onFullscreenChange() {

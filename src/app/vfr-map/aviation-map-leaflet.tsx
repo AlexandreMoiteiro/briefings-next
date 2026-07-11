@@ -91,10 +91,30 @@ const forcedVfrChartManifestLevel = parseOptionalMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MANIFEST_LEVEL
 );
 
+const vfrChartLatLonBounds = {
+  south: 35.124950538548724,
+  west: -10.25,
+  north: 42.3125,
+  east: -6.00004279020789,
+};
+
 const vfrChartBounds: LatLngBoundsExpression = [
-  [35.124950538548724, -10.25],
-  [42.3125, -6.00004279020789],
+  [vfrChartLatLonBounds.south, vfrChartLatLonBounds.west],
+  [vfrChartLatLonBounds.north, vfrChartLatLonBounds.east],
 ];
+
+function isInsideVfrChartBounds(lat: number, lon: number) {
+  return (
+    lat >= vfrChartLatLonBounds.south &&
+    lat <= vfrChartLatLonBounds.north &&
+    lon >= vfrChartLatLonBounds.west &&
+    lon <= vfrChartLatLonBounds.east
+  );
+}
+
+function pointInsideVfrChart(point: { lat: number; lon: number }) {
+  return isInsideVfrChartBounds(point.lat, point.lon);
+}
 
 function pointMatchesQuery(point: NavlogPoint, query: string) {
   const normalized = query.trim().toUpperCase();
@@ -367,9 +387,15 @@ export function AviationMapLeaflet({
 
     return points
       .filter((point) => activeLayerSet.has(point.src as AviationLayer))
+      .filter((point) => !showVfrChart || pointInsideVfrChart(point))
       .filter((point) => pointMatchesQuery(point, query))
       .slice(0, query ? 1200 : 2600);
-  }, [activeLayerSet, points, searchQuery]);
+  }, [activeLayerSet, points, searchQuery, showVfrChart]);
+
+  const selectedVisiblePoint =
+    selectedPoint && (!showVfrChart || pointInsideVfrChart(selectedPoint))
+      ? selectedPoint
+      : null;
 
   const center: LatLngExpression = [39.55, -8.0];
 
@@ -480,15 +506,15 @@ export function AviationMapLeaflet({
             />
           ) : null}
 
-          <FlyToSelectedPoint point={selectedPoint} />
+          <FlyToSelectedPoint point={selectedVisiblePoint} />
 
           {visiblePoints.map((point) => {
             const selected =
-              selectedPoint &&
-              selectedPoint.code === point.code &&
-              selectedPoint.lat === point.lat &&
-              selectedPoint.lon === point.lon &&
-              selectedPoint.src === point.src;
+              selectedVisiblePoint &&
+              selectedVisiblePoint.code === point.code &&
+              selectedVisiblePoint.lat === point.lat &&
+              selectedVisiblePoint.lon === point.lon &&
+              selectedVisiblePoint.src === point.src;
 
             return (
               <Marker
