@@ -1,0 +1,11 @@
+{
+  "aircraft": "Tecnam P2006T",
+  "status": "awaiting-afm-data",
+  "source": {
+    "document": "",
+    "revision": "",
+    "date": "",
+    "notes": "Populate only from the approved aircraft AFM/POH pages. Do not enter estimated or internet-sourced operational values."
+  },
+  "tables": []
+}
