@@ -495,7 +495,11 @@ export function P2006TSourceMapper() {
         <div className="grid grid-cols-2 gap-2 rounded-2xl border border-sky-200 bg-white p-1">
           <button
             type="button"
-            onClick={() => setWorkspace("afm")}
+            onClick={() => {
+              setWorkspace("afm");
+              setImageReady(false);
+              setImageFailed(false);
+            }}
             className={[
               "rounded-xl px-4 py-2 text-sm font-semibold",
               workspace === "afm"
@@ -609,6 +613,7 @@ export function P2006TSourceMapper() {
               value={exactPath}
               onChange={(event) => {
                 setExactPath(event.target.value);
+                setCandidateIndex(0);
                 setImageReady(false);
                 setImageFailed(false);
               }}
@@ -628,6 +633,7 @@ export function P2006TSourceMapper() {
               onChange={(event) => {
                 setFormPage(Number(event.target.value));
                 setImageReady(false);
+                setImageFailed(false);
               }}
               className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm"
             >
