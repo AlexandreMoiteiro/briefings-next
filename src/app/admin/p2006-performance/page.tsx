@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { P2006TPerformanceBuilder } from "./p2006-performance-builder";
+import { P2006TSourceMapper } from "./p2006-source-mapper";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -14,9 +15,9 @@ export default function AdminP2006PerformancePage() {
               Guided performance builder
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Validate each aircraft and source table cell-by-cell, then inspect the
-              exact interpolation steps before a dataset can be approved for the
-              operational Performance page.
+              Validate the real AFM pages beside the transcribed values, map PDF
+              fields and graphical paths, and then review every interpolation step
+              before approving an operational dataset.
             </p>
           </div>
 
@@ -36,6 +37,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
+        <P2006TSourceMapper />
         <P2006TPerformanceBuilder />
       </section>
     </main>
