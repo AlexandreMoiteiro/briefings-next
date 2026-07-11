@@ -1,11 +1,50 @@
 {
   "aircraft": "Tecnam P2006T",
-  "status": "awaiting-afm-data",
+  "status": "draft",
   "source": {
-    "document": "",
-    "revision": "",
-    "date": "",
-    "notes": "Populate only from the approved aircraft AFM/POH pages. Do not enter estimated or internet-sourced operational values."
+    "document": "P2006T_CS-EAQ_AFM_Ed4r22_inc.Supp.pdf",
+    "revision": "4th Edition, Rev. 22",
+    "date": "2024-09-11",
+    "notes": "Aircraft Flight Manual Doc. No. 2006/044 for CS-EAQ, S/N 046. Values in this dataset remain non-operational until independently checked against the source page and the dataset is marked verified."
   },
-  "tables": []
+  "tables": [
+    {
+      "id": "cs-eaq-basic-takeoff-ground-roll-1180kg",
+      "kind": "takeoff-ground-roll",
+      "sourcePage": "Section 5, page 5-7",
+      "notes": "Draft AFM transcription. Conditions: weight 1180 kg; flaps T/O; lift-off speed 65 KIAS; throttle levers full forward; grass runway. AFM corrections: headwind -2.5 m per kt; tailwind +10 m per kt; paved runway -6% to ground roll; uphill runway slope +5% to ground roll per +1%. Corrections are recorded here but are not yet applied by the interpolation engine.",
+      "axes": {
+        "weightKg": [1180],
+        "pressureAltitudeFt": [
+          0,
+          1000,
+          2000,
+          3000,
+          4000,
+          5000,
+          6000,
+          7000,
+          8000,
+          9000,
+          10000
+        ],
+        "oatC": [-25, 0, 25, 50]
+      },
+      "valuesM": [
+        [
+          [208, 258, 313, 374],
+          [230, 284, 346, 413],
+          [254, 315, 382, 457],
+          [281, 348, 423, 505],
+          [311, 385, 468, 560],
+          [345, 427, 519, 620],
+          [383, 474, 575, 688],
+          [425, 526, 639, 764],
+          [472, 585, 710, 849],
+          [525, 650, 790, 945],
+          [585, 724, 879, 1052]
+        ]
+      ]
+    }
+  ]
 }
