@@ -1,5 +1,5 @@
-import { PerformanceClient } from "./performance-client";
+import { PerformanceRouterClient } from "./performance-router-client";
 
 export default function PerformancePage() {
-  return <PerformanceClient />;
+  return <PerformanceRouterClient />;
 }
