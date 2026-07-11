@@ -178,11 +178,13 @@ export function calculateP2006TCsEaqPerformance(
     oatC,
   });
 
-  const failures = [takeoffGround, takeoff50, landingGround, landing50].filter(
-    (distance): distance is P2006TDistanceFailure => !distance.ok
-  );
+  if (!takeoffGround.ok || !takeoff50.ok || !landingGround.ok || !landing50.ok) {
+    const failures = [takeoffGround, takeoff50, landingGround, landing50].filter(
+      (distance): distance is P2006TDistanceFailure => !distance.ok
+    );
 
-  if (failures.length > 0) return distanceFailure(role, icao, failures);
+    return distanceFailure(role, icao, failures);
+  }
 
   const windCorrectedTakeoffGround = applyTakeoffWind(
     takeoffGround.distanceM,
