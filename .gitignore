@@ -59,3 +59,7 @@ legacy/streamlit/
 # Vercel local project link
 .vercel/
 local-afm/
+
+# Local VFR source files
+local-vfr-source/
+vfr-local-source/

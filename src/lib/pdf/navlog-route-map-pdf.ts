@@ -67,7 +67,7 @@ type VfrKmzManifest = {
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
 const MAP_FRAME: PlotFrame = { x: 24, y: 24, width: 794, height: 547 };
-const MAX_PDF_TILE_COUNT = 96;
+const MAX_PDF_TILE_COUNT = 240;
 const WEB_MERCATOR_MAX_LATITUDE = 85.05112878;
 
 function safeText(value: unknown) {
@@ -288,15 +288,14 @@ function choosePdfTileZoom(bounds: GeoBounds, maximumZoom: number) {
 }
 
 function resolveTileUrl(template: string, zoom: number, x: number, y: number) {
-  const resolvedTemplate =
-    typeof window === "undefined"
-      ? template
-      : new URL(template, window.location.href).toString();
-
-  return resolvedTemplate
+  const path = template
     .replaceAll("{z}", String(zoom))
     .replaceAll("{x}", String(x))
     .replaceAll("{y}", String(y));
+
+  return typeof window === "undefined"
+    ? path
+    : new URL(path, window.location.href).toString();
 }
 
 async function drawVfrXyzTileBackground({

@@ -70,7 +70,7 @@ const vfrChartMinZoom = parseMapNumber(
 );
 const vfrChartMaxNativeZoom = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_MAX_NATIVE_ZOOM,
-  12
+  14
 );
 const vfrChartOpacity = parseMapNumber(
   process.env.NEXT_PUBLIC_VFR_CHART_OPACITY,
