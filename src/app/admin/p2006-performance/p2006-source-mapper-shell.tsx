@@ -15,7 +15,7 @@ import {
 } from "./p2006-mapper-definitions";
 
 const STORAGE_KEY = "briefings_p2006_guided_mapper_v6";
-const MIGRATION_KEY = "briefings_p2006_guided_mapper_v7_cleaned";
+const MIGRATION_KEY = "briefings_p2006_guided_mapper_v8_intersections";
 const LEGACY_PANEL_TOKEN = "shared:mass-balance-graph:panel-";
 const GUIDE_IDS = [
   "front-seat-max-guide",
@@ -94,7 +94,10 @@ function flattenImportedPayload(payload: unknown): CaptureStore {
   addRecord(root.captures);
   addRecord(root.sharedFormAndGraph);
 
-  if (root.performanceByRegistration && typeof root.performanceByRegistration === "object") {
+  if (
+    root.performanceByRegistration &&
+    typeof root.performanceByRegistration === "object"
+  ) {
     for (const value of Object.values(
       root.performanceByRegistration as Record<string, unknown>
     )) {
@@ -214,13 +217,14 @@ export function P2006TSourceMapperShell() {
               Resume an existing map
             </p>
             <h2 className="mt-1 text-lg font-semibold text-zinc-950">
-              Import the coordinate JSON instead of repeating completed work
+              Import the coordinate JSON without repeating shared form work
             </h2>
             <p className="mt-1 max-w-4xl text-sm leading-6 text-zinc-600">
-              The importer keeps CS-EAQ takeoff/landing, all shared form fields,
-              valid M&B axis endpoints and valid C.G./mass-limit lines. Obsolete panel
-              corners, intermediate ticks and the four incorrect vertical loading guides
-              are removed automatically.
+              The importer preserves valid shared form rectangles, M&B axis ticks and
+              valid C.G./mass-limit lines. The old four-cell performance calibration is
+              removed because each 1180, 1080 and 930 kg table now requires its own
+              temperature-column and Ground Roll/50 ft row lines. Incorrect legacy panel
+              boxes and vertical loading guides are also removed.
             </p>
           </div>
 
@@ -254,7 +258,7 @@ export function P2006TSourceMapperShell() {
 
         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-zinc-600">
           <span className="rounded-full bg-white px-3 py-1 font-semibold">
-            {totalExpected} total mapping items after simplification
+            {totalExpected} total mapping items with intersection calibration
           </span>
           {summary ? (
             <span className="rounded-full bg-white px-3 py-1 font-semibold">
