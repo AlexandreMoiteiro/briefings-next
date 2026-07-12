@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TSourceMapperShell } from "./p2006-source-mapper-shell";
+import { P2006TSourceMapperShellV9 } from "./p2006-source-mapper-shell-v9";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -14,10 +14,10 @@ export default function AdminP2006PerformancePage() {
               Guided source and form mapper
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Calibrate each 1180, 1080 and 930 kg takeoff/landing table using
-              temperature-column and Ground Roll/50 ft row centre lines. Their
-              intersections identify the published cells. Shared M&B and form geometry
-              remains independent of aircraft registration.
+              Seed each regular takeoff or landing table with two consecutive temperature
+              columns and two consecutive result rows. The builder generates the complete
+              5 × 22 grid for one confirmation. Shared M&B and form geometry remains
+              independent of aircraft registration.
             </p>
           </div>
 
@@ -45,7 +45,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TSourceMapperShell />
+        <P2006TSourceMapperShellV9 />
       </section>
     </main>
   );
