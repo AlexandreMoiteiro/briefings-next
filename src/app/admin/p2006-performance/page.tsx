@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TSourceMapperShellV10 } from "./p2006-source-mapper-shell-v10";
+import { P2006TSourceMapperShellV11 } from "./p2006-source-mapper-shell-v11";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -15,9 +15,9 @@ export default function AdminP2006PerformancePage() {
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
               Performance tables are detected automatically from the visible grid in
-              each source PNG and presented as a 110-cell overlay for confirmation.
-              Mass-and-balance and form coordinates remain manual, shared across
-              registrations and compatible with existing saved work.
+              each source PNG. Form page 1 now contains both its writable loading
+              fields and the complete Mass &amp; Balance graph on the same coordinate
+              surface. Form page 2 remains manual.
             </p>
           </div>
 
@@ -45,7 +45,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TSourceMapperShellV10 />
+        <P2006TSourceMapperShellV11 />
       </section>
     </main>
   );
