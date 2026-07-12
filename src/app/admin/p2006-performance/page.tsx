@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TSourceMapperShellV9 } from "./p2006-source-mapper-shell-v9";
+import { P2006TSourceMapperShellV10 } from "./p2006-source-mapper-shell-v10";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -11,13 +11,13 @@ export default function AdminP2006PerformancePage() {
               Admin · Tecnam P2006T
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Guided source and form mapper
+              Guided visual audit mapper
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Seed each regular takeoff or landing table with two consecutive temperature
-              columns and two consecutive result rows. The builder generates the complete
-              5 × 22 grid for one confirmation. Shared M&B and form geometry remains
-              independent of aircraft registration.
+              Performance tables are detected automatically from the visible grid in
+              each source PNG and presented as a 110-cell overlay for confirmation.
+              Mass-and-balance and form coordinates remain manual, shared across
+              registrations and compatible with existing saved work.
             </p>
           </div>
 
@@ -45,7 +45,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TSourceMapperShellV9 />
+        <P2006TSourceMapperShellV10 />
       </section>
     </main>
   );
