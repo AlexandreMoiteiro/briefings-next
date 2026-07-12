@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TSourceMapper } from "./p2006-source-mapper";
+import { P2006TSourceMapperShell } from "./p2006-source-mapper-shell";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -14,9 +14,9 @@ export default function AdminP2006PerformancePage() {
               Guided source and form mapper
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Map the real AFM source regions and the writable areas of the original
-              two-page form. Operational calculations and their visual proof will be
-              shown later on the Performance page.
+              Resume the validated geometry, finish only the missing M&B diagonals and
+              then map the aircraft-specific AFM pages. Operational calculations and
+              their visual proof remain on the Performance page.
             </p>
           </div>
 
@@ -44,7 +44,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TSourceMapper />
+        <P2006TSourceMapperShell />
       </section>
     </main>
   );
