@@ -1,1 +1,1 @@
-export { P2006TSourceMapper } from "./p2006-source-mapper-v19";
+export { P2006TSourceMapper } from "./p2006-source-mapper-v20";
