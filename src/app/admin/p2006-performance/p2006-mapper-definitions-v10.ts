@@ -23,7 +23,7 @@ export const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] =
   BASE_PERFORMANCE_SOURCES.map((source) => ({
     ...source,
     description:
-      "Mark two approximate consecutive columns and rows. The builder locks columns perfectly vertical, rows perfectly horizontal, gives each family a common length, generates the full grid and asks for one confirmation.",
+      "Mark two approximate consecutive columns and only the vertical position of two consecutive rows. The builder locks columns perfectly vertical, rows perfectly horizontal, limits every row from the first to the last temperature column, generates the full grid and asks for one confirmation.",
     steps: source.steps.map((step) => {
       if (step.id === "column-seed") {
         return {
@@ -46,13 +46,15 @@ export const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] =
           ...step,
           title: "Position two consecutive result rows",
           instruction:
-            "Use S.L. Ground Roll and S.L. At 50 ft AGL. For each row, click once near the left cell centre and once near the right cell centre. The clicks do not need to align: the builder averages each pair, forces both lines perfectly horizontal and gives them the same left and right limits before generating the remaining twenty rows.",
+            "Click once in the centre of the S.L. Ground Roll row and once in the centre of the S.L. At 50 ft AGL row. Only the vertical positions are used. The builder forces perfectly horizontal lines and automatically limits their length from the -25/-13 column centre to the ISA column centre before generating the remaining twenty rows.",
+          requiredPoints: 2,
           metadata: {
             ...step.metadata,
             orientationLock: "horizontal",
             commonLength: true,
-            positionMethod: "mean-y-of-each-click-pair",
-            sharedExtentMethod: "mean-left-and-right-x",
+            pointOrder: "sl-ground-roll,sl-50ft",
+            positionMethod: "one-y-position-per-seed-row",
+            sharedExtentMethod: "first-to-last-generated-column-centre",
           },
         };
       }
@@ -61,11 +63,12 @@ export const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] =
         return {
           ...step,
           instruction:
-            "Inspect the locked grid: every column is perfectly vertical, every row is perfectly horizontal, and all lines in each family have equal length. Confirm everything together or redraw only the columns or rows.",
+            "Inspect the locked grid: every column is perfectly vertical, every row is perfectly horizontal, and each horizontal line starts at -25/-13 and ends at ISA. Confirm everything together or redraw only the columns or rows.",
           metadata: {
             ...step.metadata,
             orthogonal: true,
             equalFamilyLengths: true,
+            rowExtent: "first-to-last-column-centre",
           },
         };
       }
