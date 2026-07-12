@@ -6,22 +6,37 @@ import {
   type P2006TRegistration,
 } from "@/lib/performance/p2006t-fleet";
 
+type Point = { x: number; y: number };
 type Rect = { x: number; y: number; width: number; height: number };
-type MappingKind = "source-region" | "text" | "number" | "graph";
-type MappingItem = {
-  id: string;
-  label: string;
-  instruction: string;
-  kind: MappingKind;
+type CaptureKind = "point" | "points" | "line" | "rect";
+type Capture = {
+  kind: CaptureKind;
+  points: Point[];
+  rect?: Rect;
+  confirmed: boolean;
 };
-type SavedMapping = { rect: Rect; confirmed: boolean };
-type MappingStore = Record<string, SavedMapping>;
+type CaptureStore = Record<string, Capture>;
 type DragState = {
   startX: number;
   startY: number;
   x: number;
   y: number;
 } | null;
+
+type StepMetadata = Record<string, string | number | boolean | null>;
+
+type GuidedStep = {
+  id: string;
+  group: string;
+  title: string;
+  instruction: string;
+  kind: CaptureKind;
+  requiredPoints?: number;
+  minPoints?: number;
+  maxPoints?: number;
+  lineMode?: "segment" | "polyline";
+  metadata?: StepMetadata;
+};
 
 type SourceAsset = {
   image: string;
@@ -36,75 +51,170 @@ type PerformanceSourceDefinition = {
   shortTitle: string;
   description: string;
   manifest: Record<P2006TRegistration, SourceAsset>;
+  steps: GuidedStep[];
 };
 
 type Stage = {
   id: string;
-  type: "afm" | "form";
+  type: "performance" | "mass-balance" | "form";
   title: string;
   shortTitle: string;
   description: string;
-  items: MappingItem[];
+  steps: GuidedStep[];
   source?: PerformanceSourceDefinition;
   page?: 1 | 2;
 };
 
 const A4_WIDTH_PT = 595.28;
 const A4_HEIGHT_PT = 841.89;
-const STORAGE_KEY = "briefings_p2006_guided_mapper_v4";
+const STORAGE_KEY = "briefings_p2006_guided_mapper_v5";
 
-const AFM_ITEMS: MappingItem[] = [
-  {
-    id: "complete-performance-table",
-    label: "Complete performance table",
-    instruction:
-      "Draw one rectangle around the complete published table containing both ground-roll and 50 ft values.",
-    kind: "source-region",
-  },
-  {
-    id: "published-corrections",
-    label: "Published corrections",
-    instruction:
-      "Draw a rectangle around the published wind, paved-runway and runway-slope corrections.",
-    kind: "source-region",
-  },
-  {
-    id: "pressure-altitude-column",
-    label: "Pressure-altitude column",
-    instruction:
-      "Draw a rectangle around the pressure-altitude labels used to select interpolation rows.",
-    kind: "source-region",
-  },
-  {
-    id: "temperature-headings",
-    label: "Temperature headings",
-    instruction:
-      "Draw a rectangle around the OAT headings used to select interpolation columns.",
-    kind: "source-region",
-  },
-  {
-    id: "ground-roll-values",
-    label: "Ground-roll values",
-    instruction:
-      "Draw a rectangle around the ground-roll values only. They remain linked to this same source page.",
-    kind: "source-region",
-  },
-  {
-    id: "fifty-foot-values",
-    label: "50 ft values",
-    instruction:
-      "Draw a rectangle around the distance-over-50-ft values only.",
-    kind: "source-region",
-  },
+const PRESSURE_ALTITUDES = [
+  { id: "sl", label: "S.L.", value: 0 },
+  ...Array.from({ length: 10 }, (_, index) => {
+    const value = (index + 1) * 1000;
+    return { id: String(value), label: `${value.toLocaleString()} ft`, value };
+  }),
 ];
+
+const TEMPERATURE_COLUMNS = [
+  { id: "minus-25", label: "-25 °C", value: -25 },
+  { id: "0", label: "0 °C", value: 0 },
+  { id: "25", label: "25 °C", value: 25 },
+  { id: "50", label: "50 °C", value: 50 },
+  { id: "isa", label: "ISA", value: "ISA" },
+] as const;
+
+function makePerformanceTableSteps(): GuidedStep[] {
+  const steps: GuidedStep[] = [
+    {
+      id: "data-grid-corners",
+      group: "Table frame",
+      title: "Data grid corners",
+      instruction:
+        "Click four corners of the numeric data grid in this order: top-left, top-right, bottom-left, bottom-right. Do not include the notes or corrections block.",
+      kind: "points",
+      requiredPoints: 4,
+      metadata: { role: "data-grid" },
+    },
+    {
+      id: "pressure-altitude-column-x",
+      group: "Column centres",
+      title: "Pressure-altitude label column",
+      instruction:
+        "Click once in the horizontal centre of the Pressure Altitude label column. Only its X coordinate will be used.",
+      kind: "point",
+      metadata: { axis: "column", key: "pressure-altitude", dimension: "x" },
+    },
+    {
+      id: "row-type-column-x",
+      group: "Column centres",
+      title: "Ground Roll / 50 ft label column",
+      instruction:
+        "Click once in the horizontal centre of the column containing Ground Roll and At 50 ft AGL. Only its X coordinate will be used.",
+      kind: "point",
+      metadata: { axis: "column", key: "row-type", dimension: "x" },
+    },
+  ];
+
+  for (const column of TEMPERATURE_COLUMNS) {
+    steps.push({
+      id: `temperature-column-${column.id}`,
+      group: "Column centres",
+      title: `${column.label} column centre`,
+      instruction: `Click once in the horizontal centre of the ${column.label} data column. Only its X coordinate will be used.`,
+      kind: "point",
+      metadata: {
+        axis: "column",
+        key: `temperature-${column.id}`,
+        value: column.value,
+        dimension: "x",
+      },
+    });
+  }
+
+  for (const altitude of PRESSURE_ALTITUDES) {
+    for (const output of [
+      { id: "ground-roll", label: "Ground Roll" },
+      { id: "50ft", label: "At 50 ft AGL" },
+    ]) {
+      steps.push({
+        id: `row-${altitude.id}-${output.id}`,
+        group: "Row centres",
+        title: `${altitude.label} · ${output.label}`,
+        instruction: `Click once on the vertical centreline of the ${altitude.label} ${output.label} row, preferably inside the row-label column. Only its Y coordinate will be used.`,
+        kind: "point",
+        metadata: {
+          axis: "row",
+          altitudeFt: altitude.value,
+          output: output.id,
+          dimension: "y",
+        },
+      });
+    }
+  }
+
+  for (const sourceLine of [
+    {
+      id: "reference-weight",
+      title: "Reference weight",
+      instruction: "Draw a tight rectangle around the published Weight value.",
+      role: "condition-weight",
+    },
+    {
+      id: "runway-condition",
+      title: "Runway condition",
+      instruction: "Draw a tight rectangle around the published Runway condition.",
+      role: "condition-runway",
+    },
+    {
+      id: "correction-headwind",
+      title: "Headwind correction",
+      instruction: "Draw a tight rectangle around the complete Headwind correction line.",
+      role: "correction-headwind",
+    },
+    {
+      id: "correction-tailwind",
+      title: "Tailwind correction",
+      instruction: "Draw a tight rectangle around the complete Tailwind correction line.",
+      role: "correction-tailwind",
+    },
+    {
+      id: "correction-paved",
+      title: "Paved-runway correction",
+      instruction: "Draw a tight rectangle around the complete Paved Runway correction line.",
+      role: "correction-paved",
+    },
+    {
+      id: "correction-slope",
+      title: "Runway-slope correction",
+      instruction: "Draw a tight rectangle around the complete Runway slope correction line.",
+      role: "correction-slope",
+    },
+  ]) {
+    steps.push({
+      id: sourceLine.id,
+      group: "Published conditions and corrections",
+      title: sourceLine.title,
+      instruction: sourceLine.instruction,
+      kind: "rect",
+      metadata: { role: sourceLine.role },
+    });
+  }
+
+  return steps;
+}
+
+const PERFORMANCE_TABLE_STEPS = makePerformanceTableSteps();
 
 const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] = [
   {
     id: "takeoff",
-    title: "Takeoff source page",
+    title: "Takeoff table calibration",
     shortTitle: "AFM Takeoff",
     description:
-      "Ground roll and distance over 50 ft are mapped from the same takeoff page.",
+      "Map the actual column and row centres required to locate every Ground Roll and 50 ft cell on the same takeoff page.",
+    steps: PERFORMANCE_TABLE_STEPS,
     manifest: {
       "CS-EAQ": {
         image: "/p2006-performance-pages/CS-EAQ/page-171.png",
@@ -128,10 +238,11 @@ const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] = [
   },
   {
     id: "landing",
-    title: "Landing source page",
+    title: "Landing table calibration",
     shortTitle: "AFM Landing",
     description:
-      "Ground roll and distance over 50 ft are mapped from the same landing page.",
+      "Map the actual column and row centres required to locate every Ground Roll and 50 ft cell on the same landing page.",
+    steps: PERFORMANCE_TABLE_STEPS,
     manifest: {
       "CS-EAQ": {
         image: "/p2006-performance-pages/CS-EAQ/page-185.png",
@@ -155,41 +266,231 @@ const PERFORMANCE_SOURCES: PerformanceSourceDefinition[] = [
   },
 ];
 
-const FORM_PAGE_1_ITEMS: MappingItem[] = [
+function pointStep(
+  id: string,
+  group: string,
+  title: string,
+  instruction: string,
+  metadata: StepMetadata
+): GuidedStep {
+  return { id, group, title, instruction, kind: "point", metadata };
+}
+
+function lineStep(
+  id: string,
+  group: string,
+  title: string,
+  instruction: string,
+  metadata: StepMetadata,
+  lineMode: "segment" | "polyline" = "segment"
+): GuidedStep {
+  return {
+    id,
+    group,
+    title,
+    instruction,
+    kind: "line",
+    lineMode,
+    minPoints: 2,
+    maxPoints: lineMode === "segment" ? 2 : 8,
+    metadata,
+  };
+}
+
+function makeMassBalanceSteps(): GuidedStep[] {
+  const steps: GuidedStep[] = [];
+
+  for (const panel of [
+    ["front-seats", "Occupants front seats"],
+    ["rear-seats", "Occupants rear seats"],
+    ["fuel", "Fuel mass"],
+    ["baggage", "Baggage mass"],
+    ["cg-limits", "Flight mass / C.G. limits"],
+  ] as const) {
+    steps.push({
+      id: `panel-${panel[0]}`,
+      group: "Panel geometry",
+      title: `${panel[1]} panel corners`,
+      instruction:
+        "Click the four usable graph corners in this order: top-left, top-right, bottom-left, bottom-right.",
+      kind: "points",
+      requiredPoints: 4,
+      metadata: { role: "panel", panel: panel[0] },
+    });
+  }
+
+  for (let value = 140; value <= 500; value += 20) {
+    steps.push(
+      pointStep(
+        `moment-tick-${value}`,
+        "Moment axis ticks",
+        `Empty-aircraft moment tick ${value} kg·m`,
+        `Click the ${value} kg·m tick on the left vertical moment axis.`,
+        { axis: "empty-aircraft-moment-kgm", value, dimension: "y" }
+      )
+    );
+  }
+
+  const xAxes = [
+    {
+      key: "front-seat-mass-kg",
+      group: "Front-seat mass ticks",
+      label: "front-seat mass",
+      values: [0, 40, 80, 120, 160, 200],
+    },
+    {
+      key: "rear-seat-mass-kg",
+      group: "Rear-seat mass ticks",
+      label: "rear-seat mass",
+      values: [0, 40, 80, 120, 160, 200],
+    },
+    {
+      key: "fuel-mass-kg",
+      group: "Fuel mass ticks",
+      label: "fuel mass",
+      values: [0, 20, 40, 60, 80, 100],
+    },
+    {
+      key: "baggage-mass-kg",
+      group: "Baggage mass ticks",
+      label: "baggage mass",
+      values: [0, 10, 20, 30, 40],
+    },
+    {
+      key: "flight-mass-kg",
+      group: "Flight mass ticks",
+      label: "flight mass",
+      values: [900, 1000, 1100, 1200],
+    },
+  ];
+
+  for (const axis of xAxes) {
+    for (const value of axis.values) {
+      steps.push(
+        pointStep(
+          `${axis.key}-tick-${value}`,
+          axis.group,
+          `${value} kg tick`,
+          `Click the ${value} kg tick on the ${axis.label} axis.`,
+          { axis: axis.key, value, dimension: "x" }
+        )
+      );
+    }
+  }
+
+  for (const guide of [
+    [
+      "front-seat-max-guide",
+      "Front-seat 200 kg guide line",
+      "Trace the diagonal graph line that passes through the 200 kg front-seat tick. Click from top to bottom; add intermediate points only if needed.",
+      "front-seats",
+    ],
+    [
+      "rear-seat-max-guide",
+      "Rear-seat 200 kg guide line",
+      "Trace the sloping graph line that passes through the 200 kg rear-seat tick. Click from left to right; add intermediate points only if needed.",
+      "rear-seats",
+    ],
+    [
+      "fuel-max-guide",
+      "Fuel 100 kg guide line",
+      "Trace the diagonal graph line that passes through the 100 kg fuel tick.",
+      "fuel",
+    ],
+    [
+      "baggage-max-guide",
+      "Baggage 40 kg guide line",
+      "Trace the diagonal graph line that passes through the 40 kg baggage tick.",
+      "baggage",
+    ],
+  ] as const) {
+    steps.push(
+      lineStep(
+        guide[0],
+        "Loading guide lines",
+        guide[1],
+        guide[2],
+        { role: "loading-guide", panel: guide[3] },
+        "polyline"
+      )
+    );
+  }
+
+  for (const limit of [
+    ["cg-16-5-mac", "16.5% MAC limit", "16.5"],
+    ["cg-23-mac", "23% MAC limit", "23"],
+    ["cg-31-mac", "31% MAC limit", "31"],
+  ] as const) {
+    steps.push(
+      lineStep(
+        limit[0],
+        "C.G. limit lines",
+        limit[1],
+        `Trace the complete ${limit[1]} line from its lower end to its upper end.`,
+        { role: "cg-limit", macPercent: limit[2] },
+        "polyline"
+      )
+    );
+  }
+
+  steps.push(
+    lineStep(
+      "mass-limit-1180",
+      "Maximum mass lines",
+      "1180 kg limit line",
+      "Click the bottom and top of the vertical 1180 kg mass limit line.",
+      { role: "mass-limit", valueKg: 1180 }
+    ),
+    lineStep(
+      "mass-limit-1230",
+      "Maximum mass lines",
+      "1230 kg limit line",
+      "Click the bottom and top of the vertical 1230 kg mass limit line.",
+      { role: "mass-limit", valueKg: 1230 }
+    )
+  );
+
+  return steps;
+}
+
+const MASS_BALANCE_STEPS = makeMassBalanceSteps();
+
+const FORM_PAGE_1_FIELD_STEPS: GuidedStep[] = [
   {
     id: "pilot-front-seat-mass",
-    label: "Pilot and front-seat mass",
+    group: "Loading fields",
+    title: "Pilot and front-seat mass",
     instruction:
-      "Draw the writable rectangle in the YOUR AIRPLANE column for Pilot & Front Seat.",
-    kind: "number",
+      "Draw the exact writable rectangle in the YOUR AIRPLANE column for Pilot & Front Seat.",
+    kind: "rect",
+    metadata: { field: "pilot-front-seat-mass", valueType: "number" },
   },
   {
     id: "rear-seats-mass",
-    label: "Rear-seats mass",
+    group: "Loading fields",
+    title: "Rear-seats mass",
     instruction:
-      "Draw the writable rectangle in the YOUR AIRPLANE column for Rear Seats.",
-    kind: "number",
+      "Draw the exact writable rectangle in the YOUR AIRPLANE column for Rear Seats.",
+    kind: "rect",
+    metadata: { field: "rear-seats-mass", valueType: "number" },
   },
   {
     id: "fuel-mass",
-    label: "Fuel mass",
+    group: "Loading fields",
+    title: "Fuel mass",
     instruction:
-      "Draw the writable rectangle in the YOUR AIRPLANE column for Fuel Mass.",
-    kind: "number",
+      "Draw the exact writable rectangle in the YOUR AIRPLANE column for Fuel Mass.",
+    kind: "rect",
+    metadata: { field: "fuel-mass", valueType: "number" },
   },
   {
     id: "baggage-mass",
-    label: "Baggage mass",
+    group: "Loading fields",
+    title: "Baggage mass",
     instruction:
-      "Draw the writable rectangle in the YOUR AIRPLANE column for Baggage.",
-    kind: "number",
-  },
-  {
-    id: "mass-balance-graph",
-    label: "Mass and balance graph area",
-    instruction:
-      "Draw one rectangle around the complete graphical area. Later this will be used to plot points and the mass-and-balance path.",
-    kind: "graph",
+      "Draw the exact writable rectangle in the YOUR AIRPLANE column for Baggage.",
+    kind: "rect",
+    metadata: { field: "baggage-mass", valueType: "number" },
   },
 ];
 
@@ -224,78 +525,104 @@ const FUEL_ROWS = [
   "Total Ramp Fuel",
 ] as const;
 
-const FORM_PAGE_2_ITEMS: MappingItem[] = [
+const FORM_PAGE_2_FIELD_STEPS: GuidedStep[] = [
   {
     id: "date",
-    label: "Date",
+    group: "Header fields",
+    title: "Date",
     instruction: "Draw the writable rectangle beside Date.",
-    kind: "text",
+    kind: "rect",
+    metadata: { field: "date", valueType: "text" },
   },
   {
     id: "aircraft-registration",
-    label: "Aircraft registration",
+    group: "Header fields",
+    title: "Aircraft registration",
     instruction: "Draw the writable rectangle beside Aircraft Reg.",
-    kind: "text",
+    kind: "rect",
+    metadata: { field: "aircraft-registration", valueType: "text" },
   },
   ...AIRFIELD_COLUMNS.map((column) => ({
     id: `${column}-airfield`,
-    label: `${column[0].toUpperCase()}${column.slice(1)} airfield`,
+    group: "Airfield names",
+    title: `${column[0].toUpperCase()}${column.slice(1)} airfield`,
     instruction: `Draw the ${column} Airfield rectangle.`,
-    kind: "text" as const,
+    kind: "rect" as const,
+    metadata: { field: `${column}-airfield`, valueType: "text" },
   })),
-  ...AIRFIELD_ROWS.flatMap(([rowId, rowLabel, kind]) =>
+  ...AIRFIELD_ROWS.flatMap(([rowId, rowLabel, valueType]) =>
     AIRFIELD_COLUMNS.map((column) => ({
       id: `${column}-${rowId}`,
-      label: `${column[0].toUpperCase()}${column.slice(1)} ${rowLabel}`,
+      group: "Airfield conditions",
+      title: `${column[0].toUpperCase()}${column.slice(1)} ${rowLabel}`,
       instruction: `Draw the ${rowLabel} rectangle in the ${column} column.`,
-      kind: kind as MappingKind,
+      kind: "rect" as const,
+      metadata: { field: `${column}-${rowId}`, valueType },
     }))
   ),
   ...PERFORMANCE_ROWS.flatMap(([rowId, rowLabel]) =>
     AIRFIELD_COLUMNS.map((column) => ({
       id: `${column}-${rowId}`,
-      label: `${column[0].toUpperCase()}${column.slice(1)} ${rowLabel}`,
+      group: "Performance results",
+      title: `${column[0].toUpperCase()}${column.slice(1)} ${rowLabel}`,
       instruction: `Draw the ${rowLabel} rectangle in the ${column} performance column.`,
-      kind: "number" as const,
+      kind: "rect" as const,
+      metadata: { field: `${column}-${rowId}`, valueType: "number" },
     }))
   ),
   ...FUEL_ROWS.flatMap((rowLabel, index) =>
     (["time", "fuel"] as const).map((column) => ({
       id: `fuel-${index + 1}-${column}`,
-      label: `${rowLabel} · ${column === "time" ? "Time" : "Fuel"}`,
+      group: "Fuel planning",
+      title: `${rowLabel} · ${column === "time" ? "Time" : "Fuel"}`,
       instruction: `Draw the ${column} rectangle for fuel-planning row ${index + 1}: ${rowLabel}.`,
-      kind: column === "time" ? ("text" as const) : ("number" as const),
+      kind: "rect" as const,
+      metadata: {
+        field: `fuel-${index + 1}-${column}`,
+        valueType: column === "time" ? "text" : "number",
+      },
     }))
   ),
 ];
 
 const STAGES: Stage[] = [
   ...PERFORMANCE_SOURCES.map((source) => ({
-    id: `afm-${source.id}`,
-    type: "afm" as const,
+    id: `performance-${source.id}`,
+    type: "performance" as const,
     title: source.title,
     shortTitle: source.shortTitle,
     description: source.description,
     source,
-    items: AFM_ITEMS,
+    steps: source.steps,
   })),
   {
-    id: "form-page-1",
-    type: "form",
-    title: "Form page 1",
-    shortTitle: "Form page 1",
-    description: "Loading entries and the mass-and-balance graph.",
+    id: "mass-balance-graph",
+    type: "mass-balance",
+    title: "Mass & Balance graph calibration",
+    shortTitle: "M&B graph",
+    description:
+      "Map panel corners, metric ticks, loading guide lines and the published C.G. and maximum-mass limit lines.",
     page: 1,
-    items: FORM_PAGE_1_ITEMS,
+    steps: MASS_BALANCE_STEPS,
   },
   {
-    id: "form-page-2",
+    id: "form-page-1-fields",
     type: "form",
-    title: "Form page 2",
+    title: "Form page 1 writable fields",
+    shortTitle: "Form page 1",
+    description: "Map only the rectangles where loading values will be written.",
+    page: 1,
+    steps: FORM_PAGE_1_FIELD_STEPS,
+  },
+  {
+    id: "form-page-2-fields",
+    type: "form",
+    title: "Form page 2 writable fields",
     shortTitle: "Form page 2",
-    description: "Airfield, performance and fuel-planning writable cells.",
+    description:
+      "Map the airfield, performance and fuel-planning rectangles where values will be written.",
     page: 2,
-    items: FORM_PAGE_2_ITEMS,
+    steps: FORM_PAGE_2_FIELD_STEPS,
   },
 ];
 
@@ -348,43 +675,107 @@ function downloadJson(filename: string, value: unknown) {
 function mappingKey(
   stage: Stage,
   registration: P2006TRegistration,
-  item: MappingItem
+  step: GuidedStep
 ) {
-  return stage.type === "afm"
-    ? `${stage.id}:${registration}:${item.id}`
-    : `${stage.id}:${item.id}`;
+  return stage.type === "performance"
+    ? `${stage.id}:${registration}:${step.id}`
+    : `${stage.id}:${step.id}`;
 }
 
-function RectOverlay({
-  rect,
-  label,
-  status,
+function captureIsComplete(step: GuidedStep, capture?: Capture) {
+  if (!capture) return false;
+  if (step.kind === "rect") return Boolean(capture.rect);
+  if (step.kind === "point") return capture.points.length === 1;
+  if (step.kind === "points") {
+    return capture.points.length === (step.requiredPoints ?? 1);
+  }
+  return capture.points.length >= (step.minPoints ?? 2);
+}
+
+function pointsForPanel(points: Point[]) {
+  if (points.length !== 4) return points;
+  return [points[0], points[1], points[3], points[2], points[0]];
+}
+
+function CaptureOverlay({
+  capture,
+  step,
+  current,
 }: {
-  rect: Rect;
-  label: string;
-  status: "confirmed" | "current" | "other" | "draft";
+  capture: Capture;
+  step: GuidedStep;
+  current: boolean;
 }) {
-  const styles = {
-    confirmed: "border-emerald-600 bg-emerald-400/10",
-    current: "border-amber-500 bg-amber-300/20",
-    other: "border-sky-500/60 bg-sky-300/5",
-    draft: "border-fuchsia-600 bg-fuchsia-300/15 border-dashed",
-  }[status];
+  const stroke = current ? "rgb(217 70 239)" : "rgb(5 150 105)";
+  const fill = current ? "rgba(217,70,239,0.12)" : "rgba(5,150,105,0.08)";
+
+  if (capture.kind === "rect" && capture.rect) {
+    return (
+      <div
+        className="pointer-events-none absolute border-2"
+        style={{
+          left: `${capture.rect.x * 100}%`,
+          top: `${capture.rect.y * 100}%`,
+          width: `${capture.rect.width * 100}%`,
+          height: `${capture.rect.height * 100}%`,
+          borderColor: stroke,
+          background: fill,
+        }}
+      >
+        {current ? (
+          <span className="absolute left-0 top-0 max-w-64 truncate rounded-br bg-zinc-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+            {step.title}
+          </span>
+        ) : null}
+      </div>
+    );
+  }
+
+  const displayPoints =
+    step.kind === "points" && step.requiredPoints === 4
+      ? pointsForPanel(capture.points)
+      : capture.points;
 
   return (
-    <div
-      className={`pointer-events-none absolute border-2 ${styles}`}
-      style={{
-        left: `${rect.x * 100}%`,
-        top: `${rect.y * 100}%`,
-        width: `${rect.width * 100}%`,
-        height: `${rect.height * 100}%`,
-      }}
+    <svg
+      viewBox="0 0 1000 1000"
+      preserveAspectRatio="none"
+      className="pointer-events-none absolute inset-0 h-full w-full"
     >
-      <span className="absolute left-0 top-0 max-w-56 truncate rounded-br bg-zinc-950/90 px-1.5 py-0.5 text-[10px] font-semibold text-white">
-        {label}
-      </span>
-    </div>
+      {displayPoints.length > 1 ? (
+        <polyline
+          points={displayPoints
+            .map((point) => `${point.x * 1000},${point.y * 1000}`)
+            .join(" ")}
+          fill={step.kind === "points" && step.requiredPoints === 4 ? fill : "none"}
+          stroke={stroke}
+          strokeWidth="3"
+          vectorEffect="non-scaling-stroke"
+        />
+      ) : null}
+      {capture.points.map((point, index) => (
+        <g key={`${point.x}-${point.y}-${index}`}>
+          <circle
+            cx={point.x * 1000}
+            cy={point.y * 1000}
+            r="7"
+            fill={stroke}
+            vectorEffect="non-scaling-stroke"
+          />
+          {current ? (
+            <text
+              x={point.x * 1000 + 11}
+              y={point.y * 1000 - 11}
+              fill="rgb(24 24 27)"
+              fontSize="19"
+              fontWeight="700"
+            >
+              {capture.points.length > 1 ? index + 1 : step.title}
+            </text>
+          ) : null}
+        </g>
+      ))}
+    </svg>
   );
 }
 
@@ -419,7 +810,7 @@ function PdfFormPage({
         };
         const pdf = await loadingTask.promise;
         const pdfPage = await pdf.getPage(page);
-        const viewport = pdfPage.getViewport({ scale: 1.7 });
+        const viewport = pdfPage.getViewport({ scale: 1.8 });
         const canvas = document.createElement("canvas");
         canvas.width = Math.ceil(viewport.width);
         canvas.height = Math.ceil(viewport.height);
@@ -500,11 +891,12 @@ export function P2006TSourceMapper() {
   const [registration, setRegistration] =
     useState<P2006TRegistration>("CS-EAQ");
   const [stageIndex, setStageIndex] = useState(0);
-  const [itemIndex, setItemIndex] = useState(0);
-  const [mappings, setMappings] = useState<MappingStore>({});
-  const [drawMode, setDrawMode] = useState(false);
+  const [stepIndex, setStepIndex] = useState(0);
+  const [captures, setCaptures] = useState<CaptureStore>({});
+  const [captureMode, setCaptureMode] = useState(false);
   const [drag, setDrag] = useState<DragState>(null);
   const [imageReady, setImageReady] = useState(false);
+  const [showConfirmed, setShowConfirmed] = useState(false);
   const [saveStatus, setSaveStatus] = useState("");
 
   useEffect(() => {
@@ -512,181 +904,263 @@ export function P2006TSourceMapper() {
     if (!saved) return;
 
     try {
-      setMappings(JSON.parse(saved) as MappingStore);
+      setCaptures(JSON.parse(saved) as CaptureStore);
     } catch {
       window.localStorage.removeItem(STORAGE_KEY);
     }
   }, []);
 
   const stage = STAGES[stageIndex];
-  const item = stage.items[itemIndex];
+  const step = stage.steps[stepIndex];
   const sourceAsset =
-    stage.type === "afm" ? stage.source!.manifest[registration] : null;
-  const currentKey = mappingKey(stage, registration, item);
-  const currentMapping = mappings[currentKey];
+    stage.type === "performance" ? stage.source!.manifest[registration] : null;
+  const currentKey = mappingKey(stage, registration, step);
+  const currentCapture = captures[currentKey];
 
-  const stageMappings = useMemo(
+  const stageCaptures = useMemo(
     () =>
-      stage.items.map((candidate) => {
+      stage.steps.map((candidate) => {
         const key = mappingKey(stage, registration, candidate);
-        return { item: candidate, key, mapping: mappings[key] };
+        return { step: candidate, key, capture: captures[key] };
       }),
-    [mappings, registration, stage]
+    [captures, registration, stage]
   );
 
-  const stageConfirmed = stageMappings.filter(
-    (entry) => entry.mapping?.confirmed
+  const stageConfirmed = stageCaptures.filter(
+    (entry) => entry.capture?.confirmed
   ).length;
   const totalItems = STAGES.reduce(
-    (sum, candidate) => sum + candidate.items.length,
+    (sum, candidate) => sum + candidate.steps.length,
     0
   );
   const totalConfirmed = STAGES.reduce(
     (sum, candidate) =>
       sum +
-      candidate.items.filter((candidateItem) => {
-        const key = mappingKey(candidate, registration, candidateItem);
-        return mappings[key]?.confirmed;
+      candidate.steps.filter((candidateStep) => {
+        const key = mappingKey(candidate, registration, candidateStep);
+        return captures[key]?.confirmed;
       }).length,
     0
   );
   const draftRect = drag ? rectFromDrag(drag) : null;
+  const currentComplete = captureIsComplete(step, currentCapture);
+
+  function resetInteraction() {
+    setCaptureMode(false);
+    setDrag(null);
+  }
 
   function goToStage(nextStageIndex: number) {
     setStageIndex(nextStageIndex);
-    setItemIndex(0);
-    setDrawMode(false);
-    setDrag(null);
+    setStepIndex(0);
+    resetInteraction();
     setImageReady(false);
     setSaveStatus("");
   }
 
   function goNext() {
-    if (itemIndex < stage.items.length - 1) {
-      setItemIndex((current) => current + 1);
+    if (stepIndex < stage.steps.length - 1) {
+      setStepIndex((current) => current + 1);
     } else if (stageIndex < STAGES.length - 1) {
       goToStage(stageIndex + 1);
       return;
     }
-    setDrawMode(false);
-    setDrag(null);
+    resetInteraction();
   }
 
   function goPrevious() {
-    if (itemIndex > 0) {
-      setItemIndex((current) => current - 1);
+    if (stepIndex > 0) {
+      setStepIndex((current) => current - 1);
     } else if (stageIndex > 0) {
       const previousStageIndex = stageIndex - 1;
       setStageIndex(previousStageIndex);
-      setItemIndex(STAGES[previousStageIndex].items.length - 1);
+      setStepIndex(STAGES[previousStageIndex].steps.length - 1);
       setImageReady(false);
     }
-    setDrawMode(false);
+    resetInteraction();
+  }
+
+  function replaceCurrentCapture(capture: Capture | undefined) {
+    setCaptures((current) => {
+      const next = { ...current };
+      if (capture) next[currentKey] = capture;
+      else delete next[currentKey];
+      return next;
+    });
+  }
+
+  function beginCapture() {
+    replaceCurrentCapture(undefined);
+    setCaptureMode(true);
     setDrag(null);
   }
 
   function confirmCurrent() {
-    if (!currentMapping) return;
-    setMappings((current) => ({
-      ...current,
-      [currentKey]: { ...currentMapping, confirmed: true },
-    }));
+    if (!currentCapture || !currentComplete || captureMode) return;
+    replaceCurrentCapture({ ...currentCapture, confirmed: true });
     goNext();
   }
 
-  function clearCurrent() {
-    setMappings((current) => {
-      const next = { ...current };
-      delete next[currentKey];
-      return next;
-    });
-    setDrawMode(false);
-    setDrag(null);
+  function undoLastPoint() {
+    if (!currentCapture || currentCapture.kind === "rect") return;
+    const points = currentCapture.points.slice(0, -1);
+    replaceCurrentCapture(
+      points.length > 0
+        ? { ...currentCapture, points, confirmed: false }
+        : undefined
+    );
+  }
+
+  function finishPolyline() {
+    if (step.kind !== "line" || !currentComplete) return;
+    setCaptureMode(false);
   }
 
   function handlePointerDown(event: React.PointerEvent<HTMLDivElement>) {
-    if (!drawMode || !imageReady) return;
+    if (!captureMode || !imageReady) return;
     const point = pointerPosition(event);
     event.currentTarget.setPointerCapture(event.pointerId);
-    setDrag({ startX: point.x, startY: point.y, x: point.x, y: point.y });
+
+    if (step.kind === "rect") {
+      setDrag({ startX: point.x, startY: point.y, x: point.x, y: point.y });
+      return;
+    }
+
+    const existingPoints =
+      currentCapture && currentCapture.kind === step.kind
+        ? currentCapture.points
+        : [];
+    const points = step.kind === "point" ? [point] : [...existingPoints, point];
+    replaceCurrentCapture({
+      kind: step.kind,
+      points,
+      confirmed: false,
+    });
+
+    if (step.kind === "point") {
+      setCaptureMode(false);
+    } else if (
+      step.kind === "points" &&
+      points.length >= (step.requiredPoints ?? 1)
+    ) {
+      setCaptureMode(false);
+    } else if (
+      step.kind === "line" &&
+      step.lineMode === "segment" &&
+      points.length >= (step.maxPoints ?? 2)
+    ) {
+      setCaptureMode(false);
+    }
   }
 
   function handlePointerMove(event: React.PointerEvent<HTMLDivElement>) {
-    if (!drawMode || !drag) return;
+    if (!captureMode || step.kind !== "rect" || !drag) return;
     const point = pointerPosition(event);
     setDrag({ ...drag, x: point.x, y: point.y });
   }
 
   function handlePointerUp(event: React.PointerEvent<HTMLDivElement>) {
-    if (!drawMode || !drag) return;
+    if (!captureMode || step.kind !== "rect" || !drag) return;
     const point = pointerPosition(event);
     const rect = rectFromDrag({ ...drag, x: point.x, y: point.y });
-    setMappings((current) => ({
-      ...current,
-      [currentKey]: { rect, confirmed: false },
-    }));
+    replaceCurrentCapture({
+      kind: "rect",
+      points: [],
+      rect,
+      confirmed: false,
+    });
     setDrag(null);
-    setDrawMode(false);
+    setCaptureMode(false);
   }
 
-  function saveMappings() {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(mappings));
+  function saveCaptures() {
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(captures));
     setSaveStatus("Guided mapping saved in this browser.");
   }
 
-  function exportMappings() {
+  function exportCaptures() {
     const entries = Object.fromEntries(
-      Object.entries(mappings).map(([key, value]) => {
-        const isForm = key.startsWith("form-page-");
+      Object.entries(captures).map(([key, capture]) => {
+        const isPdfGeometry =
+          key.startsWith("mass-balance-graph:") ||
+          key.startsWith("form-page-");
         return [
           key,
           {
-            ...value,
-            normalizedRect: value.rect,
-            pdfRect: isForm
-              ? {
-                  x: value.rect.x * A4_WIDTH_PT,
-                  y: (1 - value.rect.y - value.rect.height) * A4_HEIGHT_PT,
-                  width: value.rect.width * A4_WIDTH_PT,
-                  height: value.rect.height * A4_HEIGHT_PT,
-                  pageSize: [A4_WIDTH_PT, A4_HEIGHT_PT],
-                  origin: "bottom-left",
-                }
+            ...capture,
+            normalizedPoints: capture.points,
+            normalizedRect: capture.rect ?? null,
+            pdfPoints: isPdfGeometry
+              ? capture.points.map((point) => ({
+                  x: point.x * A4_WIDTH_PT,
+                  y: (1 - point.y) * A4_HEIGHT_PT,
+                }))
               : null,
+            pdfRect:
+              isPdfGeometry && capture.rect
+                ? {
+                    x: capture.rect.x * A4_WIDTH_PT,
+                    y: (1 - capture.rect.y - capture.rect.height) * A4_HEIGHT_PT,
+                    width: capture.rect.width * A4_WIDTH_PT,
+                    height: capture.rect.height * A4_HEIGHT_PT,
+                    pageSize: [A4_WIDTH_PT, A4_HEIGHT_PT],
+                    origin: "bottom-left",
+                  }
+                : null,
           },
         ];
       })
     );
 
     downloadJson("p2006t-guided-coordinate-map.json", {
-      version: 4,
+      version: 5,
       registration,
       performanceSources: PERFORMANCE_SOURCES.map((source) => ({
         id: source.id,
         asset: source.manifest[registration],
       })),
+      stageDefinitions: STAGES.map((candidate) => ({
+        id: candidate.id,
+        type: candidate.type,
+        page: candidate.page ?? null,
+        steps: candidate.steps.map((candidateStep) => ({
+          id: candidateStep.id,
+          group: candidateStep.group,
+          title: candidateStep.title,
+          kind: candidateStep.kind,
+          metadata: candidateStep.metadata ?? null,
+        })),
+      })),
       coordinateSystem: {
         normalized: "x/y 0..1 with top-left origin",
         pdf: "A4 points with bottom-left origin",
       },
-      mappings: entries,
+      captures: entries,
     });
   }
+
+  const visibleCaptures = stageCaptures.filter((entry) => {
+    if (!entry.capture) return false;
+    if (entry.key === currentKey) return true;
+    return showConfirmed && entry.capture.confirmed;
+  });
 
   return (
     <section className="space-y-5 rounded-3xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-sky-700">
-            Manual guided mapper
+            Guided geometry capture
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-            Draw one requested area at a time
+            Ticks and lines for graphs, rows and columns for tables
           </h2>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-600">
-            No rectangles are pre-positioned. Select Draw rectangle, drag over the exact
-            source or writable area, then confirm it. Takeoff and landing are the first
-            two performance sources; additional performance pages can be added later.
+            Performance tables are calibrated from their column and row centres so any
+            calculation cell can be highlighted later. The M&B graph is calibrated from
+            panel corners, axis ticks, guide lines and C.G. limits, following the same
+            principle as the Piper graph builder. Rectangles are used only for writable
+            form fields and published text blocks.
           </p>
         </div>
 
@@ -700,8 +1174,8 @@ export function P2006TSourceMapper() {
               onChange={(event) => {
                 setRegistration(event.target.value as P2006TRegistration);
                 setStageIndex(0);
-                setItemIndex(0);
-                setDrawMode(false);
+                setStepIndex(0);
+                resetInteraction();
                 setImageReady(false);
               }}
               className="block rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm"
@@ -722,11 +1196,11 @@ export function P2006TSourceMapper() {
         </div>
       </div>
 
-      <nav className="grid gap-2 md:grid-cols-4">
+      <nav className="grid gap-2 md:grid-cols-5">
         {STAGES.map((candidate, index) => {
-          const confirmed = candidate.items.filter((candidateItem) => {
-            const key = mappingKey(candidate, registration, candidateItem);
-            return mappings[key]?.confirmed;
+          const confirmed = candidate.steps.filter((candidateStep) => {
+            const key = mappingKey(candidate, registration, candidateStep);
+            return captures[key]?.confirmed;
           }).length;
 
           return (
@@ -748,7 +1222,7 @@ export function P2006TSourceMapper() {
                 {candidate.shortTitle}
               </span>
               <span className="mt-1 block text-xs opacity-70">
-                {confirmed}/{candidate.items.length} confirmed
+                {confirmed}/{candidate.steps.length} confirmed
               </span>
             </button>
           );
@@ -760,34 +1234,44 @@ export function P2006TSourceMapper() {
           <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
               <p className="text-base font-semibold text-zinc-950">{stage.title}</p>
-              <p className="mt-1 text-xs leading-5 text-zinc-500">
+              <p className="mt-1 max-w-3xl text-xs leading-5 text-zinc-500">
                 {stage.description}
                 {sourceAsset
                   ? ` PDF page ${sourceAsset.pdfPage} · printed AFM page ${sourceAsset.printedPage}.`
                   : ` Original PDF page ${stage.page}.`}
               </p>
             </div>
-            <span
-              className={[
-                "rounded-full px-2 py-1 text-xs font-semibold",
-                imageReady
-                  ? "bg-emerald-100 text-emerald-800"
-                  : "bg-amber-100 text-amber-900",
-              ].join(" ")}
-            >
-              {imageReady ? "Page ready" : "Loading page"}
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 rounded-full border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600">
+                <input
+                  type="checkbox"
+                  checked={showConfirmed}
+                  onChange={(event) => setShowConfirmed(event.target.checked)}
+                />
+                Show confirmed geometry
+              </label>
+              <span
+                className={[
+                  "rounded-full px-2 py-1 text-xs font-semibold",
+                  imageReady
+                    ? "bg-emerald-100 text-emerald-800"
+                    : "bg-amber-100 text-amber-900",
+                ].join(" ")}
+              >
+                {imageReady ? "Page ready" : "Loading page"}
+              </span>
+            </div>
           </div>
 
           <div className="max-h-[78vh] overflow-auto rounded-2xl border border-zinc-300 bg-zinc-100 p-2">
             <div
-              className="relative mx-auto w-full max-w-[920px] select-none bg-white"
-              style={{ cursor: drawMode && imageReady ? "crosshair" : "default" }}
+              className="relative mx-auto w-full max-w-[980px] select-none bg-white"
+              style={{ cursor: captureMode && imageReady ? "crosshair" : "default" }}
               onPointerDown={handlePointerDown}
               onPointerMove={handlePointerMove}
               onPointerUp={handlePointerUp}
             >
-              {stage.type === "afm" ? (
+              {stage.type === "performance" ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img
                   src={sourceAsset!.image}
@@ -804,28 +1288,25 @@ export function P2006TSourceMapper() {
                 />
               )}
 
-              {stageMappings.map((entry) =>
-                entry.mapping ? (
-                  <RectOverlay
-                    key={entry.key}
-                    rect={entry.mapping.rect}
-                    label={entry.item.label}
-                    status={
-                      entry.key === currentKey
-                        ? "current"
-                        : entry.mapping.confirmed
-                          ? "confirmed"
-                          : "other"
-                    }
-                  />
-                ) : null
-              )}
+              {visibleCaptures.map((entry) => (
+                <CaptureOverlay
+                  key={entry.key}
+                  capture={entry.capture!}
+                  step={entry.step}
+                  current={entry.key === currentKey}
+                />
+              ))}
 
               {draftRect ? (
-                <RectOverlay
-                  rect={draftRect}
-                  label={item.label}
-                  status="draft"
+                <CaptureOverlay
+                  capture={{
+                    kind: "rect",
+                    points: [],
+                    rect: draftRect,
+                    confirmed: false,
+                  }}
+                  step={step}
+                  current
                 />
               ) : null}
             </div>
@@ -856,57 +1337,75 @@ export function P2006TSourceMapper() {
         <aside className="space-y-4">
           <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Current task
-              </p>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  Current task
+                </p>
+                <p className="mt-1 text-xs font-semibold text-sky-700">{step.group}</p>
+              </div>
               <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">
-                {itemIndex + 1}/{stage.items.length}
+                {stepIndex + 1}/{stage.steps.length}
               </span>
             </div>
             <h3 className="mt-2 text-xl font-semibold text-zinc-950">
-              {item.label}
+              {step.title}
             </h3>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              {item.instruction}
+              {step.instruction}
             </p>
 
             <div
               className={[
                 "mt-4 rounded-2xl border p-4 text-sm",
-                currentMapping
-                  ? currentMapping.confirmed
+                currentCapture
+                  ? currentCapture.confirmed
                     ? "border-emerald-200 bg-emerald-50 text-emerald-950"
                     : "border-amber-200 bg-amber-50 text-amber-950"
                   : "border-sky-200 bg-sky-50 text-sky-950",
               ].join(" ")}
             >
-              {currentMapping ? (
+              {currentCapture ? (
                 <>
                   <p className="font-semibold">
-                    {currentMapping.confirmed
-                      ? "Rectangle confirmed"
-                      : "Rectangle drawn — confirm or redraw it"}
+                    {currentCapture.confirmed
+                      ? "Geometry confirmed"
+                      : currentComplete
+                        ? "Geometry captured — confirm it or recapture"
+                        : `${currentCapture.points.length} point(s) captured`}
                   </p>
-                  <p className="mt-1 font-mono text-xs leading-5 opacity-80">
-                    x {currentMapping.rect.x.toFixed(4)} · y{" "}
-                    {currentMapping.rect.y.toFixed(4)} · w{" "}
-                    {currentMapping.rect.width.toFixed(4)} · h{" "}
-                    {currentMapping.rect.height.toFixed(4)}
-                  </p>
+                  {currentCapture.rect ? (
+                    <p className="mt-1 font-mono text-xs leading-5 opacity-80">
+                      x {currentCapture.rect.x.toFixed(4)} · y{" "}
+                      {currentCapture.rect.y.toFixed(4)} · w{" "}
+                      {currentCapture.rect.width.toFixed(4)} · h{" "}
+                      {currentCapture.rect.height.toFixed(4)}
+                    </p>
+                  ) : (
+                    <p className="mt-1 text-xs leading-5 opacity-80">
+                      Points: {currentCapture.points.length}
+                      {step.requiredPoints ? ` / ${step.requiredPoints}` : ""}
+                    </p>
+                  )}
                 </>
               ) : (
                 <>
-                  <p className="font-semibold">No rectangle defined yet</p>
+                  <p className="font-semibold">Nothing captured yet</p>
                   <p className="mt-1 text-xs leading-5 opacity-80">
-                    Press Draw rectangle, then drag across the exact area on the page.
+                    Start capture and follow the instruction above on the page.
                   </p>
                 </>
               )}
             </div>
 
-            {drawMode ? (
+            {captureMode ? (
               <div className="mt-4 rounded-xl border border-fuchsia-200 bg-fuchsia-50 p-3 text-sm font-semibold text-fuchsia-900">
-                Drag on the page now. Release to save the rectangle.
+                {step.kind === "rect"
+                  ? "Drag over the exact area and release."
+                  : step.kind === "point"
+                    ? "Click the requested tick or centre once."
+                    : step.kind === "points"
+                      ? `Click the requested points in order (${currentCapture?.points.length ?? 0}/${step.requiredPoints}).`
+                      : "Click points along the requested line. Finish the line when complete."}
               </div>
             ) : null}
 
@@ -914,36 +1413,55 @@ export function P2006TSourceMapper() {
               <button
                 type="button"
                 disabled={!imageReady}
-                onClick={() => {
-                  setDrawMode(true);
-                  setDrag(null);
-                }}
+                onClick={beginCapture}
                 className="rounded-xl bg-sky-700 px-4 py-3 text-sm font-semibold text-white hover:bg-sky-600 disabled:bg-zinc-300"
               >
-                {currentMapping ? "Redraw rectangle" : "Draw rectangle"}
+                {currentCapture ? "Recapture geometry" : "Start capture"}
               </button>
+
+              {step.kind === "line" && captureMode ? (
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    disabled={!currentCapture || currentCapture.points.length === 0}
+                    onClick={undoLastPoint}
+                    className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-600 disabled:text-zinc-300"
+                  >
+                    Undo point
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!currentComplete}
+                    onClick={finishPolyline}
+                    className="rounded-xl border border-fuchsia-300 bg-fuchsia-50 px-3 py-2 text-sm font-semibold text-fuchsia-800 disabled:text-zinc-300"
+                  >
+                    Finish line
+                  </button>
+                </div>
+              ) : null}
+
               <button
                 type="button"
-                disabled={!currentMapping}
+                disabled={!currentComplete || captureMode}
                 onClick={confirmCurrent}
                 className="rounded-xl bg-emerald-700 px-4 py-3 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-zinc-300"
               >
-                Confirm rectangle and continue
+                Confirm and continue
               </button>
               <button
                 type="button"
-                disabled={!currentMapping}
-                onClick={clearCurrent}
+                disabled={!currentCapture}
+                onClick={() => replaceCurrentCapture(undefined)}
                 className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 disabled:text-zinc-300"
               >
-                Clear rectangle
+                Clear current geometry
               </button>
             </div>
 
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
                 type="button"
-                disabled={stageIndex === 0 && itemIndex === 0}
+                disabled={stageIndex === 0 && stepIndex === 0}
                 onClick={goPrevious}
                 className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-semibold text-zinc-600 disabled:text-zinc-300"
               >
@@ -960,48 +1478,54 @@ export function P2006TSourceMapper() {
           </section>
 
           <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Stage progress
-            </p>
-            <p className="mt-2 text-2xl font-semibold text-zinc-950">
-              {stageConfirmed}/{stage.items.length}
-            </p>
+            <div className="flex items-end justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+                  Stage progress
+                </p>
+                <p className="mt-2 text-2xl font-semibold text-zinc-950">
+                  {stageConfirmed}/{stage.steps.length}
+                </p>
+              </div>
+              <span className="text-xs font-semibold text-zinc-500">
+                {Math.round((stageConfirmed / stage.steps.length) * 100)}%
+              </span>
+            </div>
             <div className="mt-3 h-2 overflow-hidden rounded-full bg-zinc-100">
               <div
                 className="h-full bg-emerald-600 transition-all"
                 style={{
-                  width: `${(stageConfirmed / stage.items.length) * 100}%`,
+                  width: `${(stageConfirmed / stage.steps.length) * 100}%`,
                 }}
               />
             </div>
-            <div className="mt-4 max-h-72 space-y-1 overflow-y-auto">
-              {stageMappings.map((entry, index) => (
-                <button
-                  key={entry.key}
-                  type="button"
-                  onClick={() => {
-                    setItemIndex(index);
-                    setDrawMode(false);
-                    setDrag(null);
-                  }}
-                  className={[
-                    "flex w-full items-center justify-between rounded-lg px-2 py-2 text-left text-xs",
-                    index === itemIndex
-                      ? "bg-zinc-950 text-white"
-                      : "hover:bg-zinc-50",
-                  ].join(" ")}
-                >
-                  <span className="truncate pr-2">{entry.item.label}</span>
-                  <span className="font-semibold">
-                    {entry.mapping?.confirmed
-                      ? "✓"
-                      : entry.mapping
-                        ? "drawn"
-                        : "—"}
-                  </span>
-                </button>
-              ))}
-            </div>
+            <label className="mt-4 block space-y-1">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                Jump to task
+              </span>
+              <select
+                value={stepIndex}
+                onChange={(event) => {
+                  setStepIndex(Number(event.target.value));
+                  resetInteraction();
+                }}
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+              >
+                {stage.steps.map((candidate, index) => {
+                  const key = mappingKey(stage, registration, candidate);
+                  const status = captures[key]?.confirmed
+                    ? "✓"
+                    : captures[key]
+                      ? "•"
+                      : "—";
+                  return (
+                    <option key={candidate.id} value={index}>
+                      {status} {candidate.group} · {candidate.title}
+                    </option>
+                  );
+                })}
+              </select>
+            </label>
           </section>
 
           <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -1009,21 +1533,21 @@ export function P2006TSourceMapper() {
               Save and export
             </p>
             <p className="mt-2 text-sm leading-6 text-zinc-500">
-              {totalConfirmed}/{totalItems} rectangles confirmed for {registration}.
-              Form rectangles export in A4 PDF points; AFM regions export in normalized
-              image coordinates.
+              {totalConfirmed}/{totalItems} geometry items confirmed. Performance-page
+              coordinates remain normalized to their PNG; graph and form coordinates also
+              export in A4 PDF points.
             </p>
             <div className="mt-4 grid gap-2">
               <button
                 type="button"
-                onClick={saveMappings}
+                onClick={saveCaptures}
                 className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
               >
                 Save browser progress
               </button>
               <button
                 type="button"
-                onClick={exportMappings}
+                onClick={exportCaptures}
                 className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800"
               >
                 Download coordinate JSON
