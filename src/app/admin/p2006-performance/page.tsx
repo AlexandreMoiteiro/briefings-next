@@ -14,9 +14,10 @@ export default function AdminP2006PerformancePage() {
               Guided source and form mapper
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Resume the validated geometry, finish only the missing M&B diagonals and
-              then map the aircraft-specific AFM pages. Operational calculations and
-              their visual proof remain on the Performance page.
+              Calibrate each 1180, 1080 and 930 kg takeoff/landing table using
+              temperature-column and Ground Roll/50 ft row centre lines. Their
+              intersections identify the published cells. Shared M&B and form geometry
+              remains independent of aircraft registration.
             </p>
           </div>
 
