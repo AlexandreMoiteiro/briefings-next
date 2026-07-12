@@ -41,6 +41,10 @@ function clamp(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
+function average(...values: number[]) {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
 function normalizeRect(rect: Rect): Rect {
   const x = clamp(rect.x);
   const y = clamp(rect.y);
@@ -90,57 +94,87 @@ function captureIsComplete(step: GuidedStep, capture?: Capture) {
   return capture.points.length >= (step.minPoints ?? 2);
 }
 
-function interpolatePoint(a: Point, b: Point, index: number): Point {
-  return {
-    x: a.x + (b.x - a.x) * index,
-    y: a.y + (b.y - a.y) * index,
-  };
+function orderedVerticalPair(first: Point, second: Point) {
+  return first.y <= second.y ? [first, second] : [second, first];
 }
 
-function extrapolateSegments(points: Point[], count: number): Segment[] {
+function orderedHorizontalPair(first: Point, second: Point) {
+  return first.x <= second.x ? [first, second] : [second, first];
+}
+
+function lockedColumnSeed(points: Point[]): Segment[] {
   if (points.length !== 4) return [];
-  const [firstStart, firstEnd, secondStart, secondEnd] = points;
-  return Array.from({ length: count }, (_, index) => ({
-    start: interpolatePoint(firstStart, secondStart, index),
-    end: interpolatePoint(firstEnd, secondEnd, index),
-  }));
+
+  const [firstTop, firstBottom] = orderedVerticalPair(points[0], points[1]);
+  const [secondTop, secondBottom] = orderedVerticalPair(points[2], points[3]);
+  const firstX = average(firstTop.x, firstBottom.x);
+  const secondX = average(secondTop.x, secondBottom.x);
+  const topY = average(firstTop.y, secondTop.y);
+  const bottomY = average(firstBottom.y, secondBottom.y);
+
+  return [
+    { start: { x: firstX, y: topY }, end: { x: firstX, y: bottomY } },
+    { start: { x: secondX, y: topY }, end: { x: secondX, y: bottomY } },
+  ];
 }
 
-function segmentIntersection(first: Segment, second: Segment): Point | null {
-  const x1 = first.start.x;
-  const y1 = first.start.y;
-  const x2 = first.end.x;
-  const y2 = first.end.y;
-  const x3 = second.start.x;
-  const y3 = second.start.y;
-  const x4 = second.end.x;
-  const y4 = second.end.y;
-  const denominator = (x1 - x2) * (y3 - y4) - (y1 - y2) * (x3 - x4);
+function lockedRowSeed(points: Point[]): Segment[] {
+  if (points.length !== 4) return [];
 
-  if (Math.abs(denominator) < 1e-8) return null;
+  const [firstLeft, firstRight] = orderedHorizontalPair(points[0], points[1]);
+  const [secondLeft, secondRight] = orderedHorizontalPair(points[2], points[3]);
+  const firstY = average(firstLeft.y, firstRight.y);
+  const secondY = average(secondLeft.y, secondRight.y);
+  const leftX = average(firstLeft.x, secondLeft.x);
+  const rightX = average(firstRight.x, secondRight.x);
 
-  const determinant1 = x1 * y2 - y1 * x2;
-  const determinant2 = x3 * y4 - y3 * x4;
-  return {
-    x:
-      (determinant1 * (x3 - x4) - (x1 - x2) * determinant2) /
-      denominator,
-    y:
-      (determinant1 * (y3 - y4) - (y1 - y2) * determinant2) /
-      denominator,
-  };
+  return [
+    { start: { x: leftX, y: firstY }, end: { x: rightX, y: firstY } },
+    { start: { x: leftX, y: secondY }, end: { x: rightX, y: secondY } },
+  ];
 }
 
-function deriveGrid(columnSeed?: Capture, rowSeed?: Capture): DerivedGrid | null {
-  if (!columnSeed || !rowSeed) return null;
-  if (columnSeed.points.length !== 4 || rowSeed.points.length !== 4) return null;
+function extrapolateLockedColumns(seed: Segment[], count: number): Segment[] {
+  if (seed.length !== 2) return [];
+  const spacing = seed[1].start.x - seed[0].start.x;
+  const topY = seed[0].start.y;
+  const bottomY = seed[0].end.y;
 
-  const columns = extrapolateSegments(columnSeed.points, 5);
-  const rows = extrapolateSegments(rowSeed.points, 22);
+  return Array.from({ length: count }, (_, index) => {
+    const x = seed[0].start.x + spacing * index;
+    return {
+      start: { x, y: topY },
+      end: { x, y: bottomY },
+    };
+  });
+}
+
+function extrapolateLockedRows(seed: Segment[], count: number): Segment[] {
+  if (seed.length !== 2) return [];
+  const spacing = seed[1].start.y - seed[0].start.y;
+  const leftX = seed[0].start.x;
+  const rightX = seed[0].end.x;
+
+  return Array.from({ length: count }, (_, index) => {
+    const y = seed[0].start.y + spacing * index;
+    return {
+      start: { x: leftX, y },
+      end: { x: rightX, y },
+    };
+  });
+}
+
+function deriveGrid(columnCapture?: Capture, rowCapture?: Capture): DerivedGrid | null {
+  if (!columnCapture || !rowCapture) return null;
+
+  const columnSeed = lockedColumnSeed(columnCapture.points);
+  const rowSeed = lockedRowSeed(rowCapture.points);
+  if (columnSeed.length !== 2 || rowSeed.length !== 2) return null;
+
+  const columns = extrapolateLockedColumns(columnSeed, 5);
+  const rows = extrapolateLockedRows(rowSeed, 22);
   const intersections = rows.flatMap((row) =>
-    columns
-      .map((column) => segmentIntersection(column, row))
-      .filter((point): point is Point => Boolean(point))
+    columns.map((column) => ({ x: column.start.x, y: row.start.y }))
   );
 
   return { columns, rows, intersections };
@@ -161,7 +195,7 @@ function downloadJson(filename: string, value: unknown) {
 }
 
 function startButtonLabel(step: GuidedStep) {
-  if (step.kind === "confirm") return "Confirm generated grid and continue";
+  if (step.kind === "confirm") return "Confirm locked grid and continue";
   if (step.kind === "rect") return "Start — drag the rectangle";
   if (step.kind === "point") return "Start — click the point";
   if (step.kind === "points") {
@@ -177,7 +211,7 @@ function activeInstruction(step: GuidedStep, capture?: Capture) {
   if (step.kind === "point") return "Click the requested point.";
   if (step.kind === "points") {
     const done = capture?.points.length ?? 0;
-    return `Click point ${done + 1} of ${step.requiredPoints ?? 1}.`;
+    return `Click point ${done + 1} of ${step.requiredPoints ?? 1}. Alignment is corrected automatically.`;
   }
   if (step.lineMode === "segment") {
     const done = capture?.points.length ?? 0;
@@ -186,7 +220,14 @@ function activeInstruction(step: GuidedStep, capture?: Capture) {
   return "Click along the line in order, then press Finish line and continue.";
 }
 
-function SeedOverlay({
+function segmentForSeed(step: GuidedStep, capture: Capture): Segment[] {
+  const role = String(step.metadata?.role ?? "");
+  if (role === "regular-column-seed") return lockedColumnSeed(capture.points);
+  if (role === "regular-row-seed") return lockedRowSeed(capture.points);
+  return [];
+}
+
+function CaptureOverlay({
   capture,
   step,
   current,
@@ -196,6 +237,7 @@ function SeedOverlay({
   current: boolean;
 }) {
   if (capture.kind === "confirm") return null;
+
   const stroke = current ? "rgb(217 70 239)" : "rgb(5 150 105)";
   const fill = current ? "rgba(217,70,239,0.12)" : "rgba(5,150,105,0.08)";
 
@@ -215,14 +257,8 @@ function SeedOverlay({
     );
   }
 
-  const role = String(step.metadata?.role ?? "");
-  const seedSegments =
-    role === "regular-column-seed" || role === "regular-row-seed"
-      ? [
-          capture.points.slice(0, 2),
-          capture.points.slice(2, 4),
-        ].filter((segment) => segment.length > 1)
-      : [];
+  const lockedSegments = segmentForSeed(step, capture);
+  const showRawPolyline = lockedSegments.length === 0 && capture.points.length > 1;
 
   return (
     <svg
@@ -230,19 +266,20 @@ function SeedOverlay({
       preserveAspectRatio="none"
       className="pointer-events-none absolute inset-0 h-full w-full"
     >
-      {seedSegments.map((segment, index) => (
+      {lockedSegments.map((segment, index) => (
         <line
-          key={index}
-          x1={segment[0].x * 1000}
-          y1={segment[0].y * 1000}
-          x2={segment[1].x * 1000}
-          y2={segment[1].y * 1000}
+          key={`locked-${index}`}
+          x1={segment.start.x * 1000}
+          y1={segment.start.y * 1000}
+          x2={segment.end.x * 1000}
+          y2={segment.end.y * 1000}
           stroke={stroke}
           strokeWidth="4"
           vectorEffect="non-scaling-stroke"
         />
       ))}
-      {role !== "regular-column-seed" && role !== "regular-row-seed" && capture.points.length > 1 ? (
+
+      {showRawPolyline ? (
         <polyline
           points={capture.points
             .map((point) => `${point.x * 1000},${point.y * 1000}`)
@@ -253,15 +290,22 @@ function SeedOverlay({
           vectorEffect="non-scaling-stroke"
         />
       ) : null}
+
       {capture.points.map((point, index) => (
         <g key={`${point.x}-${point.y}-${index}`}>
-          <circle cx={point.x * 1000} cy={point.y * 1000} r="7" fill={stroke} />
+          <circle
+            cx={point.x * 1000}
+            cy={point.y * 1000}
+            r="6"
+            fill={stroke}
+            opacity="0.55"
+          />
           {current ? (
             <text
-              x={point.x * 1000 + 11}
-              y={point.y * 1000 - 11}
+              x={point.x * 1000 + 10}
+              y={point.y * 1000 - 10}
               fill="rgb(24 24 27)"
-              fontSize="19"
+              fontSize="18"
               fontWeight="700"
             >
               {index + 1}
@@ -328,12 +372,14 @@ function PdfFormPage({ page, onReady }: { page: 1 | 2; onReady: () => void }) {
     async function renderPage() {
       setImageUrl("");
       setError("");
+
       try {
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = new URL(
           "pdfjs-dist/build/pdf.worker.min.mjs",
           import.meta.url
         ).toString();
+
         const loadingTask = pdfjs.getDocument({ url: "/api/p2006-form" });
         destroyTask = () => void loadingTask.destroy();
         const pdf = await loadingTask.promise;
@@ -344,6 +390,7 @@ function PdfFormPage({ page, onReady }: { page: 1 | 2; onReady: () => void }) {
         canvas.height = Math.ceil(viewport.height);
         const context = canvas.getContext("2d", { alpha: false });
         if (!context) throw new Error("Canvas is unavailable.");
+
         await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
         if (!cancelled) setImageUrl(canvas.toDataURL("image/png"));
         await pdf.destroy();
@@ -367,6 +414,7 @@ function PdfFormPage({ page, onReady }: { page: 1 | 2; onReady: () => void }) {
   if (!imageUrl) {
     return <div className="p-8 text-center text-sm text-zinc-500">Rendering page…</div>;
   }
+
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img
@@ -403,7 +451,8 @@ export function P2006TSourceMapperV9() {
 
   const stage = STAGES[stageIndex];
   const step = stage.steps[stepIndex];
-  const sourceAsset = stage.type === "performance" ? stage.source!.manifest[registration] : null;
+  const sourceAsset =
+    stage.type === "performance" ? stage.source!.manifest[registration] : null;
   const currentKey = mappingKey(stage, registration, step);
   const currentCapture = captures[currentKey];
   const draftRect = drag ? rectFromDrag(drag) : null;
@@ -435,7 +484,9 @@ export function P2006TSourceMapperV9() {
       (step.kind === "confirm" || gridConfirmation?.confirmed || showCompleted)
   );
 
-  const stageConfirmed = stageCaptures.filter((entry) => entry.capture?.confirmed).length;
+  const stageConfirmed = stageCaptures.filter(
+    (entry) => entry.capture?.confirmed
+  ).length;
 
   function resetInteraction() {
     setCaptureMode(false);
@@ -461,8 +512,9 @@ export function P2006TSourceMapperV9() {
   }
 
   function goPrevious() {
-    if (stepIndex > 0) setStepIndex((value) => value - 1);
-    else if (stageIndex > 0) {
+    if (stepIndex > 0) {
+      setStepIndex((value) => value - 1);
+    } else if (stageIndex > 0) {
       const previous = stageIndex - 1;
       setStageIndex(previous);
       setStepIndex(STAGES[previous].steps.length - 1);
@@ -504,6 +556,7 @@ export function P2006TSourceMapperV9() {
     const targetStep = stage.steps[targetIndex];
     const targetKey = mappingKey(stage, registration, targetStep);
     const confirmationKey = mappingKey(stage, registration, stage.steps[2]);
+
     setCaptures((current) => {
       const next = { ...current };
       delete next[targetKey];
@@ -516,15 +569,30 @@ export function P2006TSourceMapperV9() {
   }
 
   function undoLastPoint() {
-    if (!currentCapture || currentCapture.kind === "rect" || currentCapture.kind === "confirm") return;
+    if (
+      !currentCapture ||
+      currentCapture.kind === "rect" ||
+      currentCapture.kind === "confirm"
+    ) {
+      return;
+    }
+
     const points = currentCapture.points.slice(0, -1);
     replaceCurrentCapture(
-      points.length ? { ...currentCapture, points, confirmed: false } : undefined
+      points.length
+        ? { ...currentCapture, points, confirmed: false }
+        : undefined
     );
   }
 
   function finishPolyline() {
-    if (step.kind !== "line" || !currentCapture || currentCapture.points.length < 2) return;
+    if (
+      step.kind !== "line" ||
+      !currentCapture ||
+      currentCapture.points.length < 2
+    ) {
+      return;
+    }
     saveAndAdvance(currentCapture);
   }
 
@@ -574,30 +642,34 @@ export function P2006TSourceMapperV9() {
 
   function exportMap() {
     const performanceDerivedGrids = Object.fromEntries(
-      STAGES.filter((candidate) => candidate.type === "performance").flatMap((candidate) =>
-        P2006T_REGISTRATIONS.map((candidateRegistration) => {
-          const candidateColumnSeed = captures[
-            mappingKey(candidate, candidateRegistration, candidate.steps[0])
-          ];
-          const candidateRowSeed = captures[
-            mappingKey(candidate, candidateRegistration, candidate.steps[1])
-          ];
-          const candidateConfirmation = captures[
-            mappingKey(candidate, candidateRegistration, candidate.steps[2])
-          ];
-          const grid = deriveGrid(candidateColumnSeed, candidateRowSeed);
-          return [
-            `${candidate.id}:${candidateRegistration}`,
-            grid
-              ? {
-                  confirmed: Boolean(candidateConfirmation?.confirmed),
-                  columns: grid.columns,
-                  rows: grid.rows,
-                  intersections: grid.intersections,
-                }
-              : null,
-          ];
-        })
+      STAGES.filter((candidate) => candidate.type === "performance").flatMap(
+        (candidate) =>
+          P2006T_REGISTRATIONS.map((candidateRegistration) => {
+            const candidateColumnSeed =
+              captures[mappingKey(candidate, candidateRegistration, candidate.steps[0])];
+            const candidateRowSeed =
+              captures[mappingKey(candidate, candidateRegistration, candidate.steps[1])];
+            const candidateConfirmation =
+              captures[mappingKey(candidate, candidateRegistration, candidate.steps[2])];
+            const grid = deriveGrid(candidateColumnSeed, candidateRowSeed);
+
+            return [
+              `${candidate.id}:${candidateRegistration}`,
+              grid
+                ? {
+                    confirmed: Boolean(candidateConfirmation?.confirmed),
+                    orientation: {
+                      columns: "perfectly-vertical",
+                      rows: "perfectly-horizontal",
+                    },
+                    equalFamilyLengths: true,
+                    columns: grid.columns,
+                    rows: grid.rows,
+                    intersections: grid.intersections,
+                  }
+                : null,
+            ] as const;
+          })
       )
     );
 
@@ -626,7 +698,7 @@ export function P2006TSourceMapperV9() {
     };
 
     downloadJson("p2006t-guided-coordinate-map.json", {
-      version: 9,
+      version: 10,
       scope: {
         performanceTables: "per-registration-and-weight-page",
         sharedFormAndMassBalance: "independent-of-registration",
@@ -635,6 +707,11 @@ export function P2006TSourceMapperV9() {
         columns: 5,
         rows: 22,
         seed: "two-consecutive-columns-and-two-consecutive-rows",
+        orientationLock: {
+          columns: "vertical",
+          rows: "horizontal",
+        },
+        equalFamilyLengths: true,
         cellLocation: "intersection",
         oatInterpolationColumns: [-25, 0, 25, 50],
         isa: "audit-only",
@@ -647,7 +724,10 @@ export function P2006TSourceMapperV9() {
         steps: candidate.steps,
       })),
       captures: Object.fromEntries(
-        Object.entries(captures).map(([key, capture]) => [key, serialize(key, capture)])
+        Object.entries(captures).map(([key, capture]) => [
+          key,
+          serialize(key, capture),
+        ])
       ),
       performanceDerivedGrids,
     });
@@ -666,12 +746,12 @@ export function P2006TSourceMapperV9() {
             Guided geometry capture
           </p>
           <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-            Seed, auto-complete and confirm
+            Position, lock and confirm
           </h2>
           <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-600">
-            For each performance table, mark only two consecutive temperature columns and
-            two consecutive result rows. The remaining grid is drawn automatically for one
-            visual confirmation.
+            Your clicks define only position and spacing. Temperature lines are locked
+            perfectly vertical, result rows perfectly horizontal, and each family uses
+            identical endpoints before the full grid is generated.
           </p>
         </div>
 
@@ -704,9 +784,11 @@ export function P2006TSourceMapperV9() {
 
       <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {STAGES.map((candidate, index) => {
-          const complete = candidate.steps.filter((candidateStep) =>
-            captures[mappingKey(candidate, registration, candidateStep)]?.confirmed
+          const complete = candidate.steps.filter(
+            (candidateStep) =>
+              captures[mappingKey(candidate, registration, candidateStep)]?.confirmed
           ).length;
+
           return (
             <button
               key={candidate.id}
@@ -747,6 +829,18 @@ export function P2006TSourceMapperV9() {
             </p>
             <h3 className="mt-1 text-xl font-semibold text-zinc-950">{step.title}</h3>
             <p className="mt-2 text-sm leading-6 text-zinc-700">{step.instruction}</p>
+
+            {step.id === "column-seed" ? (
+              <p className="mt-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-emerald-800">
+                Vertical lock · common top and bottom · equal length
+              </p>
+            ) : null}
+            {step.id === "row-seed" ? (
+              <p className="mt-2 rounded-xl bg-white px-3 py-2 text-xs font-semibold text-emerald-800">
+                Horizontal lock · common left and right · equal length
+              </p>
+            ) : null}
+
             {captureMode ? (
               <p className="mt-2 rounded-xl bg-fuchsia-100 px-3 py-2 text-sm font-semibold text-fuchsia-900">
                 {activeInstruction(step, currentCapture)}
@@ -783,7 +877,7 @@ export function P2006TSourceMapperV9() {
                   </button>
                   {derivedGrid ? (
                     <span className="rounded-xl bg-emerald-100 px-3 py-2.5 text-sm font-semibold text-emerald-900">
-                      5 columns · 22 rows · {derivedGrid.intersections.length} intersections
+                      Locked: 5 vertical · 22 horizontal · {derivedGrid.intersections.length} intersections
                     </span>
                   ) : null}
                 </>
@@ -845,6 +939,7 @@ export function P2006TSourceMapperV9() {
               </button>
               <span className="font-mono text-xs font-semibold">{zoom}%</span>
             </div>
+
             <label className="flex items-center gap-2 text-xs font-semibold text-zinc-600">
               <input
                 type="checkbox"
@@ -883,7 +978,7 @@ export function P2006TSourceMapperV9() {
               {showGrid && derivedGrid ? <GeneratedGridOverlay grid={derivedGrid} /> : null}
 
               {visibleCaptures.map((entry) => (
-                <SeedOverlay
+                <CaptureOverlay
                   key={entry.key}
                   capture={entry.capture!}
                   step={entry.step}
@@ -892,7 +987,7 @@ export function P2006TSourceMapperV9() {
               ))}
 
               {draftRect ? (
-                <SeedOverlay
+                <CaptureOverlay
                   capture={{ kind: "rect", points: [], rect: draftRect, confirmed: false }}
                   step={step}
                   current
@@ -900,6 +995,27 @@ export function P2006TSourceMapperV9() {
               ) : null}
             </div>
           </div>
+
+          {sourceAsset ? (
+            <div className="mt-3 flex gap-3 text-xs">
+              <a
+                href={sourceAsset.image}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-sky-700"
+              >
+                Open source PNG
+              </a>
+              <a
+                href={sourceAsset.text}
+                target="_blank"
+                rel="noreferrer"
+                className="font-semibold text-sky-700"
+              >
+                Open extracted text
+              </a>
+            </div>
+          ) : null}
         </div>
 
         <aside className="space-y-4">
@@ -910,6 +1026,7 @@ export function P2006TSourceMapperV9() {
             <p className="mt-2 text-2xl font-semibold">
               {stageConfirmed}/{stage.steps.length}
             </p>
+
             <select
               value={stepIndex}
               onChange={(event) => {
@@ -924,6 +1041,7 @@ export function P2006TSourceMapperV9() {
                 </option>
               ))}
             </select>
+
             <div className="mt-3 grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -940,6 +1058,16 @@ export function P2006TSourceMapperV9() {
                 Skip / next
               </button>
             </div>
+          </section>
+
+          <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
+              Geometry rule
+            </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Raw clicks are retained for audit, but only the locked vertical/horizontal
+              geometry is used to generate cells and exported performance grids.
+            </p>
           </section>
 
           <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
