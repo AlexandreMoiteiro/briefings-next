@@ -106,6 +106,13 @@ function compactCalculation(root: HTMLElement) {
   card.style.fontSize = "clamp(8px, 0.68vw, 11px)";
 }
 
+function performanceSection(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll<HTMLHeadingElement>("h3")).find(
+    (candidate) => candidate.textContent?.trim() === "Performance calculation"
+  );
+  return heading?.closest<HTMLElement>("section") ?? null;
+}
+
 function polishPreview(root: HTMLElement) {
   // The form image already explains the geometry; keep only the plotted path.
   root
@@ -139,6 +146,16 @@ function polishPreview(root: HTMLElement) {
   root
     .querySelectorAll<SVGLineElement>("svg line[marker-end]")
     .forEach((line) => line.style.setProperty("display", "none"));
+
+  // Remove only the green interpolation point from the performance table.
+  performanceSection(root)
+    ?.querySelectorAll<SVGCircleElement>("svg circle")
+    .forEach((circle) => {
+      const fill = circle.getAttribute("fill") ?? "";
+      if (/rgb\(22\s+163\s+74\)|#16a34a/i.test(fill)) {
+        circle.style.setProperty("display", "none");
+      }
+    });
 
   compactCalculation(root);
 }
