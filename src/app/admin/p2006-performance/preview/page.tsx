@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { P2006TAuditPreview } from "./p2006-audit-preview";
+import { P2006TCalculationPreview } from "./p2006-calculation-preview";
 
-export default function P2006TAuditPreviewPage() {
+export default function P2006TCalculationPreviewPage() {
   return (
     <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6 lg:px-8">
       <section className="mx-auto max-w-[1800px] space-y-6">
@@ -11,12 +11,11 @@ export default function P2006TAuditPreviewPage() {
               Admin · Tecnam P2006T
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Visual calculation audit
+              Calculation preview
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Review the mapped geometry on the original pages, run a worked Mass &amp;
-              Balance example, and highlight the exact performance-table cells used by
-              temperature and altitude interpolation.
+              Review the mapped geometry and follow a clean visual explanation of the
+              Mass &amp; Balance path and the takeoff or landing interpolation.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -35,7 +34,7 @@ export default function P2006TAuditPreviewPage() {
           </div>
         </header>
 
-        <P2006TAuditPreview />
+        <P2006TCalculationPreview />
       </section>
     </main>
   );
