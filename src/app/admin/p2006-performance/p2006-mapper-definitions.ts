@@ -1,1 +1,1 @@
-export * from "./p2006-mapper-definitions-v19";
+export * from "./p2006-mapper-definitions-v20";
