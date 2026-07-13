@@ -22,6 +22,12 @@ export default function AdminP2006PerformancePage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link
+              href="/admin/p2006-performance/preview"
+              className="rounded-xl bg-emerald-700 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-800"
+            >
+              Open audit preview
+            </Link>
             <a
               href="/api/p2006-form"
               target="_blank"
