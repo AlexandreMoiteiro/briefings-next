@@ -1,0 +1,69 @@
+                  GARMIN G950 IFDS – Increased MTOW (1230 kg)
+
+                                                                                           Page SW5 - 9
+
+
+Weight = 930 kg (2051 lb)
+                                                                    Corrections
+Flaps: T/O                                        Headwind: - 2.5m for each kt (8 ft/kt)
+Speed at Lift-Off = 65 KIAS                       Tailwind: + 10m for each kt (33ft/kt)
+Speed Over 50ft Obstacle = 70 KIAS                Paved Runway: - 6% to Ground Roll
+Throttle Levers: Full Forward
+                                                  Runway slope: + 5% to Ground Roll for each
+Runway: Grass                                     +1 %
+  Pressure                                                 Distance [m]/(ft)
+  Altitude                                   Temperature [°C]/[°F]
+                                                                                             ISA
+     [ft]                            -25/-13   0/32      25/77     50/122
+                   Ground Roll       100 (328)     127 (417)    158 (518)    194 (636)     146 (479)
+     S.L.
+                   At 50 ft AGL      131 (430)     167 (548)    207 (679)    254 (833)     190 (623)
+
+                   Ground Roll       112 (367)     142 (466)    177 (581)    216 (708)     160 (525)
+    1000
+                   At 50 ft AGL      146 (479)     186 (610)    231 (758)    283 (928)     209 (686)
+
+                   Ground Roll       125 (410)     159 (522)    197 (646)    242 (794)     175 (574)
+    2000
+                   At 50 ft AGL      163 (535)     208 (682)    258 (846)    316 (1036)    229 (751)
+
+                   Ground Roll       140 (459)     177 (581)    221 (725)    270 (886)     192 (630)
+    3000
+                   At 50 ft AGL      204 (669)     260 (853)    323 (1059)   395 (1296)    277 (909)
+
+                   Ground Roll       156 (512)     198 (649)    247 (810)    302 (991)     212 (695)
+    4000
+                   At 50 ft AGL      204 (669)     260 (853)    323 (1059)   395 (1296)    277 (909)
+
+                   Ground Roll       175 (574)     222 (728)    277 (909)    338 (1109)    233 (764)
+    5000
+                   At 50 ft AGL      229 (751)     291 (954)    362 (1187)   443 (1453)    305 (1000)
+
+                   Ground Roll       196 (643)     249 (817)    310 (1017)   379 (1243)    256 (840)
+    6000
+                   At 50 ft AGL      257 (843)     326 (1069)   406 (1332)   496 (1627)    335 (1099)
+
+                   Ground Roll       220 (722)     280 (918)    348 (1141)   426 (1397)    282 (925)
+    7000
+                   At 50 ft AGL      288 (945)     366 (1200)   455 (1492)   557 (1827)    370 (1214)
+
+                   Ground Roll       247 (810)     314 (1030)   391 (1282)   478 (1568)    312 (1023)
+    8000
+                   At 50 ft AGL      323 (1059)    411 (1348)   512 (1679)   626 (2053)    408 (1338)
+
+                   Ground Roll       278 (912)     353 (1158)   440 (1443)   538 (1765)    344 (1128)
+    9000
+                   At 50 ft AGL      364 (1194)    462 (1515)   575 (1886)   704 (2309)    450 (1476)
+
+                   Ground Roll       313 (1027)    397 (1302)   495 (1624)   605 (1984)    380 (1246)
+   10000
+                   At 50 ft AGL      409 (1342)    520 (1706)   648 (2125)   792 (2598)    498 (1633)
+
+
+
+
+                                                                                      4th Edition, Rev. 3
+
+                        Section 5 - Performances
+                                TAKEOFF PERFORMANCES
+

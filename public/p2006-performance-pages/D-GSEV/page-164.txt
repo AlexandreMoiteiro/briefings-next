@@ -1,0 +1,42 @@
+          G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                                     Page S5 - 2
+
+
+
+
+ 1. INTRODUCTION
+   This section provides all necessary data for an accurate and comprehensive plan-
+   ning of flight activity from takeoff to landing.
+   Data reported in graphs and/or in tables were determined using:
+   • “Flight Test Data” under conditions prescribed by EASA CS-23 regulation
+   • aircraft and engine in good condition
+   • average piloting techniques
+
+
+
+   Each graph or table was determined according to ICAO Standard Atmosphere (ISA
+   - s.l.); evaluations of the impact on performances were carried out by theoretical
+   means for:
+              airspeed
+              external temperature
+              altitude
+              weight
+              runway type and condition
+
+
+
+2. USE OF PERFORMANCES CHARTS
+   Performances data are presented in tabular or graphical form to illustrate the effect
+   of different variables such as altitude, temperature and weight. Given information
+   is sufficient to plan the mission with required precision and safety.
+   Additional information is provided for each table or graph.
+
+
+
+
+                                                                                4th Edition, Rev.0
+
+                      Section 5 - Performances
+                                   INTRODUCTION
+

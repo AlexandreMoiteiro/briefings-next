@@ -1,0 +1,108 @@
+{
+  "aircraft": "Tecnam P2006T",
+  "status": "draft",
+  "source": {
+    "document": "P2006T_CS-EAQ_AFM_Ed4r22_inc.Supp.pdf",
+    "revision": "4th Edition, Rev. 22",
+    "date": "2024-09-11",
+    "notes": "Aircraft-specific draft dataset for Tecnam P2006T CS-EAQ, S/N 046. Every table value must be confirmed through the guided builder before operational activation. Increased-MTOW supplement data is intentionally excluded from this draft."
+  },
+  "tables": [
+    {
+      "id": "cs-eaq-basic-takeoff-ground-roll-1180kg",
+      "kind": "takeoff-ground-roll",
+      "sourcePage": "Section 5, page 5-7",
+      "notes": "Draft transcription. Weight 1180 kg; flaps T/O; lift-off 65 KIAS; throttle levers full forward; grass source table. Paved-runway corrections are applied separately after the raw table has been validated.",
+      "axes": {
+        "weightKg": [1180],
+        "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
+        "oatC": [-25, 0, 25, 50]
+      },
+      "valuesM": [[
+        [208, 258, 313, 374],
+        [230, 284, 346, 413],
+        [254, 315, 382, 457],
+        [281, 348, 423, 505],
+        [311, 385, 468, 560],
+        [345, 427, 519, 620],
+        [383, 474, 575, 688],
+        [425, 526, 639, 764],
+        [472, 585, 710, 849],
+        [525, 650, 790, 945],
+        [585, 724, 879, 1052]
+      ]]
+    },
+    {
+      "id": "cs-eaq-basic-takeoff-50ft-1180kg",
+      "kind": "takeoff-50ft",
+      "sourcePage": "Section 5, page 5-7",
+      "notes": "Draft transcription. Weight 1180 kg; flaps T/O; speed over 50 ft 70 KIAS; throttle levers full forward; grass source table. Corrections remain separate from raw values.",
+      "axes": {
+        "weightKg": [1180],
+        "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
+        "oatC": [-25, 0, 25, 50]
+      },
+      "valuesM": [[
+        [266, 331, 404, 485],
+        [294, 366, 447, 537],
+        [326, 406, 495, 595],
+        [401, 499, 610, 733],
+        [401, 499, 610, 733],
+        [445, 555, 677, 814],
+        [495, 617, 753, 906],
+        [551, 686, 839, 1008],
+        [614, 765, 934, 1123],
+        [685, 853, 1042, 1253],
+        [764, 952, 1163, 1399]
+      ]]
+    },
+    {
+      "id": "cs-eaq-basic-landing-ground-roll-930kg",
+      "kind": "landing-ground-roll",
+      "sourcePage": "Section 5, page 5-21",
+      "notes": "Draft transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Paved-runway corrections are applied separately after validation.",
+      "axes": {
+        "weightKg": [930],
+        "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
+        "oatC": [-25, 0, 25, 50]
+      },
+      "valuesM": [[
+        [150, 166, 181, 196],
+        [156, 172, 187, 203],
+        [162, 178, 194, 211],
+        [168, 185, 202, 219],
+        [174, 192, 209, 227],
+        [181, 199, 217, 235],
+        [188, 207, 226, 244],
+        [195, 215, 234, 254],
+        [203, 223, 243, 264],
+        [210, 232, 253, 274],
+        [219, 241, 263, 285]
+      ]]
+    },
+    {
+      "id": "cs-eaq-basic-landing-50ft-930kg",
+      "kind": "landing-50ft",
+      "sourcePage": "Section 5, page 5-21",
+      "notes": "Draft transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Corrections remain separate from raw values.",
+      "axes": {
+        "weightKg": [930],
+        "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
+        "oatC": [-25, 0, 25, 50]
+      },
+      "valuesM": [[
+        [233, 252, 271, 290],
+        [240, 260, 280, 299],
+        [248, 268, 288, 309],
+        [263, 285, 307, 328],
+        [263, 285, 307, 328],
+        [272, 294, 317, 339],
+        [280, 304, 327, 350],
+        [289, 313, 338, 361],
+        [299, 324, 349, 373],
+        [308, 334, 360, 386],
+        [319, 346, 372, 399]
+      ]]
+    }
+  ]
+}

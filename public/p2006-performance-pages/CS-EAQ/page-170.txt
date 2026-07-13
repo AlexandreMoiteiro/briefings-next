@@ -1,0 +1,25 @@
+                                                                          Page 5 - 6
+
+
+
+7.     CROSSWIND
+     Maximum demonstrated crosswind is 17 Kts
+     ⇒ Example:
+          Given                                Find
+      Wind direction (with respect to air-    Headwind = 17.5 Kts
+      craft longitudinal axis) = 30°
+
+      Wind speed = 20 Kts                     Crosswind = 10 Kts
+
+
+
+
+                                   Figure 3 – Crosswind diagram
+
+
+
+
+                                                                    4th Edition, Rev. 0
+                          Section 5 - Performances
+                                         CROSSWIND
+

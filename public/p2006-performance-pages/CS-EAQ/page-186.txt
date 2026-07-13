@@ -1,0 +1,26 @@
+                                                                             Page 5 - 22
+
+
+
+17. BALKED LANDING CLIMB GRADIENT
+  Flight conditions (ISA and SL):
+  Weight:                              1180 kg / 2601 lb
+  Throttle levers                      Both FULL FORWARD
+  Flaps                                T/O
+  Landing gear                         DOWN
+  Weight                               MTOW (1180 kg / 2601 lb)
+  Speed                                66 KIAS
+  Climb gradient                       10.8% (6.2°)
+
+
+
+18. NOISE DATA
+    Noise level, determined in accordance with ICAO/Annex 16 4th Ed., July 2005,
+    Vol. I°, Chapter 10, is 67.07 dB(A).
+
+
+
+
+                                                                      4th Edition, Rev. 21
+                     Section 5 - Performances
+

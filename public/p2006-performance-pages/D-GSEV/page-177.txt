@@ -1,0 +1,52 @@
+            G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                                       Page S5 - 15
+
+
+
+13. ONE-ENGINE RATE OF CLIMB AT VXSE
+ Power Setting: Maximum Continuous Power (operative engine)
+                propeller feathered (inoperative engine)
+ Flaps: Up
+ Landing Gear: Up
+
+                                 Climb               Rate of Climb at VxSE [ft/min]
+                 Pressure
+   Weight                        Speed
+                 Altitude
+                                 VxSE                 Temperature [°C]/[°F]
+                                                                                        ISA
+                                                                                          A
+     [kg]           [ft]         [KIAS]    -25/-13     0/32     25/77    50/122
+                    S.L.           83        325        227      140       61            174
+                   1000            82        288        191       104       26           145
+                   2000            81        251        155       69          -9         116
+                   3000            81        214        118       33        -44          86
+    1230           4000            80        177        82         -2       -78          57
+                   5000            79        140        46        -38      -113          28
+                   6000            78        103        10        -73      -148           -1
+                   7000            77         66        -26      -108      -183          -30
+                    S.L.           79        424        321       229       147          265
+                   1000            79        385        283       192       110          234
+                   2000            79        346        245       155       73           204
+                   3000            79        307        207       117       37           173
+    1080           4000            79        268        169       80          0          143
+                   5000            78        229        131       43        -36          112
+                   6000            78        190        93         6        -73          81
+                   7000            78        152        55        -31      -109          51
+                    S.L.           78        556        442       341       249          380
+                   1000            78        513        400       299       209          346
+                   2000            78        469        358       258       168          312
+                   3000            78        426        316       217       128          279
+     930
+                   4000            78        383        274       176       87           245
+                   5000            78        340        232       134       47           211
+                   6000            77        298        190       93          7          177
+                   7000            77        255        148       52        -34          143
+
+
+                                                                                   4th Edition, Rev. 10
+
+                       Section 5 - Performances
+                      ONE-ENGINE RATE OF CLIMB AT VXSE
+

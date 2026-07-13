@@ -1,0 +1,44 @@
+               G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                                     Page S5 - 5
+
+
+
+
+5. STALL SPEED
+
+
+Weight: 1230 kg (2712 lb)
+Throttle Levers: IDLE
+Landing Gear: Down
+CG: Most Forward   (16.5%)
+              ard (16
+No ground effect
+              ct
+
+
+                BANK                             STALL SPEED
+ WEIGHT
+                ANGLE         FLAPS UP               FLAPS T/O               FLAPS LND
+   [kg]         [deg]    KIAS        KCAS        KIAS        KCAS        KIAS        KCAS
+                  0       66          65          59          57          54          55
+                  15      67          66          58          58          55          56
+   1230           30      71          70          61          61          59          59
+ (FWD C.G.)
+                  45      79          78          68          68          65          65
+                  60      95          93          83          81          79          78
+
+
+
+
+                          Altitude loss during conventional stall recovery, as demonstrated
+              NOTE        during flight tests is approximately 250 ft with banking below 30°.
+
+
+
+
+                                                                                4th Edition, Rev.10
+
+                        Section 5 - Performances
+                                     STALL SPEED
+

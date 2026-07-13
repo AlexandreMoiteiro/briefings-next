@@ -1,0 +1,29 @@
+            G1000 NXi, Increased MTOW, Increased VLE/VLO and MD302
+
+                                                                          Page S5 - 6
+
+
+
+
+6. CROSSWIND
+ Maximum demonstrated crosswind is 17 Kts
+ = Example:
+        Given                                   Find
+   Wind direction (with respect to aircraft    Headwind = 17.5 Kts
+   longitudinal axis) = 30°
+
+   Wind speed = 20 Kts             Crosswind = 10 Kts
+
+
+
+
+                                   Figure 3 – Crosswind diagram
+
+
+
+
+                                                                     4th Edition, Rev. 0
+
+                         Section 5 - Performances
+                                          CROSSWIND
+

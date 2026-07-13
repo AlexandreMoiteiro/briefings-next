@@ -1,0 +1,44 @@
+                                                                                          Page 5 - 4
+
+
+
+4.   ICAO STANDARD ATMOSPHERE
+
+
+
+
+     c.δA=2250 ft
+
+
+     A.δA=1600 ft
+
+
+
+
+                                                B.   °C
+
+
+
+
+                                     Figure 2 – ICAO chart
+
+
+5.   EXAMPLES:
+              Given                              Find
+      a. Temperature = 20°C
+                                              c. Corresponding Density Altitude = 2250’
+      b. Pressure altitude = 1600’
+
+
+              Given                              Find
+      A. Pressure altitude = 1600’
+                                              B. ISA Air Temperature = 12°C
+      ISA condition
+
+
+
+
+                                                                                   4th Edition, Rev. 0
+                            Section 5 - Performances
+                                ICAO STANDARD ATMOSPHERE
+
