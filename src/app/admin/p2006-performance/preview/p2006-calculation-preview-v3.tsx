@@ -72,15 +72,15 @@ function buildSummary(root: HTMLElement): NaturalSummary | null {
       /Interpolate between both altitude results:\s*([\d.]+)\s*m/i,
       /to obtain\s*([\d.]+)\s*m/i,
     ]) ?? finalDistance;
-  const altitude = numericValue(section, "Pressure altitude ft");
-  const temperature = numericValue(section, "OAT °C");
-  const wind = numericValue(section, "Wind kt") ?? 0;
-  const slope = numericValue(section, "Runway slope %") ?? 0;
+  const altitude = numericValue(root, "Pressure altitude ft");
+  const temperature = numericValue(root, "OAT °C");
+  const wind = numericValue(root, "Wind kt") ?? 0;
+  const slope = numericValue(root, "Runway slope %") ?? 0;
   const paved = Boolean(
-    (labelledControl(section, "Paved runway") as HTMLInputElement | null)?.checked
+    (labelledControl(root, "Paved runway") as HTMLInputElement | null)?.checked
   );
-  const source = selectedText(section, "Source page");
-  const resultType = selectedText(section, "Result");
+  const source = selectedText(root, "Source page");
+  const resultType = selectedText(root, "Result");
   if (altitude === null || temperature === null) return null;
 
   const tableSentence = `At ${format(altitude)} ft and ${format(
