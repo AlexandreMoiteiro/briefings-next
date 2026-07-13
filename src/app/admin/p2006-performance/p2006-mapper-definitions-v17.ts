@@ -21,16 +21,19 @@ export type {
 
 type PageOneRegistration = "CS-EAQ" | "CS-EBX" | "D-GSEV";
 
-const BASE_PAGE_ONE = BASE_STAGES.find(
+const pageOneCandidate = BASE_STAGES.find(
   (stage) => stage.id === "mass-balance-graph"
 );
-const FORM_PAGE_2_STAGE = BASE_STAGES.find(
+const pageTwoCandidate = BASE_STAGES.find(
   (stage) => stage.id === "form-page-2-fields"
 );
 
-if (!BASE_PAGE_ONE || !FORM_PAGE_2_STAGE) {
+if (!pageOneCandidate || !pageTwoCandidate) {
   throw new Error("P2006T form stages are incomplete.");
 }
+
+const BASE_PAGE_ONE: Stage = pageOneCandidate;
+const FORM_PAGE_2_STAGE: Stage = pageTwoCandidate;
 
 const MAX_MASS_BY_REGISTRATION: Record<PageOneRegistration, 1180 | 1230> = {
   "CS-EAQ": 1180,
