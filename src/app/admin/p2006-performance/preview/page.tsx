@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { P2006TCalculationPreview } from "./p2006-calculation-preview-v3";
-import { P2006TClimbTables } from "./p2006-climb-tables";
 
 export default function P2006TCalculationPreviewPage() {
   return (
@@ -15,9 +14,9 @@ export default function P2006TCalculationPreviewPage() {
               Calculation preview
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Review the mapped geometry and follow the Mass &amp; Balance path,
-              takeoff or landing interpolation, and the next climb-performance tables
-              directly against the original AFM pages.
+              Use this page only to review calculations produced from tables already
+              mapped and validated. All source-table mapping now lives in the Guided
+              visual audit mapper.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -37,7 +36,6 @@ export default function P2006TCalculationPreviewPage() {
         </header>
 
         <P2006TCalculationPreview />
-        <P2006TClimbTables />
       </section>
     </main>
   );
