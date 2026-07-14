@@ -1,19 +1,29 @@
 import {
-  navlogAircraftProfiles,
   type NavlogCalculationResult,
   type NavlogDataBundle,
   type NavlogLeg,
+  type NavlogLegProfile,
   type NavlogPoint,
   type NavlogRouteNode,
   type NavlogRouteWaypoint,
   type NavlogSetupForm,
   type NavlogVor,
 } from "@/lib/navlog";
+import {
+  isP2006TRegistration,
+  p2006tPerformanceForLeg,
+} from "@/lib/performance/p2006t-navlog";
 
 const EARTH_NM = 3440.065;
 const ROUND_TIME_SEC = 60;
 const ROUND_DIST_NM = 0.5;
 const ROUND_FUEL_L = 1.0;
+
+type ResolvedLegPerformance = {
+  tasKt: number;
+  fuelFlowLh: number;
+  rocFpm: number;
+};
 
 function toRad(value: number) {
   return (value * Math.PI) / 180;
@@ -46,6 +56,49 @@ function rd(distanceNm: number) {
 
 function rf(fuelL: number) {
   return Number(roundToStep(fuelL, ROUND_FUEL_L).toFixed(1));
+}
+
+function fallbackPerformance(
+  setup: NavlogSetupForm,
+  profile: NavlogLegProfile
+): ResolvedLegPerformance {
+  return {
+    tasKt:
+      profile === "CLIMB"
+        ? setup.climbTas
+        : profile === "DESCENT"
+          ? setup.descentTas
+          : setup.cruiseTas,
+    fuelFlowLh: setup.fuelFlowLh,
+    rocFpm: profile === "DESCENT" ? setup.rodFpm : setup.rocFpm,
+  };
+}
+
+function resolveLegPerformance(
+  setup: NavlogSetupForm,
+  profile: NavlogLegProfile,
+  altitudeFt: number
+): ResolvedLegPerformance {
+  const fallback = fallbackPerformance(setup, profile);
+  if (
+    setup.aircraftType !== "Tecnam P2006T" ||
+    !isP2006TRegistration(setup.registration)
+  ) {
+    return fallback;
+  }
+
+  const afm = p2006tPerformanceForLeg(
+    setup.registration,
+    profile,
+    altitudeFt
+  );
+  if (!afm) return fallback;
+
+  return {
+    tasKt: Math.max(1, Math.round(afm.tasKt)),
+    fuelFlowLh: Math.max(0, afm.fuelFlowLh),
+    rocFpm: Math.max(1, afm.rateFpm ?? fallback.rocFpm),
+  };
 }
 
 export function formatDuration(seconds: number) {
@@ -301,8 +354,19 @@ function buildTocTodNodes(
     const toLabel = b.code || b.name || "TO";
 
     if (b.alt > a.alt) {
-      const climbMinutes = (b.alt - a.alt) / Math.max(setup.rocFpm, 1);
-      const { gs } = windTriangle(tc, setup.climbTas, windFrom, windKt);
+      const performance = resolveLegPerformance(
+        setup,
+        "CLIMB",
+        (a.alt + b.alt) / 2
+      );
+      const climbMinutes =
+        (b.alt - a.alt) / Math.max(performance.rocFpm, 1);
+      const { gs } = windTriangle(
+        tc,
+        performance.tasKt,
+        windFrom,
+        windKt
+      );
       const distanceNeeded = (gs * climbMinutes) / 60;
 
       if (distanceNeeded > 0.05 && distanceNeeded < dist - 0.05) {
@@ -325,9 +389,9 @@ function buildTocTodNodes(
           lon: pos.lon,
           alt: b.alt,
           src: "CALC",
-          note: `TOC\\n+${dFrom.toFixed(1)} ${compactNavToken(
+          note: `TOC\n+${dFrom.toFixed(1)} ${compactNavToken(
             fromLabel
-          )}\\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
+          )}\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
           stopMin: 0,
           useGlobalWind: true,
           windFrom: setup.windFrom,
@@ -360,9 +424,9 @@ function buildTocTodNodes(
           lon: pos.lon,
           alt: a.alt,
           src: "CALC",
-          note: `TOD\\n+${dFrom.toFixed(1)} ${compactNavToken(
+          note: `TOD\n+${dFrom.toFixed(1)} ${compactNavToken(
             fromLabel
-          )}\\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
+          )}\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
           stopMin: 0,
           useGlobalWind: true,
           windFrom: setup.windFrom,
@@ -483,7 +547,7 @@ export function buildNavlogCalculation(
     const { windFrom, windKt } = windForNode(from, setup);
 
     const verticalSuppressed = from.suppressAutoVertical === true;
-    const legProfile = verticalSuppressed
+    const legProfile: NavlogLegProfile = verticalSuppressed
       ? "LEVEL"
       : to.alt > from.alt + 1
         ? "CLIMB"
@@ -491,20 +555,24 @@ export function buildNavlogCalculation(
           ? "DESCENT"
           : "LEVEL";
 
-    const tas =
-      legProfile === "CLIMB"
-        ? setup.climbTas
-        : legProfile === "DESCENT"
-          ? setup.descentTas
-          : setup.cruiseTas;
+    const performance = resolveLegPerformance(
+      setup,
+      legProfile,
+      (from.alt + to.alt) / 2
+    );
+    const tas = performance.tasKt;
 
     const { th, gs } = windTriangle(tc, tas, windFrom, windKt);
     const mh = applyMagVar(th, setup.magVar, setup.magDirection);
     const eteSec = gs > 0 && dist > 0 ? rt((dist / gs) * 3600) : 0;
-    const burnL = rf((setup.fuelFlowLh * eteSec) / 3600);
+    const burnL = rf((performance.fuelFlowLh * eteSec) / 3600);
 
     const holdSec = to.stopMin > 0 ? rt(to.stopMin * 60) : 0;
-    const holdBurnL = holdSec > 0 ? rf((setup.fuelFlowLh * holdSec) / 3600) : 0;
+    const holdPerformance = resolveLegPerformance(setup, "LEVEL", to.alt);
+    const holdBurnL =
+      holdSec > 0
+        ? rf((holdPerformance.fuelFlowLh * holdSec) / 3600)
+        : 0;
 
     const efobStartL = efob;
     const efobAfterLegL = Math.max(0, rf(efobStartL - burnL));
@@ -691,7 +759,7 @@ export function navlogLegsToCsv(legs: NavlogLeg[]) {
         .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
         .join(",")
     )
-    .join("\\n");
+    .join("\n");
 }
 
 export function navlogSummary(legs: NavlogLeg[]) {
