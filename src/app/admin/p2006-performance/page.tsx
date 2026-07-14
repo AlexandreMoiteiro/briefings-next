@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TSourceMapperShellV11 } from "./p2006-source-mapper-shell-v11";
+import { P2006TSourceMapperShellV12 } from "./p2006-source-mapper-shell-v12";
 
 export default function AdminP2006PerformancePage() {
   return (
@@ -15,9 +15,10 @@ export default function AdminP2006PerformancePage() {
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
               Performance tables are detected automatically from the visible grid in
-              each source PNG. Form page 1 now contains both its writable loading
-              fields and the complete Mass &amp; Balance graph on the same coordinate
-              surface. Form page 2 remains manual.
+              each source PNG. Every vertical table boundary can then be adjusted
+              independently to match unequal published column widths. Form page 1
+              contains its writable loading fields and the complete Mass &amp; Balance
+              graph on the same coordinate surface; Form page 2 remains manual.
             </p>
           </div>
 
@@ -51,7 +52,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TSourceMapperShellV11 />
+        <P2006TSourceMapperShellV12 />
       </section>
     </main>
   );
