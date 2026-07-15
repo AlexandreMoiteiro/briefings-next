@@ -149,7 +149,7 @@ export function ConditionedNavlogClient() {
                 Default
               </span>
               <h2 className="mt-2 text-lg font-semibold tracking-tight text-zinc-950">
-                P2006T performance conditions
+                Performance conditions
               </h2>
               <p className="mt-1 max-w-4xl text-sm leading-6 text-zinc-600">
                 Each NavLog leg uses its own pressure altitude. Climb performance is interpolated by registration, weight and temperature; cruise performance is interpolated by altitude, ISA deviation, RPM and requested power.
