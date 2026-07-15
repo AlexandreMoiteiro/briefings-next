@@ -1,6 +1,9 @@
 import type { NavlogLegProfile } from "@/lib/navlog";
 import type { P2006TRegistration } from "@/lib/performance/p2006t-fleet";
-import { getP2006TNavlogConditions } from "./p2006t-navlog-settings";
+import {
+  getP2006TNavlogConditions,
+  type P2006TNavlogConditions,
+} from "./p2006t-navlog-settings";
 import {
   isP2006TRegistration,
   p2006tClimbPerformance as calculateClimb,
@@ -14,35 +17,25 @@ export type { P2006TNavlogPerformance };
 
 export function p2006tClimbPerformance(
   registration: P2006TRegistration,
-  altitudeFt: number
+  altitudeFt: number,
+  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
 ) {
-  return calculateClimb(
-    registration,
-    altitudeFt,
-    getP2006TNavlogConditions()
-  );
+  return calculateClimb(registration, altitudeFt, conditions);
 }
 
 export function p2006tCruisePerformance(
   registration: P2006TRegistration,
-  altitudeFt: number
+  altitudeFt: number,
+  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
 ) {
-  return calculateCruise(
-    registration,
-    altitudeFt,
-    getP2006TNavlogConditions()
-  );
+  return calculateCruise(registration, altitudeFt, conditions);
 }
 
 export function p2006tPerformanceForLeg(
   registration: P2006TRegistration,
   profile: NavlogLegProfile,
-  altitudeFt: number
+  altitudeFt: number,
+  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
 ) {
-  return calculateForLeg(
-    registration,
-    profile,
-    altitudeFt,
-    getP2006TNavlogConditions()
-  );
+  return calculateForLeg(registration, profile, altitudeFt, conditions);
 }
