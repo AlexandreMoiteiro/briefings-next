@@ -1,5 +1,5 @@
-import { NavlogClient } from "./navlog-client";
+import { ConditionedNavlogClient } from "./navlog-client-conditioned";
 
 export default function NavlogPage() {
-  return <NavlogClient />;
+  return <ConditionedNavlogClient />;
 }
