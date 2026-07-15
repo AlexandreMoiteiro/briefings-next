@@ -50,7 +50,7 @@ export function P2006TAfmPanel() {
   const [cruisePowerPercent, setCruisePowerPercent] = useState(65);
 
   const aircraft = getP2006TFleetAircraft(registration);
-  const maximumWeightKg = aircraft.maxTakeoffMassKg;
+  const maximumWeightKg = aircraft.maxMassKg;
 
   const conditions: P2006TNavlogConditions = {
     weightKg: Math.min(weightKg, maximumWeightKg),
@@ -72,7 +72,7 @@ export function P2006TAfmPanel() {
   function changeRegistration(next: P2006TRegistration) {
     const nextAircraft = getP2006TFleetAircraft(next);
     setRegistration(next);
-    setWeightKg((current) => Math.min(current, nextAircraft.maxTakeoffMassKg));
+    setWeightKg((current) => Math.min(current, nextAircraft.maxMassKg));
   }
 
   return (
