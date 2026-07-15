@@ -17,6 +17,13 @@ import {
 } from "@/lib/performance/p2006t-navlog-settings";
 import { NavlogClient } from "./navlog-client";
 
+const TABLE_DRIVEN_GENERIC_FIELDS = new Set([
+  "Climb TAS",
+  "Cruise TAS",
+  "Fuel L/h",
+  "ROC",
+]);
+
 function labelledSelect(root: HTMLElement, label: string) {
   for (const element of root.querySelectorAll("label")) {
     const heading = element.querySelector("span")?.textContent?.trim();
@@ -25,6 +32,17 @@ function labelledSelect(root: HTMLElement, label: string) {
     }
   }
   return null;
+}
+
+function applyGenericPerformanceVisibility(
+  root: HTMLElement,
+  tableDriven: boolean
+) {
+  for (const element of root.querySelectorAll("label")) {
+    const heading = element.querySelector("span")?.textContent?.trim() ?? "";
+    if (!TABLE_DRIVEN_GENERIC_FIELDS.has(heading)) continue;
+    (element as HTMLElement).style.display = tableDriven ? "none" : "";
+  }
 }
 
 function ConditionNumberInput({
@@ -79,8 +97,13 @@ export function ConditionedNavlogClient() {
     if (!root) return;
 
     const syncAircraft = () => {
-      setAircraft(labelledSelect(root, "Aircraft")?.value ?? "");
+      const selectedAircraft = labelledSelect(root, "Aircraft")?.value ?? "";
+      setAircraft(selectedAircraft);
       setRegistration(labelledSelect(root, "Registration")?.value ?? "");
+      applyGenericPerformanceVisibility(
+        root,
+        selectedAircraft === "Tecnam P2006T"
+      );
     };
 
     syncAircraft();
@@ -106,8 +129,13 @@ export function ConditionedNavlogClient() {
     window.requestAnimationFrame(() => {
       const root = rootRef.current;
       if (!root) return;
-      setAircraft(labelledSelect(root, "Aircraft")?.value ?? "");
+      const selectedAircraft = labelledSelect(root, "Aircraft")?.value ?? "";
+      setAircraft(selectedAircraft);
       setRegistration(labelledSelect(root, "Registration")?.value ?? "");
+      applyGenericPerformanceVisibility(
+        root,
+        selectedAircraft === "Tecnam P2006T"
+      );
     });
   }
 
