@@ -27,6 +27,11 @@ function clamp(value: number, minimum: number, maximum: number) {
   return Math.min(maximum, Math.max(minimum, value));
 }
 
+function finiteOr(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
 function normalizeRpm(value: number): P2006TCruiseRpm {
   if (value === 1900 || value === 2100 || value === 2250) return value;
   return 2250;
@@ -38,25 +43,26 @@ function normalize(
   return {
     weightKg: Math.round(
       clamp(
-        Number(input.weightKg ?? conditions.weightKg),
+        finiteOr(input.weightKg, conditions.weightKg),
         930,
         1230
       )
     ),
     isaDeviationC: Math.round(
       clamp(
-        Number(input.isaDeviationC ?? conditions.isaDeviationC),
+        finiteOr(input.isaDeviationC, conditions.isaDeviationC),
         -30,
         30
       )
     ),
     cruiseRpm: normalizeRpm(
-      Number(input.cruiseRpm ?? conditions.cruiseRpm)
+      finiteOr(input.cruiseRpm, conditions.cruiseRpm)
     ),
     cruisePowerPercent: Math.round(
       clamp(
-        Number(
-          input.cruisePowerPercent ?? conditions.cruisePowerPercent
+        finiteOr(
+          input.cruisePowerPercent,
+          conditions.cruisePowerPercent
         ),
         35,
         90
