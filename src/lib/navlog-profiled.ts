@@ -23,9 +23,8 @@ export const navlogAircraftOptions = [
  * - normal cruise target: 125 kt at 24 inHg / 2100 RPM
  * - cruise descent target: 120 kt
  *
- * AFM condition-aware calculations continue to provide the actual climb and
- * cruise performance used by the NavLog. These values are the initial
- * operational profile shown in the setup form and the descent baseline.
+ * The NavLog deliberately uses these simple operational profile values.
+ * AFM table interpolation belongs only to the Performance workflow and its PDF.
  */
 export const navlogAircraftProfiles = {
   ...baseAircraftProfiles,
@@ -34,7 +33,9 @@ export const navlogAircraftProfiles = {
     climbTas: 100,
     cruiseTas: 125,
     descentTas: 120,
+    fuelFlowLh: 36,
     startEfob: 200,
+    rocFpm: 850,
     rodFpm: 500,
   },
 };
