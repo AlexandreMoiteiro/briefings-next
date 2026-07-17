@@ -19,6 +19,7 @@
       }
     ],
     "paths": {
+      "@/lib/navlog": ["./src/lib/navlog-profiled.ts"],
       "@/lib/navlog-engine": ["./src/lib/navlog-engine-conditioned.ts"],
       "@/lib/performance/p2006t-navlog": [
         "./src/lib/performance/p2006t-navlog-adapter.ts"
