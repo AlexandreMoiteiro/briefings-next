@@ -1,5 +1,6 @@
 import type { NavlogLegProfile } from "@/lib/navlog";
 import type { P2006TRegistration } from "@/lib/performance/p2006t-fleet";
+import { P2006T_NAVLOG_DEFAULTS } from "@/lib/performance/p2006t-standard-profiles";
 
 export type P2006TNavlogPerformance = {
   tasKt: number;
@@ -27,9 +28,9 @@ function profilePerformance(
 ): P2006TNavlogPerformance {
   if (profile === "CLIMB") {
     return {
-      tasKt: 100,
-      fuelFlowLh: 36,
-      rateFpm: 850,
+      tasKt: P2006T_NAVLOG_DEFAULTS.climbTasKt,
+      fuelFlowLh: P2006T_NAVLOG_DEFAULTS.fuelFlowLh,
+      rateFpm: P2006T_NAVLOG_DEFAULTS.rocFpm,
       powerPercent: null,
       limitedToPublishedRange: false,
       source: "Sevenair Standard Profiles V2",
@@ -38,9 +39,9 @@ function profilePerformance(
 
   if (profile === "DESCENT") {
     return {
-      tasKt: 120,
-      fuelFlowLh: 36,
-      rateFpm: 500,
+      tasKt: P2006T_NAVLOG_DEFAULTS.descentTasKt,
+      fuelFlowLh: P2006T_NAVLOG_DEFAULTS.fuelFlowLh,
+      rateFpm: P2006T_NAVLOG_DEFAULTS.rodFpm,
       powerPercent: null,
       limitedToPublishedRange: false,
       source: "Sevenair Standard Profiles V2",
@@ -48,8 +49,8 @@ function profilePerformance(
   }
 
   return {
-    tasKt: 125,
-    fuelFlowLh: 36,
+    tasKt: P2006T_NAVLOG_DEFAULTS.cruiseTasKt,
+    fuelFlowLh: P2006T_NAVLOG_DEFAULTS.fuelFlowLh,
     rateFpm: null,
     powerPercent: null,
     limitedToPublishedRange: false,
