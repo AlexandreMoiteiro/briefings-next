@@ -1,18 +1,18 @@
 {
   "aircraft": "Tecnam P2006T",
-  "status": "draft",
+  "status": "verified",
   "source": {
     "document": "P2006T_CS-EAQ_AFM_Ed4r22_inc.Supp.pdf",
     "revision": "4th Edition, Rev. 22",
     "date": "2024-09-11",
-    "notes": "Aircraft-specific draft dataset for Tecnam P2006T CS-EAQ, S/N 046. Every table value must be confirmed through the guided builder before operational activation. Increased-MTOW supplement data is intentionally excluded from this draft."
+    "notes": "Aircraft-specific verified dataset for Tecnam P2006T CS-EAQ, S/N 046. Values are kept separate from CS-EBX and D-GSEV; no cross-aircraft reuse is permitted. Increased-MTOW supplement data is intentionally excluded."
   },
   "tables": [
     {
       "id": "cs-eaq-basic-takeoff-ground-roll-1180kg",
       "kind": "takeoff-ground-roll",
       "sourcePage": "Section 5, page 5-7",
-      "notes": "Draft transcription. Weight 1180 kg; flaps T/O; lift-off 65 KIAS; throttle levers full forward; grass source table. Paved-runway corrections are applied separately after the raw table has been validated.",
+      "notes": "Verified transcription. Weight 1180 kg; flaps T/O; lift-off 65 KIAS; throttle levers full forward; grass source table. Paved-runway corrections are applied separately.",
       "axes": {
         "weightKg": [1180],
         "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
@@ -36,7 +36,7 @@
       "id": "cs-eaq-basic-takeoff-50ft-1180kg",
       "kind": "takeoff-50ft",
       "sourcePage": "Section 5, page 5-7",
-      "notes": "Draft transcription. Weight 1180 kg; flaps T/O; speed over 50 ft 70 KIAS; throttle levers full forward; grass source table. Corrections remain separate from raw values.",
+      "notes": "Verified transcription. Weight 1180 kg; flaps T/O; speed over 50 ft 70 KIAS; throttle levers full forward; grass source table. Corrections remain separate from raw values.",
       "axes": {
         "weightKg": [1180],
         "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
@@ -60,7 +60,7 @@
       "id": "cs-eaq-basic-landing-ground-roll-930kg",
       "kind": "landing-ground-roll",
       "sourcePage": "Section 5, page 5-21",
-      "notes": "Draft transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Paved-runway corrections are applied separately after validation.",
+      "notes": "Verified transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Paved-runway corrections are applied separately.",
       "axes": {
         "weightKg": [930],
         "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
@@ -84,7 +84,7 @@
       "id": "cs-eaq-basic-landing-50ft-930kg",
       "kind": "landing-50ft",
       "sourcePage": "Section 5, page 5-21",
-      "notes": "Draft transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Corrections remain separate from raw values.",
+      "notes": "Verified transcription. Weight 930 kg; flaps LAND; short-final approach 70 KIAS; throttle levers idle; grass source table. Corrections remain separate from raw values.",
       "axes": {
         "weightKg": [930],
         "pressureAltitudeFt": [0, 1000, 2000, 3000, 4000, 5000, 6000, 7000, 8000, 9000, 10000],
