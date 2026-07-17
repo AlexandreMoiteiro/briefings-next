@@ -7,6 +7,7 @@ import {
   type NavlogAircraftType,
   type NavlogSetupForm,
 } from "./navlog";
+import { P2006T_NAVLOG_DEFAULTS } from "./performance/p2006t-standard-profiles";
 
 export * from "./navlog";
 
@@ -18,25 +19,25 @@ export const navlogAircraftOptions = [
 ] as const;
 
 /**
- * P2006T operational defaults follow Sevenair Standard Profiles V2:
- * - normal/cruise climb target: 100 kt
- * - normal cruise target: 125 kt at 24 inHg / 2100 RPM
- * - cruise descent target: 120 kt
- *
- * The NavLog deliberately uses these simple operational profile values.
- * AFM table interpolation belongs only to the Performance workflow and its PDF.
+ * The P2006T NavLog deliberately uses the Sevenair standard operational
+ * profiles instead of interpolating the complete AFM tables. Those tables
+ * remain exclusive to the Performance workflow and its generated PDF.
  */
 export const navlogAircraftProfiles = {
   ...baseAircraftProfiles,
   "Tecnam P2006T": {
     ...baseAircraftProfiles["Tecnam P2006T"],
-    climbTas: 100,
-    cruiseTas: 125,
-    descentTas: 120,
-    fuelFlowLh: 36,
-    startEfob: 200,
-    rocFpm: 850,
-    rodFpm: 500,
+    climbTas: P2006T_NAVLOG_DEFAULTS.climbTasKt,
+    cruiseTas: P2006T_NAVLOG_DEFAULTS.cruiseTasKt,
+    descentTas: P2006T_NAVLOG_DEFAULTS.descentTasKt,
+    fuelFlowLh: P2006T_NAVLOG_DEFAULTS.fuelFlowLh,
+    taxiFuelL: P2006T_NAVLOG_DEFAULTS.taxiFuelL,
+    taxiFuelFlowLh: P2006T_NAVLOG_DEFAULTS.taxiFuelFlowLh,
+    startEfob: P2006T_NAVLOG_DEFAULTS.startEfobL,
+    taxiMin: P2006T_NAVLOG_DEFAULTS.taxiMin,
+    rocFpm: P2006T_NAVLOG_DEFAULTS.rocFpm,
+    rodFpm: P2006T_NAVLOG_DEFAULTS.rodFpm,
+    defaultAltitude: P2006T_NAVLOG_DEFAULTS.defaultAltitudeFt,
   },
 };
 
