@@ -1,41 +1,80 @@
 import type { NavlogLegProfile } from "@/lib/navlog";
 import type { P2006TRegistration } from "@/lib/performance/p2006t-fleet";
-import {
-  getP2006TNavlogConditions,
-  type P2006TNavlogConditions,
-} from "./p2006t-navlog-settings";
-import {
-  isP2006TRegistration,
-  p2006tClimbPerformance as calculateClimb,
-  p2006tCruisePerformance as calculateCruise,
-  p2006tPerformanceForLeg as calculateForLeg,
-  type P2006TNavlogPerformance,
-} from "./p2006t-navlog";
 
-export { isP2006TRegistration };
-export type { P2006TNavlogPerformance };
+export type P2006TNavlogPerformance = {
+  tasKt: number;
+  fuelFlowLh: number;
+  rateFpm: number | null;
+  powerPercent: number | null;
+  limitedToPublishedRange: boolean;
+  source: "Sevenair Standard Profiles V2";
+};
+
+const P2006T_REGISTRATIONS = new Set<P2006TRegistration>([
+  "CS-EAQ",
+  "CS-EBX",
+  "D-GSEV",
+]);
+
+export function isP2006TRegistration(
+  registration: string
+): registration is P2006TRegistration {
+  return P2006T_REGISTRATIONS.has(registration as P2006TRegistration);
+}
+
+function profilePerformance(
+  profile: NavlogLegProfile
+): P2006TNavlogPerformance {
+  if (profile === "CLIMB") {
+    return {
+      tasKt: 100,
+      fuelFlowLh: 36,
+      rateFpm: 850,
+      powerPercent: null,
+      limitedToPublishedRange: false,
+      source: "Sevenair Standard Profiles V2",
+    };
+  }
+
+  if (profile === "DESCENT") {
+    return {
+      tasKt: 120,
+      fuelFlowLh: 36,
+      rateFpm: 500,
+      powerPercent: null,
+      limitedToPublishedRange: false,
+      source: "Sevenair Standard Profiles V2",
+    };
+  }
+
+  return {
+    tasKt: 125,
+    fuelFlowLh: 36,
+    rateFpm: null,
+    powerPercent: null,
+    limitedToPublishedRange: false,
+    source: "Sevenair Standard Profiles V2",
+  };
+}
 
 export function p2006tClimbPerformance(
-  registration: P2006TRegistration,
-  altitudeFt: number,
-  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
+  _registration: P2006TRegistration,
+  _altitudeFt: number
 ) {
-  return calculateClimb(registration, altitudeFt, conditions);
+  return profilePerformance("CLIMB");
 }
 
 export function p2006tCruisePerformance(
-  registration: P2006TRegistration,
-  altitudeFt: number,
-  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
+  _registration: P2006TRegistration,
+  _altitudeFt: number
 ) {
-  return calculateCruise(registration, altitudeFt, conditions);
+  return profilePerformance("LEVEL");
 }
 
 export function p2006tPerformanceForLeg(
-  registration: P2006TRegistration,
+  _registration: P2006TRegistration,
   profile: NavlogLegProfile,
-  altitudeFt: number,
-  conditions: P2006TNavlogConditions = getP2006TNavlogConditions()
+  _altitudeFt: number
 ) {
-  return calculateForLeg(registration, profile, altitudeFt, conditions);
+  return profilePerformance(profile);
 }
