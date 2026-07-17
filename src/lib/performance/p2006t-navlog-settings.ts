@@ -1,5 +1,5 @@
 export const P2006T_NAVLOG_SETTINGS_KEY =
-  "briefings_p2006t_navlog_conditions_v1";
+  "briefings_p2006t_navlog_conditions_v2";
 
 export type P2006TCruiseRpm = 1900 | 2100 | 2250;
 
@@ -10,10 +10,16 @@ export type P2006TNavlogConditions = {
   cruisePowerPercent: number;
 };
 
+/**
+ * Sevenair P2006T Standard Profiles V2 uses normal cruise at 24 inHg,
+ * 2100 RPM and approximately 125 kt. The AFM engine expresses power as a
+ * percentage, so 65% is retained as the table-compatible default while RPM
+ * is aligned with the operational profile.
+ */
 export const DEFAULT_P2006T_NAVLOG_CONDITIONS: P2006TNavlogConditions = {
   weightKg: 1150,
   isaDeviationC: 0,
-  cruiseRpm: 2250,
+  cruiseRpm: 2100,
   cruisePowerPercent: 65,
 };
 
@@ -34,7 +40,7 @@ function finiteOr(value: unknown, fallback: number) {
 
 function normalizeRpm(value: number): P2006TCruiseRpm {
   if (value === 1900 || value === 2100 || value === 2250) return value;
-  return 2250;
+  return 2100;
 }
 
 function normalize(
