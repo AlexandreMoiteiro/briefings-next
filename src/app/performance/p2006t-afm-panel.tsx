@@ -9,7 +9,7 @@ import {
 import {
   p2006tClimbPerformance,
   p2006tCruisePerformance,
-} from "@/lib/performance/p2006t-navlog";
+} from "../../lib/performance/p2006t-navlog";
 import type {
   P2006TCruiseRpm,
   P2006TNavlogConditions,
@@ -87,7 +87,7 @@ export function P2006TAfmPanel() {
               Climb and cruise performance
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-              Interpolated directly from the aircraft-specific AFM tables. The same calculation engine is used by the NavLog.
+              Interpolated directly from the aircraft-specific AFM tables. The NavLog uses the simpler Sevenair Standard Profiles instead.
             </p>
           </div>
 
