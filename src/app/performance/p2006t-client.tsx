@@ -28,10 +28,7 @@ type LegState = {
   uphillSlopeOverridePct: number | null;
 };
 
-const AERODROME_DB = PERFORMANCE_AERODROMES as Record<
-  string,
-  { name: string }
->;
+const AERODROME_DB = PERFORMANCE_AERODROMES as Record<string, { name: string }>;
 
 const INITIAL_LEGS: LegState[] = [
   {
@@ -67,6 +64,18 @@ const INITIAL_LEGS: LegState[] = [
       windFrom: 240,
       windKt: 8,
       forecastHourUtc: 11,
+    },
+    uphillSlopeOverridePct: null,
+  },
+  {
+    input: {
+      role: "Alternate 2",
+      icao: "LPBJ",
+      tempC: 15,
+      qnhHpa: 1013,
+      windFrom: 240,
+      windKt: 8,
+      forecastHourUtc: 12,
     },
     uphillSlopeOverridePct: null,
   },
@@ -112,8 +121,8 @@ function PerformanceResult({
   if (!result) {
     return (
       <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-        This aircraft is waiting for its own guided-table validation. Values from
-        another P2006T are not reused.
+        This registration is waiting for its own verified numeric AFM tables. Values
+        from another P2006T are not reused.
       </div>
     );
   }
@@ -134,8 +143,7 @@ function PerformanceResult({
         </p>
         <p className="mt-1 text-sm text-zinc-700">
           GR <strong>{result.takeoffGroundRollM} m</strong> · 50 ft{" "}
-          <strong>{result.takeoff50M} m</strong> · TODA{" "}
-          {result.todaM.toFixed(0)} m
+          <strong>{result.takeoff50M} m</strong> · TODA {result.todaM.toFixed(0)} m
         </p>
         <div className="mt-2">
           <FitBadge
@@ -152,8 +160,7 @@ function PerformanceResult({
         </p>
         <p className="mt-1 text-sm text-zinc-700">
           GR <strong>{result.landingGroundRollM} m</strong> · 50 ft{" "}
-          <strong>{result.landing50M} m</strong> · LDA{" "}
-          {result.ldaM.toFixed(0)} m
+          <strong>{result.landing50M} m</strong> · LDA {result.ldaM.toFixed(0)} m
         </p>
         <div className="mt-2">
           <FitBadge
@@ -164,9 +171,7 @@ function PerformanceResult({
         </div>
       </div>
 
-      <p className="text-xs text-zinc-500">
-        {result.sourcePages.join(" · ")}
-      </p>
+      <p className="text-xs text-zinc-500">{result.sourcePages.join(" · ")}</p>
     </div>
   );
 }
@@ -274,25 +279,24 @@ export function P2006TClient() {
 
   return (
     <main className="mx-auto max-w-[1500px] space-y-6 px-4 pb-8 sm:px-6 lg:px-8">
-      <section className="rounded-3xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
+      <section className="rounded-3xl border border-sky-200 bg-sky-50 p-5 shadow-sm print:border-0 print:bg-white print:shadow-none">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
               Tecnam P2006T
             </p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">
-              {registration} · guided validation mode
+              {registration} · Performance sheet
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-              S/N {aircraft.serialNumber} · {aircraft.afmDocument}. Paved runway is
-              fixed for all P2006T calculations. Each registration keeps its own
-              AFM tables and approval state.
+              S/N {aircraft.serialNumber} · {aircraft.afmDocument}. Departure,
+              arrival and two alternates are kept separate in the printable output.
             </p>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-4 print:hidden">
             <label className="space-y-1">
-              <FieldLabel>Aircraft registration</FieldLabel>
+              <FieldLabel>Registration</FieldLabel>
               <select
                 value={registration}
                 onChange={(event) =>
@@ -318,11 +322,19 @@ export function P2006TClient() {
               />
             </label>
 
+            <button
+              type="button"
+              onClick={() => window.print()}
+              className="self-end rounded-xl bg-sky-700 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-600"
+            >
+              Print / Save PDF
+            </button>
+
             <Link
               href="/admin/p2006-performance"
               className="self-end rounded-xl bg-zinc-950 px-4 py-2 text-center text-sm font-semibold text-white hover:bg-zinc-800"
             >
-              Open guided builder
+              Open tables
             </Link>
           </div>
         </div>
@@ -335,6 +347,10 @@ export function P2006TClient() {
             </p>
           </div>
           <div className="rounded-2xl border border-sky-200 bg-white p-4">
+            <p className="text-xs uppercase tracking-wide text-zinc-500">Date</p>
+            <p className="mt-1 font-semibold text-zinc-950">{date}</p>
+          </div>
+          <div className="rounded-2xl border border-sky-200 bg-white p-4">
             <p className="text-xs uppercase tracking-wide text-zinc-500">Surface</p>
             <p className="mt-1 font-semibold text-zinc-950">Paved · fixed</p>
           </div>
@@ -342,34 +358,28 @@ export function P2006TClient() {
             <p className="text-xs uppercase tracking-wide text-zinc-500">Source</p>
             <p className="mt-1 font-semibold text-zinc-950">Aircraft-specific AFM</p>
           </div>
-          <div className="rounded-2xl border border-sky-200 bg-white p-4">
-            <p className="text-xs uppercase tracking-wide text-zinc-500">Export</p>
-            <p className="mt-1 font-semibold text-zinc-950">After builder approval</p>
-          </div>
         </div>
       </section>
 
       {!canCalculate ? (
         <section className="rounded-3xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">Performance output is intentionally blocked.</p>
+          <p className="font-semibold">Distance output is intentionally blocked.</p>
           <p className="mt-1">
-            The selected aircraft must be validated table-by-table in Admin first.
-            The builder will preserve the original page, editable values and the
-            complete interpolation trace before this page is allowed to export an
-            operational sheet.
+            The selected registration still needs its own verified numeric table
+            values. The confirmed mapper geometry remains available in Admin.
           </p>
         </section>
       ) : null}
 
-      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm print:border-0 print:p-0 print:shadow-none">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between print:hidden">
           <div>
             <h2 className="text-lg font-semibold text-zinc-950">
               Airfield, MET and paved-runway conditions
             </h2>
             <p className="mt-1 text-sm text-zinc-500">
-              The best runway is selected by wind. Surface is always paved; only
-              the uphill slope can use database data or a visible override.
+              The best runway is selected by wind. Alternate 1 and Alternate 2 are
+              calculated and printed independently.
             </p>
           </div>
           <div className="text-right">
@@ -387,26 +397,21 @@ export function P2006TClient() {
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4 xl:grid-cols-3">
+        <div className="mt-5 grid gap-4 xl:grid-cols-2 print:grid-cols-2">
           {rows.map(
-            ({
-              leg,
-              evaluated,
-              databaseSlope,
-              uphillSlopePct,
-              performance,
-            }) => {
+            ({ leg, evaluated, databaseSlope, uphillSlopePct, performance }) => {
               const role = leg.input.role;
               const runway = evaluated.bestRunway;
+              const displayRole = role === "Alternate" ? "Alternate 1" : role;
 
               return (
                 <article
                   key={role}
-                  className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+                  className="break-inside-avoid rounded-2xl border border-zinc-200 bg-zinc-50 p-4 print:bg-white"
                 >
-                  <h3 className="font-semibold text-zinc-950">{role}</h3>
+                  <h3 className="font-semibold text-zinc-950">{displayRole}</h3>
 
-                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2 print:hidden">
                     <label className="space-y-1">
                       <FieldLabel>Aerodrome</FieldLabel>
                       <select
@@ -466,11 +471,6 @@ export function P2006TClient() {
                       </label>
                     ))}
 
-                    <div className="rounded-xl border border-zinc-200 bg-white p-3 text-sm">
-                      <FieldLabel>Runway surface</FieldLabel>
-                      <p className="mt-1 font-semibold text-zinc-950">Paved</p>
-                    </div>
-
                     <label className="space-y-1">
                       <FieldLabel>Uphill slope %</FieldLabel>
                       <input
@@ -498,6 +498,9 @@ export function P2006TClient() {
 
                   <div className="mt-4 rounded-xl border border-zinc-200 bg-white p-3 text-sm">
                     <p className="font-semibold text-zinc-950">
+                      {leg.input.icao} · {AERODROME_DB[leg.input.icao]?.name ?? leg.input.icao}
+                    </p>
+                    <p className="mt-1 font-medium text-zinc-800">
                       {runway
                         ? `RWY ${runway.id} · QFU ${runway.qfu.toFixed(0)}°`
                         : "Runway unavailable"}
@@ -507,8 +510,12 @@ export function P2006TClient() {
                       {evaluated.densityAltitudeFt.toFixed(0)} ft ·{" "}
                       {evaluated.headwindKt >= 0 ? "HW" : "TW"}{" "}
                       {Math.abs(evaluated.headwindKt).toFixed(1)} kt · XW{" "}
-                      {evaluated.crosswindKt.toFixed(1)} kt{" "}
-                      {evaluated.crosswindSide}
+                      {evaluated.crosswindKt.toFixed(1)} kt {evaluated.crosswindSide}
+                    </p>
+                    <p className="mt-1 text-zinc-500">
+                      OAT {leg.input.tempC}°C · QNH {leg.input.qnhHpa} hPa · Wind{" "}
+                      {String(Math.round(leg.input.windFrom)).padStart(3, "0")}/
+                      {Math.round(leg.input.windKt)} kt · Slope {uphillSlopePct.toFixed(1)}%
                     </p>
                   </div>
 
