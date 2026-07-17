@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { P2006TCalculationPreview } from "./p2006-calculation-preview-v3";
+import { P2006TCalculationPreview } from "./p2006-calculation-preview-v4";
+import { P2006TPerformanceViewer } from "./p2006-performance-viewer";
 
 export default function P2006TCalculationPreviewPage() {
   return (
@@ -11,11 +12,12 @@ export default function P2006TCalculationPreviewPage() {
               Admin · Tecnam P2006T
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Calculation preview
+              Performance calculation viewer
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Review the mapped geometry and follow the Mass &amp; Balance path and
-              takeoff or landing interpolation directly on the original pages.
+              Review Mass &amp; Balance, take-off and landing distances, climb performance
+              and cruise calculations against the original aircraft AFM pages. Source-table
+              mapping remains in the Guided visual audit mapper.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -35,6 +37,7 @@ export default function P2006TCalculationPreviewPage() {
         </header>
 
         <P2006TCalculationPreview />
+        <P2006TPerformanceViewer />
       </section>
     </main>
   );

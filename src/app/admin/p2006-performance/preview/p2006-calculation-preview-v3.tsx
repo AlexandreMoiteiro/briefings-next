@@ -1,13 +1,40 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { ensureBundledP2006Form } from "../p2006-form-storage";
 import { P2006TCalculationPreview as BaseCalculationPreview } from "./p2006-calculation-preview";
 
-function fieldInput(root: HTMLElement, labelText: string) {
+type NaturalSummary = {
+  title: string;
+  tableSentence: string;
+  resultSentence: string;
+};
+
+function performanceSection(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll<HTMLHeadingElement>("h3")).find(
+    (candidate) => candidate.textContent?.trim() === "Performance calculation"
+  );
+  return heading?.closest<HTMLElement>("section") ?? null;
+}
+
+function labelledControl(root: HTMLElement, labelText: string) {
   const label = Array.from(root.querySelectorAll<HTMLLabelElement>("label")).find(
     (candidate) => candidate.textContent?.includes(labelText)
   );
-  return label?.querySelector<HTMLInputElement>("input") ?? null;
+  return label?.querySelector<HTMLInputElement | HTMLSelectElement>("input, select") ?? null;
+}
+
+function numericValue(root: HTMLElement, labelText: string) {
+  const value = labelledControl(root, labelText)?.value;
+  if (value === undefined || value === "") return null;
+  const number = Number(value);
+  return Number.isFinite(number) ? number : null;
+}
+
+function selectedText(root: HTMLElement, labelText: string) {
+  const select = labelledControl(root, labelText);
+  if (!(select instanceof HTMLSelectElement)) return "";
+  return select.selectedOptions[0]?.textContent?.trim() ?? "";
 }
 
 function numberFromText(text: string, expressions: RegExp[]) {
@@ -18,7 +45,7 @@ function numberFromText(text: string, expressions: RegExp[]) {
   return null;
 }
 
-function formatNumber(value: number, digits = 0) {
+function format(value: number, digits = 0) {
   return value.toFixed(digits).replace(/\.0$/, "");
 }
 
@@ -29,92 +56,69 @@ function calculationCard(root: HTMLElement) {
   });
 }
 
-function compactCalculation(root: HTMLElement) {
-  const card = calculationCard(root);
-  if (!card || card.querySelector("[data-p2006-compact-calculation='true']")) {
-    return;
-  }
-
-  const body = card.querySelector<HTMLDivElement>(":scope > div");
-  if (!body) return;
-
-  const originalText = body.textContent ?? "";
-  const finalDistance = numberFromText(originalText, [
+function buildSummary(root: HTMLElement): NaturalSummary | null {
+  const section = performanceSection(root);
+  if (!section) return null;
+  const card = calculationCard(section);
+  const calculationText = card?.textContent ?? section.textContent ?? "";
+  const finalDistance = numberFromText(calculationText, [
     /Final result:\s*([\d.]+)\s*m/i,
     /Final distance:\s*([\d.]+)\s*m/i,
   ]);
-  const tableDistance = numberFromText(originalText, [
-    /Interpolate between both altitude results:\s*([\d.]+)\s*m/i,
-    /to obtain\s*([\d.]+)\s*m/i,
-    /table gives\s*([\d.]+)\s*m/i,
-  ]);
+  if (finalDistance === null) return null;
 
-  if (finalDistance === null) return;
+  const tableDistance =
+    numberFromText(calculationText, [
+      /Interpolate between both altitude results:\s*([\d.]+)\s*m/i,
+      /to obtain\s*([\d.]+)\s*m/i,
+    ]) ?? finalDistance;
+  const altitude = numericValue(root, "Pressure altitude ft");
+  const temperature = numericValue(root, "OAT °C");
+  const wind = numericValue(root, "Wind kt") ?? 0;
+  const slope = numericValue(root, "Runway slope %") ?? 0;
+  const paved = Boolean(
+    (labelledControl(root, "Paved runway") as HTMLInputElement | null)?.checked
+  );
+  const source = selectedText(root, "Source page");
+  const resultType = selectedText(root, "Result");
+  if (altitude === null || temperature === null) return null;
 
-  const altitude = Number(fieldInput(root, "Pressure altitude ft")?.value ?? 0);
-  const temperature = Number(fieldInput(root, "OAT °C")?.value ?? 0);
-  const wind = Number(fieldInput(root, "Wind kt")?.value ?? 0);
-  const slope = Number(fieldInput(root, "Runway slope %")?.value ?? 0);
-  const paved = Boolean(fieldInput(root, "Paved runway")?.checked);
-  const interpolatedDistance = tableDistance ?? finalDistance;
-
-  const corrections: string[] = [];
-  if (wind > 0) {
-    corrections.push(`${formatNumber(wind)} kt headwind`);
-  } else if (wind < 0) {
-    corrections.push(`${formatNumber(Math.abs(wind))} kt tailwind`);
-  }
-  if (paved) corrections.push("paved-runway");
-  if (slope !== 0) {
-    corrections.push(
-      `${slope > 0 ? "+" : ""}${formatNumber(slope, 1)}% runway-slope`
-    );
-  }
-
-  const summary = document.createElement("div");
-  summary.dataset.p2006CompactCalculation = "true";
-  summary.className = "mt-1 space-y-1 leading-snug text-zinc-900";
-
-  const interpolation = document.createElement("p");
-  interpolation.textContent = `For a pressure altitude of ${formatNumber(
-    altitude
-  )} ft and a temperature of ${formatNumber(
+  const tableSentence = `At ${format(altitude)} ft and ${format(
     temperature,
     1
-  )} °C, interpolation gives ${formatNumber(interpolatedDistance, 1)} m.`;
-  summary.appendChild(interpolation);
+  )} °C, the ${source || "selected table"} gives approximately ${format(
+    tableDistance,
+    1
+  )} m after interpolation.`;
 
-  const result = document.createElement("p");
-  result.className = "font-semibold text-zinc-950";
-  if (corrections.length) {
-    const correctionText =
-      corrections.length === 1
-        ? corrections[0]
-        : `${corrections.slice(0, -1).join(", ")} and ${corrections.at(-1)}`;
-    result.textContent = `After applying the ${correctionText} correction${
-      corrections.length > 1 ? "s" : ""
-    }, the final distance is ${formatNumber(finalDistance)} m.`;
-  } else {
-    result.textContent = `The resulting distance is ${formatNumber(
-      finalDistance
-    )} m.`;
+  const adjustments: string[] = [];
+  if (wind > 0) adjustments.push(`${format(wind)} kt of headwind`);
+  if (wind < 0) adjustments.push(`${format(Math.abs(wind))} kt of tailwind`);
+  if (paved) adjustments.push("the paved-runway correction");
+  if (slope !== 0) {
+    adjustments.push(`${slope > 0 ? "+" : ""}${format(slope, 1)}% runway slope`);
   }
-  summary.appendChild(result);
 
-  body.replaceChildren(summary);
-  card.style.padding = "8px 10px";
-  card.style.fontSize = "clamp(8px, 0.68vw, 11px)";
+  const resultSentence = adjustments.length
+    ? `Allowing for ${adjustments.join(", ")}, use ${format(
+        finalDistance
+      )} m as the ${resultType || "final distance"}.`
+    : `No further adjustment changes the result, so use ${format(
+        finalDistance
+      )} m as the ${resultType || "final distance"}.`;
+
+  return {
+    title: `${source || "Performance table"} · ${resultType || "calculation"}`,
+    tableSentence,
+    resultSentence,
+  };
 }
 
-function performanceSection(root: HTMLElement) {
-  const heading = Array.from(root.querySelectorAll<HTMLHeadingElement>("h3")).find(
-    (candidate) => candidate.textContent?.trim() === "Performance calculation"
-  );
-  return heading?.closest<HTMLElement>("section") ?? null;
-}
-
+/**
+ * Applies visual-only refinements. It never removes, replaces or reorders
+ * React-owned nodes, so changing table remains safe for React reconciliation.
+ */
 function polishPreview(root: HTMLElement) {
-  // The form image already explains the geometry; keep only the plotted path.
   root
     .querySelectorAll<HTMLDivElement>(
       "div.pointer-events-none.absolute.bottom-3.left-3"
@@ -123,7 +127,9 @@ function polishPreview(root: HTMLElement) {
       summary.style.display = "none";
     });
 
-  // Keep the applicable maximum-mass line, but remove its redundant label.
+  const card = calculationCard(root);
+  if (card) card.style.display = "none";
+
   root.querySelectorAll<SVGTextElement>("svg text").forEach((label) => {
     if (!/^Max\s+\d+\s+kg$/i.test(label.textContent?.trim() ?? "")) return;
     label.style.display = "none";
@@ -133,21 +139,19 @@ function polishPreview(root: HTMLElement) {
     }
   });
 
-  // The coloured cells alone are enough: remove numbered badges and arrows.
   root.querySelectorAll<SVGGElement>("svg g").forEach((group) => {
     const label = group.querySelector<SVGTextElement>(":scope > text");
     if (!label || !/^[1-4]$/.test(label.textContent?.trim() ?? "")) return;
     label.style.display = "none";
-    group.querySelector<SVGCircleElement>(":scope > circle")?.style.setProperty(
-      "display",
-      "none"
-    );
+    group
+      .querySelector<SVGCircleElement>(":scope > circle")
+      ?.style.setProperty("display", "none");
   });
+
   root
     .querySelectorAll<SVGLineElement>("svg line[marker-end]")
     .forEach((line) => line.style.setProperty("display", "none"));
 
-  // Remove only the green interpolation point from the performance table.
   performanceSection(root)
     ?.querySelectorAll<SVGCircleElement>("svg circle")
     .forEach((circle) => {
@@ -156,14 +160,35 @@ function polishPreview(root: HTMLElement) {
         circle.style.setProperty("display", "none");
       }
     });
-
-  compactCalculation(root);
 }
 
 export function P2006TCalculationPreview() {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [ready, setReady] = useState(false);
+  const [formWarning, setFormWarning] = useState("");
+  const [summary, setSummary] = useState<NaturalSummary | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    void ensureBundledP2006Form()
+      .catch((error) => {
+        console.warn("Unable to prepare bundled P2006T form pages", error);
+        if (!cancelled) {
+          setFormWarning(
+            "The bundled form background could not be cached. The calculation preview remains available."
+          );
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setReady(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!ready) return;
     const root = rootRef.current;
     if (!root) return;
 
@@ -172,6 +197,10 @@ export function P2006TCalculationPreview() {
       if (frame) return;
       frame = window.requestAnimationFrame(() => {
         frame = 0;
+        const nextSummary = buildSummary(root);
+        setSummary((current) =>
+          JSON.stringify(current) === JSON.stringify(nextSummary) ? current : nextSummary
+        );
         polishPreview(root);
       });
     };
@@ -190,11 +219,36 @@ export function P2006TCalculationPreview() {
       root.removeEventListener("click", apply);
       if (frame) window.cancelAnimationFrame(frame);
     };
-  }, []);
+  }, [ready]);
 
   return (
     <div ref={rootRef}>
-      <BaseCalculationPreview />
+      {!ready ? (
+        <div className="rounded-3xl border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-900">
+          Preparing the official P2006T form background…
+        </div>
+      ) : (
+        <>
+          {formWarning ? (
+            <p className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-900">
+              {formWarning}
+            </p>
+          ) : null}
+          {summary ? (
+            <section className="mb-5 rounded-3xl border border-emerald-200 bg-emerald-50 p-5 shadow-sm">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-700">
+                Calculation summary
+              </p>
+              <h2 className="mt-1 text-lg font-semibold text-zinc-950">{summary.title}</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-700">{summary.tableSentence}</p>
+              <p className="mt-1 text-sm font-semibold leading-6 text-emerald-900">
+                {summary.resultSentence}
+              </p>
+            </section>
+          ) : null}
+          <BaseCalculationPreview />
+        </>
+      )}
     </div>
   );
 }

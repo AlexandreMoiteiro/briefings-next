@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { PerformanceClient } from "./performance-client";
+import { P2006TAfmPanel } from "./p2006t-afm-panel";
 import { P2006TClient } from "./p2006t-client";
 
 type PerformanceAircraftSelection =
@@ -17,7 +18,7 @@ const AIRCRAFT_OPTIONS: Array<{
   {
     value: "Tecnam P2006T",
     title: "Tecnam P2006T",
-    subtitle: "Three-aircraft guided AFM workflow",
+    subtitle: "Aircraft-specific AFM performance",
   },
   {
     value: "Tecnam P2008",
@@ -77,14 +78,12 @@ export function PerformanceRouterClient() {
                 Choose aircraft
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-500">
-                The P2006T is the default. Aircraft selection is kept visible because
-                it changes the loading model, AFM source, performance method and PDF
-                output.
+                Aircraft selection changes the loading model, AFM source, performance method and PDF output.
               </p>
             </div>
 
             <div className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1 text-xs font-semibold text-sky-800">
-              Default · Tecnam P2006T
+              Default
             </div>
           </div>
 
@@ -123,7 +122,10 @@ export function PerformanceRouterClient() {
       </section>
 
       {aircraft === "Tecnam P2006T" ? (
-        <P2006TClient />
+        <>
+          <P2006TAfmPanel />
+          <P2006TClient />
+        </>
       ) : (
         <ExistingFleetWorkspace key={aircraft} aircraft={aircraft} />
       )}

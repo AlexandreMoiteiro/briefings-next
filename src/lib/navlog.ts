@@ -2,6 +2,7 @@ export const CUSTOM_AIRCRAFT_TYPE = "Custom aircraft" as const;
 
 export const navlogAircraftOptions = [
   "Tecnam P2008",
+  "Tecnam P2006T",
   "Piper PA-28",
   CUSTOM_AIRCRAFT_TYPE,
 ] as const;
@@ -79,6 +80,19 @@ export const navlogAircraftProfiles: Record<
     rodFpm: 500,
     defaultAltitude: 3000,
   },
+  "Tecnam P2006T": {
+    climbTas: 86,
+    cruiseTas: 126,
+    descentTas: 120,
+    fuelFlowLh: 36,
+    taxiFuelL: 5,
+    taxiFuelFlowLh: 16,
+    startEfob: 200,
+    taxiMin: 20,
+    rocFpm: 850,
+    rodFpm: 500,
+    defaultAltitude: 3000,
+  },
   "Piper PA-28": {
     climbTas: 76,
     cruiseTas: 110,
@@ -117,6 +131,8 @@ export const tecnamRegistrations = [
   "CS-ECC",
   "CS-ECD",
 ];
+
+export const p2006tRegistrations = ["CS-EAQ", "CS-EBX", "D-GSEV"];
 
 export const piperRegistrations = [
   "OE-KPD",
@@ -176,6 +192,7 @@ export const navlogDefaultSetup: NavlogSetupForm = {
 export function getAircraftTypeFromRegistration(
   registration: string
 ): NavlogAircraftType {
+  if (p2006tRegistrations.includes(registration)) return "Tecnam P2006T";
   if (registration.startsWith("CS-")) return "Tecnam P2008";
   if (registration.startsWith("OE-")) return "Piper PA-28";
   return CUSTOM_AIRCRAFT_TYPE;
@@ -183,6 +200,7 @@ export function getAircraftTypeFromRegistration(
 
 export function getRegistrationsForAircraft(aircraftType: NavlogAircraftType) {
   if (aircraftType === "Tecnam P2008") return tecnamRegistrations;
+  if (aircraftType === "Tecnam P2006T") return p2006tRegistrations;
   if (aircraftType === "Piper PA-28") return piperRegistrations;
   return [];
 }

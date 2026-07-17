@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { ensureBundledP2006Form } from "./p2006-form-storage";
 import { P2006TSourceMapper as SharedFormMapper } from "./p2006-source-mapper-v26";
 import type { Capture, CaptureStore } from "./p2006-mapper-definitions";
 
@@ -66,31 +67,46 @@ export function P2006TSourceMapper() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    if (window.localStorage.getItem(MIGRATION_KEY) !== "1") {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
+    let cancelled = false;
 
-      if (raw) {
-        try {
-          const parsed = JSON.parse(raw) as CaptureStore;
-          window.localStorage.setItem(
-            STORAGE_KEY,
-            JSON.stringify(migrateCaptures(parsed))
-          );
-        } catch {
-          window.localStorage.removeItem(STORAGE_KEY);
+    const prepare = async () => {
+      if (window.localStorage.getItem(MIGRATION_KEY) !== "1") {
+        const raw = window.localStorage.getItem(STORAGE_KEY);
+
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw) as CaptureStore;
+            window.localStorage.setItem(
+              STORAGE_KEY,
+              JSON.stringify(migrateCaptures(parsed))
+            );
+          } catch {
+            window.localStorage.removeItem(STORAGE_KEY);
+          }
         }
+
+        window.localStorage.setItem(MIGRATION_KEY, "1");
       }
 
-      window.localStorage.setItem(MIGRATION_KEY, "1");
-    }
+      try {
+        await ensureBundledP2006Form();
+      } catch (error) {
+        console.warn("Unable to prepare bundled P2006T form pages", error);
+      }
 
-    setReady(true);
+      if (!cancelled) setReady(true);
+    };
+
+    void prepare();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   if (!ready) {
     return (
       <div className="rounded-3xl border border-sky-200 bg-sky-50 p-5 text-sm font-semibold text-sky-900">
-        Merging the shared Form page 1 geometry…
+        Preparing the official P2006T form and shared M&amp;B geometry…
       </div>
     );
   }
