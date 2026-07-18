@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { PerformanceClient } from "./performance-client";
-import { P2006TClient } from "./p2006t-client";
+import { P2006TCompleteClient } from "./p2006t-complete-client";
 
 type PerformanceMode = "P2006T" | "Existing";
 
@@ -46,7 +46,7 @@ export function PerformanceRouterClient() {
         </div>
       </section>
 
-      {mode === "P2006T" ? <P2006TClient /> : <PerformanceClient />}
+      {mode === "P2006T" ? <P2006TCompleteClient /> : <PerformanceClient />}
     </div>
   );
 }
