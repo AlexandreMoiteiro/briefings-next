@@ -17,7 +17,7 @@ const FORM_FILENAME =
   "RVP.CFI.071.02TecnamP2006TMBandPerformanceSheet.pdf";
 
 function localResponse(bytes: Uint8Array, contentType: string) {
-  return new Response(bytes, {
+  return new Response(new Blob([Uint8Array.from(bytes)]), {
     status: 200,
     headers: { "content-type": contentType },
   });
