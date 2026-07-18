@@ -19,6 +19,9 @@
       }
     ],
     "paths": {
+      "@/lib/pdf/p2006t-performance-pdf": [
+        "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
+      ],
       "@/*": ["./src/*"]
     }
   },
