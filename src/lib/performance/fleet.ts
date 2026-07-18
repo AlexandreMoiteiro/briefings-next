@@ -1,6 +1,17 @@
 import type { PerformanceAircraft } from "@/lib/performance/mb";
 
-export const PA28_FLEET = {
+export type Pa28FleetDefaults = {
+  emptyWeightLb: number;
+  emptyMomentInLb: number;
+  notes: string;
+};
+
+export type TecnamFleetDefaults = {
+  emptyWeightKg: number;
+  emptyMomentKgM: number;
+};
+
+export const PA28_FLEET: Record<string, Pa28FleetDefaults> = {
   "OE-KPD": {
     emptyWeightLb: 1690.2,
     emptyMomentInLb: 151319.5,
@@ -28,7 +39,7 @@ export const PA28_FLEET = {
   },
   "OE-KPF": {
     emptyWeightLb: 1687.2,
-    emptyMomentInLb: 150833.0,
+    emptyMomentInLb: 150833,
     notes: "",
   },
   "OE-KPH": {
@@ -36,25 +47,24 @@ export const PA28_FLEET = {
     emptyMomentInLb: 150723.3,
     notes: "",
   },
-} as const;
+};
 
-export const TECNAM_FLEET = {
+export const TECNAM_FLEET: Record<string, TecnamFleetDefaults> = {
   "CS-DHS": { emptyWeightKg: 435.75, emptyMomentKgM: 811.33 },
   "CS-DHT": { emptyWeightKg: 426.5, emptyMomentKgM: 784.7 },
-  "CS-DHU": { emptyWeightKg: 427.0, emptyMomentKgM: 786.2 },
-  "CS-DHV": { emptyWeightKg: 426.0, emptyMomentKgM: 784.0 },
-  "CS-DHW": { emptyWeightKg: 427.0, emptyMomentKgM: 788.0 },
-  "CS-ECC": { emptyWeightKg: 430.0, emptyMomentKgM: 795.7 },
-  "CS-ECD": { emptyWeightKg: 430.0, emptyMomentKgM: 796.5 },
-} as const;
+  "CS-DHU": { emptyWeightKg: 427, emptyMomentKgM: 786.2 },
+  "CS-DHV": { emptyWeightKg: 426, emptyMomentKgM: 784 },
+  "CS-DHW": { emptyWeightKg: 427, emptyMomentKgM: 788 },
+  "CS-ECC": { emptyWeightKg: 430, emptyMomentKgM: 795.7 },
+  "CS-ECD": { emptyWeightKg: 430, emptyMomentKgM: 796.5 },
+};
 
 export function getFleetDefaults(
   aircraft: PerformanceAircraft,
   registration: string
-) {
+): Pa28FleetDefaults | TecnamFleetDefaults | null {
   if (aircraft === "Piper PA-28") {
-    return PA28_FLEET[registration as keyof typeof PA28_FLEET] ?? null;
+    return PA28_FLEET[registration] ?? null;
   }
-
-  return TECNAM_FLEET[registration as keyof typeof TECNAM_FLEET] ?? null;
+  return TECNAM_FLEET[registration] ?? null;
 }
