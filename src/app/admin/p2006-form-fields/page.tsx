@@ -12,14 +12,24 @@ export default async function P2006FormFieldsPage() {
     name: field.getName(),
     type: field.constructor.name,
   }));
+  const pages = pdf.getPages().map((page, index) => ({
+    page: index + 1,
+    size: page.getSize(),
+    mediaBox: page.getMediaBox(),
+    cropBox: page.getCropBox(),
+    rotation: page.getRotation().angle,
+  }));
 
-  console.log("P2006T_FORM_FIELDS", JSON.stringify(fields));
+  console.log(
+    "P2006T_FORM_INSPECTION",
+    JSON.stringify({ fieldCount: fields.length, fields, pages })
+  );
 
   return (
     <main className="mx-auto max-w-5xl p-8">
-      <h1 className="text-2xl font-semibold">P2006T form fields</h1>
+      <h1 className="text-2xl font-semibold">P2006T form inspection</h1>
       <pre className="mt-6 whitespace-pre-wrap rounded-xl bg-zinc-950 p-4 text-xs text-white">
-        {JSON.stringify(fields, null, 2)}
+        {JSON.stringify({ fieldCount: fields.length, fields, pages }, null, 2)}
       </pre>
     </main>
   );
