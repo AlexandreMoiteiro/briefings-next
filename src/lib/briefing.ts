@@ -54,43 +54,43 @@ export const briefingSteps: {
     id: "mission",
     title: "Mission",
     shortTitle: "Mission",
-    description: "Main mission details: pilot, aircraft, date and UTC time.",
+    description: "Mission objective, time slot, callsign and aircraft details.",
+  },
+  {
+    id: "fpl",
+    title: "Flight Plan",
+    shortTitle: "FPL",
+    description: "Submitted flight plan and related confirmation.",
   },
   {
     id: "weather",
     title: "Weather",
     shortTitle: "Weather",
-    description: "Weather charts organised by type.",
+    description: "Weather briefing material organised by type.",
+  },
+  {
+    id: "performance",
+    title: "Mass & Balance and Performance",
+    shortTitle: "M&B / Perf",
+    description: "Mass & balance and aircraft performance sheets.",
   },
   {
     id: "notam",
     title: "NOTAM",
     shortTitle: "NOTAM",
-    description: "PIB, SUP and other NOTAM documents.",
-  },
-  {
-    id: "performance",
-    title: "Performance & M&B",
-    shortTitle: "Perf/M&B",
-    description: "Performance and mass & balance PDFs.",
-  },
-  {
-    id: "fpl",
-    title: "FPL",
-    shortTitle: "FPL",
-    description: "Flight plan and related confirmations.",
+    description: "PIB, SUP and NOTAM information for the operational areas.",
   },
   {
     id: "routes",
-    title: "Routes",
-    shortTitle: "Routes",
-    description: "Route pairs with NavLog and VFR Map.",
+    title: "Mission details and NavLog",
+    shortTitle: "Details / NavLog",
+    description: "Mission-specific details, remaining questions, NavLog and VFR map.",
   },
   {
     id: "generate",
     title: "Generate PDF",
     shortTitle: "Generate",
-    description: "Final review and PDF generation.",
+    description: "Final review and PDF generation in briefing order.",
   },
 ];
 
@@ -176,7 +176,10 @@ export const uploadTargets: UploadTarget[] = [
   },
 ];
 
-export function getUploadTarget(sectionId: UploadSectionId, bucketId: UploadBucketId) {
+export function getUploadTarget(
+  sectionId: UploadSectionId,
+  bucketId: UploadBucketId
+) {
   return uploadTargets.find(
     (target) => target.sectionId === sectionId && target.bucketId === bucketId
   );
