@@ -41,49 +41,17 @@ import {
 } from "@/lib/pdf/p2008-performance-pdf-v2";
 
 const INITIAL_LEGS: PerformanceLegInput[] = [
-  {
-    role: "Departure",
-    icao: "LPSO",
-    tempC: 15,
-    qnhHpa: 1013,
-    windFrom: 240,
-    windKt: 8,
-    forecastHourUtc: 9,
-  },
-  {
-    role: "Arrival",
-    icao: "LPSO",
-    tempC: 15,
-    qnhHpa: 1013,
-    windFrom: 240,
-    windKt: 8,
-    forecastHourUtc: 10,
-  },
-  {
-    role: "Alternate",
-    icao: "LPEV",
-    tempC: 15,
-    qnhHpa: 1013,
-    windFrom: 240,
-    windKt: 8,
-    forecastHourUtc: 11,
-  },
-  {
-    role: "Alternate 2",
-    icao: "LPCB",
-    tempC: 15,
-    qnhHpa: 1013,
-    windFrom: 240,
-    windKt: 8,
-    forecastHourUtc: 12,
-  },
+  { role: "Departure", icao: "LPSO", tempC: 15, qnhHpa: 1013, windFrom: 240, windKt: 8, forecastHourUtc: 9 },
+  { role: "Arrival", icao: "LPSO", tempC: 15, qnhHpa: 1013, windFrom: 240, windKt: 8, forecastHourUtc: 10 },
+  { role: "Alternate", icao: "LPEV", tempC: 15, qnhHpa: 1013, windFrom: 240, windKt: 8, forecastHourUtc: 11 },
+  { role: "Alternate 2", icao: "LPCB", tempC: 15, qnhHpa: 1013, windFrom: 240, windKt: 8, forecastHourUtc: 12 },
 ];
 
 function whole(value: number) {
   return Math.round(Number(value || 0));
 }
 
-function roleLabel(role: PerformanceLegRole) {
+function roleLabel(role: string) {
   return role === "Alternate" ? "Alternate 1" : role;
 }
 
@@ -120,6 +88,36 @@ function NumberField({
   );
 }
 
+function ComplianceBadge({
+  label,
+  requiredM,
+  availableM,
+}: {
+  label: string;
+  requiredM: number;
+  availableM: number;
+}) {
+  const omRequiredM = whole(requiredM * 1.25);
+  const compliant = availableM >= omRequiredM;
+  return (
+    <div
+      className={[
+        "rounded-xl border p-3 text-xs",
+        compliant
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-red-200 bg-red-50 text-red-800",
+      ].join(" ")}
+    >
+      <p className="font-semibold">
+        {label}: {compliant ? "COMPLIANT" : "NOT COMPLIANT"}
+      </p>
+      <p className="mt-1">
+        POH {whole(requiredM)} m · 125% {omRequiredM} m · available {whole(availableM)} m
+      </p>
+    </div>
+  );
+}
+
 function downloadPdf(bytes: Uint8Array, filename: string) {
   const blob = new Blob([Uint8Array.from(bytes)], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
@@ -132,37 +130,6 @@ function downloadPdf(bytes: Uint8Array, filename: string) {
   window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-function ComplianceBadge({
-  label,
-  requiredM,
-  availableM,
-}: {
-  label: string;
-  requiredM: number;
-  availableM: number;
-}) {
-  const omRequiredM = whole(requiredM * 1.25);
-  const ok = availableM >= omRequiredM;
-  return (
-    <div
-      className={[
-        "rounded-xl border p-3 text-xs",
-        ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-800",
-      ].join(" ")}
-    >
-      <p className="font-semibold">
-        {label}: {ok ? "COMPLIANT" : "NOT COMPLIANT"}
-      </p>
-      <p className="mt-1">
-        POH {whole(requiredM)} m · OM/POH 125% {omRequiredM} m · available{" "}
-        {whole(availableM)} m
-      </p>
-    </div>
-  );
-}
-
 export function StandardAircraftClient({
   aircraft,
 }: {
@@ -171,7 +138,7 @@ export function StandardAircraftClient({
   const registrationOptions =
     aircraft === "Piper PA-28" ? piperRegistrations : tecnamRegistrations;
   const initialRegistration = registrationOptions[0] ?? "";
-  const initialFuelL = aircraft === "Piper PA-28" ? PA28.fuelUsableL : 120;
+  const initialFuelL = aircraft === "Piper PA-28" ? PA28.fuelUsableL : TECNAM.maxFuelVolumeL;
   const [registration, setRegistration] = useState(initialRegistration);
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [legs, setLegs] = useState<PerformanceLegInput[]>(INITIAL_LEGS);
@@ -182,42 +149,39 @@ export function StandardAircraftClient({
   const [weatherStatus, setWeatherStatus] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
   const [pdfStatus, setPdfStatus] = useState("");
-  const [pa28Input, setPa28Input] = useState(() => {
-    const defaults = getFleetDefaults("Piper PA-28", initialRegistration);
-    return {
-      emptyWeightLb:
-        defaults && "emptyWeightLb" in defaults ? defaults.emptyWeightLb : 1690.2,
-      emptyMomentInLb:
-        defaults && "emptyMomentInLb" in defaults
-          ? defaults.emptyMomentInLb
-          : 151319.5,
-      studentKg: 50,
-      instructorKg: 80,
-      frontKg: 130,
-      rearKg: 0,
-      baggageKg: 5,
-      fuelL: PA28.fuelUsableL,
-      tripFuelL: defaultFuelPlanForAircraft(
-        "Piper PA-28",
-        PA28.fuelUsableL
-      ).tripFuelL,
-    };
+
+  const initialDefaults = getFleetDefaults(aircraft, initialRegistration);
+  const [pa28Input, setPa28Input] = useState({
+    emptyWeightLb:
+      initialDefaults && "emptyWeightLb" in initialDefaults
+        ? initialDefaults.emptyWeightLb
+        : 1690.2,
+    emptyMomentInLb:
+      initialDefaults && "emptyMomentInLb" in initialDefaults
+        ? initialDefaults.emptyMomentInLb
+        : 151319.5,
+    studentKg: 50,
+    instructorKg: 80,
+    frontKg: 130,
+    rearKg: 0,
+    baggageKg: 5,
+    fuelL: PA28.fuelUsableL,
+    tripFuelL: defaultFuelPlanForAircraft("Piper PA-28", PA28.fuelUsableL).tripFuelL,
   });
-  const [tecnamInput, setTecnamInput] = useState(() => {
-    const defaults = getFleetDefaults("Tecnam P2008", initialRegistration);
-    return {
-      emptyWeightKg:
-        defaults && "emptyWeightKg" in defaults ? defaults.emptyWeightKg : 435.75,
-      emptyMomentKgM:
-        defaults && "emptyMomentKgM" in defaults
-          ? defaults.emptyMomentKgM
-          : 811.33,
-      studentKg: 50,
-      instructorKg: 80,
-      pilotPassengerKg: 130,
-      baggageKg: 5,
-      fuelL: 120,
-    };
+  const [tecnamInput, setTecnamInput] = useState({
+    emptyWeightKg:
+      initialDefaults && "emptyWeightKg" in initialDefaults
+        ? initialDefaults.emptyWeightKg
+        : 435.75,
+    emptyMomentKgM:
+      initialDefaults && "emptyMomentKgM" in initialDefaults
+        ? initialDefaults.emptyMomentKgM
+        : 811.33,
+    studentKg: 50,
+    instructorKg: 80,
+    pilotPassengerKg: 130,
+    baggageKg: 5,
+    fuelL: TECNAM.maxFuelVolumeL,
   });
 
   const pa28InputForCalculation = useMemo(
@@ -264,7 +228,16 @@ export function StandardAircraftClient({
     );
   }
 
-  function selectRegistration(nextRegistration: string) {
+  function updateFuelPlan<K extends keyof FuelPlanningInput>(
+    key: K,
+    value: FuelPlanningInput[K]
+  ) {
+    setFuelPlan((current) =>
+      recalculateFuelPlan({ ...current, [key]: Number(value) })
+    );
+  }
+
+  function applyRegistration(nextRegistration: string) {
     setRegistration(nextRegistration);
     const defaults = getFleetDefaults(aircraft, nextRegistration);
     if (!defaults) return;
@@ -284,41 +257,32 @@ export function StandardAircraftClient({
     }
   }
 
-  function updateFuelPlan<K extends keyof FuelPlanningInput>(
-    key: K,
-    value: FuelPlanningInput[K]
-  ) {
-    setFuelPlan((current) =>
-      recalculateFuelPlan({ ...current, [key]: Number(value) })
-    );
-  }
-
   async function updateWeather() {
     setWeatherBusy(true);
     setWeatherStatus("");
     try {
-      const weather = await Promise.all(
+      const fetched = await Promise.all(
         legs.map(async (leg) => ({
           role: leg.role,
-          values: await fetchOpenMeteoForLeg(leg, date),
+          weather: await fetchOpenMeteoForLeg(leg, date),
         }))
       );
       setLegs((current) =>
         current.map((leg) => {
-          const match = weather.find((item) => item.role === leg.role)?.values;
-          return match
+          const weather = fetched.find((item) => item.role === leg.role)?.weather;
+          return weather
             ? {
                 ...leg,
-                tempC: match.tempC,
-                qnhHpa: match.qnhHpa,
-                windFrom: match.windFrom,
-                windKt: match.windKt,
+                tempC: weather.tempC,
+                qnhHpa: weather.qnhHpa,
+                windFrom: weather.windFrom,
+                windKt: weather.windKt,
               }
             : leg;
         })
       );
       setWeatherStatus(
-        `Weather updated for ${weather.filter((item) => item.values).length}/4 aerodromes.`
+        `Weather updated for ${fetched.filter((item) => item.weather).length}/4 aerodromes.`
       );
     } catch (error) {
       console.error(error);
@@ -367,9 +331,8 @@ export function StandardAircraftClient({
     }
   }
 
-  const activeWarnings =
-    aircraft === "Piper PA-28" ? pa28.warnings : tecnam.warnings;
-  const performanceRows = aircraft === "Piper PA-28" ? pa28Rows : tecnamRows;
+  const warnings = aircraft === "Piper PA-28" ? pa28.warnings : tecnam.warnings;
+  const rowCount = aircraft === "Piper PA-28" ? pa28Rows.length : tecnamRows.length;
 
   return (
     <div className="space-y-6">
@@ -390,32 +353,28 @@ export function StandardAircraftClient({
             {weatherBusy ? "Updating..." : "Update weather"}
           </button>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-          <label className="space-y-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              Flight date
-            </span>
-            <input
-              type="date"
-              value={date}
-              onChange={(event) => setDate(event.target.value)}
-              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-            />
-          </label>
-        </div>
+        <label className="mt-4 block max-w-xs space-y-1">
+          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+            Flight date
+          </span>
+          <input
+            type="date"
+            value={date}
+            onChange={(event) => setDate(event.target.value)}
+            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+          />
+        </label>
         <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {legs.map((leg) => {
-            const evaluated = performanceResults.find(
-              (result) => result.leg.role === leg.role
+            const result = performanceResults.find(
+              (item) => item.leg.role === leg.role
             );
             return (
               <div key={leg.role} className="rounded-2xl border border-sky-200 bg-white p-4">
                 <p className="font-semibold text-zinc-950">{roleLabel(leg.role)}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 sm:col-span-2">
-                    <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                      ICAO
-                    </span>
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">ICAO</span>
                     <select
                       value={leg.icao}
                       onChange={(event) => updateLeg(leg.role, { icao: event.target.value })}
@@ -428,43 +387,15 @@ export function StandardAircraftClient({
                       ))}
                     </select>
                   </label>
-                  <NumberField
-                    label="UTC hour"
-                    value={leg.forecastHourUtc ?? 9}
-                    min={0}
-                    max={23}
-                    onChange={(value) => updateLeg(leg.role, { forecastHourUtc: value })}
-                  />
-                  <NumberField
-                    label="Temperature C"
-                    value={leg.tempC}
-                    onChange={(value) => updateLeg(leg.role, { tempC: value })}
-                  />
-                  <NumberField
-                    label="QNH hPa"
-                    value={leg.qnhHpa}
-                    min={900}
-                    max={1050}
-                    onChange={(value) => updateLeg(leg.role, { qnhHpa: value })}
-                  />
-                  <NumberField
-                    label="Wind from"
-                    value={leg.windFrom}
-                    min={0}
-                    max={360}
-                    step={10}
-                    onChange={(value) => updateLeg(leg.role, { windFrom: value })}
-                  />
-                  <NumberField
-                    label="Wind kt"
-                    value={leg.windKt}
-                    min={0}
-                    onChange={(value) => updateLeg(leg.role, { windKt: value })}
-                  />
+                  <NumberField label="UTC hour" value={leg.forecastHourUtc ?? 9} min={0} max={23} onChange={(value) => updateLeg(leg.role, { forecastHourUtc: value })} />
+                  <NumberField label="Temperature C" value={leg.tempC} onChange={(value) => updateLeg(leg.role, { tempC: value })} />
+                  <NumberField label="QNH hPa" value={leg.qnhHpa} min={900} max={1050} onChange={(value) => updateLeg(leg.role, { qnhHpa: value })} />
+                  <NumberField label="Wind from" value={leg.windFrom} min={0} max={360} step={10} onChange={(value) => updateLeg(leg.role, { windFrom: value })} />
+                  <NumberField label="Wind kt" value={leg.windKt} min={0} onChange={(value) => updateLeg(leg.role, { windKt: value })} />
                 </div>
-                {evaluated?.bestRunway ? (
+                {result?.bestRunway ? (
                   <p className="mt-3 text-xs text-zinc-500">
-                    RWY {evaluated.bestRunway.id} · PA {whole(evaluated.pressureAltitudeFt)} ft · slope {evaluated.bestRunway.slope_pc.toFixed(1)}%
+                    RWY {result.bestRunway.id} · PA {whole(result.pressureAltitudeFt)} ft · slope {(result.bestRunway.slope_pc ?? 0).toFixed(1)}%
                   </p>
                 ) : null}
               </div>
@@ -478,17 +409,13 @@ export function StandardAircraftClient({
         <h2 className="text-xl font-semibold text-zinc-950">Aircraft and loading</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="space-y-1">
-            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              Registration
-            </span>
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Registration</span>
             <select
               value={registration}
-              onChange={(event) => selectRegistration(event.target.value)}
+              onChange={(event) => applyRegistration(event.target.value)}
               className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
             >
-              {registrationOptions.map((item) => (
-                <option key={item} value={item}>{item}</option>
-              ))}
+              {registrationOptions.map((item) => <option key={item} value={item}>{item}</option>)}
             </select>
           </label>
           {aircraft === "Piper PA-28" ? (
@@ -528,9 +455,9 @@ export function StandardAircraftClient({
             </>
           )}
         </div>
-        {activeWarnings.length ? (
+        {warnings.length ? (
           <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
-            {activeWarnings.map((warning) => <p key={warning}>{warning}</p>)}
+            {warnings.map((warning) => <p key={warning}>{warning}</p>)}
           </div>
         ) : null}
       </section>
@@ -548,14 +475,10 @@ export function StandardAircraftClient({
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {[
-            ["Taxi", fuelPlan.taxiFuelL],
-            ["Trip", fuelPlan.tripFuelL],
-            ["Contingency", fuelPlan.contingencyFuelL],
-            ["Alternate", fuelPlan.alternateFuelL],
-            ["Reserve", fuelPlan.reserveFuelL],
-            ["Required", fuelPlan.requiredRampFuelL],
-            ["Extra", fuelPlan.extraFuelL],
-            ["Total", fuelPlan.totalRampFuelL],
+            ["Taxi", fuelPlan.taxiFuelL], ["Trip", fuelPlan.tripFuelL],
+            ["Contingency", fuelPlan.contingencyFuelL], ["Alternate", fuelPlan.alternateFuelL],
+            ["Reserve", fuelPlan.reserveFuelL], ["Required", fuelPlan.requiredRampFuelL],
+            ["Extra", fuelPlan.extraFuelL], ["Total", fuelPlan.totalRampFuelL],
           ].map(([label, value]) => (
             <div key={String(label)} className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
               <p className="text-xs text-zinc-500">{label}</p>
@@ -568,20 +491,27 @@ export function StandardAircraftClient({
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <h2 className="text-xl font-semibold text-zinc-950">Aerodrome performance</h2>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
-          {performanceRows.map((row) => {
-            const takeoffRequired = "toM" in row ? row.toM : row.takeoff50M;
-            const landingRequired = "ldgM" in row ? row.ldgM : row.landing50M;
-            return (
-              <div key={`${row.role}-${row.icao}`} className="rounded-2xl border border-zinc-200 p-4">
-                <p className="font-semibold text-zinc-950">{roleLabel(row.role as PerformanceLegRole)} · {row.icao}</p>
-                <p className="mt-1 text-sm text-zinc-500">RWY {row.runway} · PA {whole(row.paFt)} ft</p>
-                <div className="mt-3 grid gap-2">
-                  <ComplianceBadge label="Takeoff" requiredM={takeoffRequired} availableM={row.todaM} />
-                  <ComplianceBadge label="Landing" requiredM={landingRequired} availableM={row.ldaM} />
+          {aircraft === "Piper PA-28"
+            ? pa28Rows.map((row) => (
+                <div key={`${row.role}-${row.icao}`} className="rounded-2xl border border-zinc-200 p-4">
+                  <p className="font-semibold text-zinc-950">{roleLabel(row.role)} · {row.icao}</p>
+                  <p className="mt-1 text-sm text-zinc-500">RWY {row.runway} · PA {whole(row.paFt)} ft</p>
+                  <div className="mt-3 grid gap-2">
+                    <ComplianceBadge label="Takeoff" requiredM={row.toM} availableM={row.todaM} />
+                    <ComplianceBadge label="Landing" requiredM={row.ldgM} availableM={row.ldaM} />
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              ))
+            : tecnamRows.map((row) => (
+                <div key={`${row.role}-${row.icao}`} className="rounded-2xl border border-zinc-200 p-4">
+                  <p className="font-semibold text-zinc-950">{roleLabel(row.role)} · {row.icao}</p>
+                  <p className="mt-1 text-sm text-zinc-500">RWY {row.runway} · PA {whole(row.paFt)} ft</p>
+                  <div className="mt-3 grid gap-2">
+                    <ComplianceBadge label="Takeoff" requiredM={row.takeoff50M} availableM={row.todaM} />
+                    <ComplianceBadge label="Landing" requiredM={row.landing50M} availableM={row.ldaM} />
+                  </div>
+                </div>
+              ))}
         </div>
       </section>
 
@@ -596,7 +526,7 @@ export function StandardAircraftClient({
           <button
             type="button"
             onClick={exportPdf}
-            disabled={pdfBusy || performanceRows.length !== 4}
+            disabled={pdfBusy || rowCount !== 4}
             className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white disabled:bg-zinc-300"
           >
             {pdfBusy ? "Generating..." : "Export PDF"}
