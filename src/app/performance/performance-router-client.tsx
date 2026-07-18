@@ -1,52 +1,49 @@
 "use client";
 
 import { useState } from "react";
-import { PerformanceClient } from "./performance-client";
-import { P2006TCompleteClient } from "./p2006t-complete-client";
+import { P2006TMissionClient } from "./p2006t-mission-client";
+import { StandardAircraftClient } from "./standard-aircraft-client";
 
-type PerformanceMode = "P2006T" | "Existing";
+type PerformanceMode = "P2006T" | "P2008" | "PA28";
+
+const OPTIONS: Array<{ value: PerformanceMode; label: string }> = [
+  { value: "P2006T", label: "Tecnam P2006T" },
+  { value: "P2008", label: "Tecnam P2008" },
+  { value: "PA28", label: "Piper PA-28" },
+];
 
 export function PerformanceRouterClient() {
   const [mode, setMode] = useState<PerformanceMode>("P2006T");
 
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-3 sm:grid-cols-2">
-          <button
-            type="button"
-            onClick={() => setMode("P2006T")}
-            className={[
-              "rounded-2xl border p-4 text-left transition",
-              mode === "P2006T"
-                ? "border-zinc-950 bg-zinc-950 text-white"
-                : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-400",
-            ].join(" ")}
-          >
-            <span className="block font-semibold">Tecnam P2006T</span>
-            <span className="mt-1 block text-xs opacity-75">
-              Official form, aircraft-specific AFM tables and two alternates
-            </span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("Existing")}
-            className={[
-              "rounded-2xl border p-4 text-left transition",
-              mode === "Existing"
-                ? "border-zinc-950 bg-zinc-950 text-white"
-                : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-400",
-            ].join(" ")}
-          >
-            <span className="block font-semibold">Tecnam P2008 / Piper PA-28</span>
-            <span className="mt-1 block text-xs opacity-75">
-              Existing workflow preserved without changes
-            </span>
-          </button>
+      <section className="rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
+        <div className="grid gap-2 sm:grid-cols-3">
+          {OPTIONS.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => setMode(option.value)}
+              className={[
+                "rounded-2xl border px-4 py-3 text-left text-sm font-semibold transition",
+                mode === option.value
+                  ? "border-zinc-950 bg-zinc-950 text-white"
+                  : "border-zinc-200 bg-white text-zinc-800 hover:border-zinc-400",
+              ].join(" ")}
+            >
+              {option.label}
+            </button>
+          ))}
         </div>
       </section>
 
-      {mode === "P2006T" ? <P2006TCompleteClient /> : <PerformanceClient />}
+      {mode === "P2006T" ? <P2006TMissionClient /> : null}
+      {mode === "P2008" ? (
+        <StandardAircraftClient aircraft="Tecnam P2008" />
+      ) : null}
+      {mode === "PA28" ? (
+        <StandardAircraftClient aircraft="Piper PA-28" />
+      ) : null}
     </div>
   );
 }
