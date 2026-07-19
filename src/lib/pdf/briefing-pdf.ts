@@ -1,1 +1,1 @@
-export { buildBriefingPdf } from "./briefing-pdf-v2";
+export { buildBriefingPdf } from "./briefing-pdf-v3";
