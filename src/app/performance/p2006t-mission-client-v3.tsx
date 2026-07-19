@@ -12,7 +12,7 @@ function updateControlledSelect(select: HTMLSelectElement, value: string) {
   select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
-function replacePlanningCopy(root: HTMLElement) {
+function replaceCopy(root: HTMLElement) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
@@ -20,14 +20,18 @@ function replacePlanningCopy(root: HTMLElement) {
   nodes.forEach((node) => {
     const current = node.nodeValue ?? "";
     const next = current
-      .replace(/OM\/POH planning margin/gi, "25% briefing/planning buffer")
-      .replace(/OM\/POH/gi, "planning")
-      .replace(/operational margin/gi, "briefing/planning buffer")
-      .replace(/NOT COMPLIANT/g, "MARGIN NOT MET")
-      .replace(/COMPLIANT/g, "MARGIN OK")
+      .replace(/OM\/POH planning margin/gi, "OM buffer")
+      .replace(/25% briefing\/planning buffer/gi, "OM buffer")
+      .replace(/briefing\/planning buffer/gi, "OM buffer")
+      .replace(/The applicable OM remains controlling\.?/gi, "")
+      .replace(/This planning figure is not itself an AFM correction\.?/gi, "")
       .replace(
         /One page per aerodrome with takeoff and landing source tables\./gi,
-        "Two readable pages per aerodrome: take-off tables and landing tables."
+        "One A2 page per aerodrome with four enlarged AFM tables."
+      )
+      .replace(
+        /Two readable pages per aerodrome: take-off tables and landing tables\./gi,
+        "One A2 page per aerodrome with four enlarged AFM tables."
       );
     if (next !== current) node.nodeValue = next;
   });
@@ -53,22 +57,21 @@ export function P2006TMissionClientV3() {
 
     const apply = () => {
       applySecondAlternateDefault(root);
-      replacePlanningCopy(root);
+      replaceCopy(root);
     };
 
     apply();
     const observer = new MutationObserver(apply);
-    observer.observe(root, { subtree: true, childList: true, characterData: true });
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
     return () => observer.disconnect();
   }, []);
 
   return (
     <div ref={rootRef} className="space-y-4">
-      <section className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-950">
-        The 25% figure is shown as a briefing/planning buffer. It is not an
-        additional AFM correction and does not replace the applicable OM rule.
-        Paved-runway corrections are applied from the published P2006T tables.
-      </section>
       <P2006TMissionClientV2 />
     </div>
   );
