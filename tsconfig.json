@@ -20,7 +20,7 @@
     ],
     "paths": {
       "@/lib/pdf/p2006t-performance-pdf-v3": [
-        "./src/lib/pdf/p2006t-performance-pdf-v4.ts"
+        "./src/lib/pdf/p2006t-performance-pdf-v5.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf": [
         "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
