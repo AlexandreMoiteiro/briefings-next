@@ -27,11 +27,11 @@ function replaceCopy(root: HTMLElement) {
       .replace(/This planning figure is not itself an AFM correction\.?/gi, "")
       .replace(
         /One page per aerodrome with takeoff and landing source tables\./gi,
-        "One A2 page per aerodrome with four enlarged AFM tables."
+        "One compact page per aerodrome with four enlarged AFM tables."
       )
       .replace(
         /Two readable pages per aerodrome: take-off tables and landing tables\./gi,
-        "One A2 page per aerodrome with four enlarged AFM tables."
+        "One compact page per aerodrome with four enlarged AFM tables."
       );
     if (next !== current) node.nodeValue = next;
   });
