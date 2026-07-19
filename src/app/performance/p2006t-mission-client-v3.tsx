@@ -19,12 +19,16 @@ function replacePlanningCopy(root: HTMLElement) {
 
   nodes.forEach((node) => {
     const current = node.nodeValue ?? "";
-    let next = current
+    const next = current
       .replace(/OM\/POH planning margin/gi, "25% briefing/planning buffer")
       .replace(/OM\/POH/gi, "planning")
       .replace(/operational margin/gi, "briefing/planning buffer")
       .replace(/NOT COMPLIANT/g, "MARGIN NOT MET")
-      .replace(/COMPLIANT/g, "MARGIN OK");
+      .replace(/COMPLIANT/g, "MARGIN OK")
+      .replace(
+        /One page per aerodrome with takeoff and landing source tables\./gi,
+        "Two readable pages per aerodrome: take-off tables and landing tables."
+      );
     if (next !== current) node.nodeValue = next;
   });
 }
