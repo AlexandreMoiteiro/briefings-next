@@ -62,7 +62,7 @@ function ensureP2006Options(root: HTMLElement) {
 
 export function BriefingBuilderClientV2() {
   const legacyRootRef = useRef<HTMLDivElement>(null);
-  const [useP2006T, setUseP2006T] = useState(false);
+  const [useP2006T, setUseP2006T] = useState(true);
   const [registration, setRegistration] =
     useState<BriefingAircraftOverride["registration"]>("D-GSEV");
   const [objectivesName, setObjectivesName] = useState("");
@@ -115,11 +115,11 @@ export function BriefingBuilderClientV2() {
         <div className="grid gap-5 lg:grid-cols-2">
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Tecnam P2006T
+              Aircraft
             </h2>
             <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Enable the P2006T and choose the registration to be used in the
-              mission summary and final briefing PDF.
+              Tecnam P2006T is selected by default for the mission summary and
+              final briefing PDF.
             </p>
             <label className="mt-4 flex items-center gap-3 rounded-2xl border border-zinc-200 p-3">
               <input
@@ -129,7 +129,7 @@ export function BriefingBuilderClientV2() {
                 className="h-4 w-4"
               />
               <span className="text-sm font-medium text-zinc-800">
-                Use Tecnam P2006T
+                Tecnam P2006T (default)
               </span>
             </label>
             <label className="mt-3 block space-y-1.5">
@@ -157,11 +157,11 @@ export function BriefingBuilderClientV2() {
 
           <div>
             <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Mission objectives PDF
+              Include mission objectives PDF
             </h2>
             <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Optional. When supplied, this PDF is placed directly after the
-              mission summary in the generated briefing.
+              Optional. The selected PDF is inserted directly after the mission
+              summary in the generated briefing.
             </p>
             <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-5 py-7 text-center hover:bg-zinc-100">
               <span className="text-sm font-semibold text-zinc-950">
