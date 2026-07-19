@@ -218,3 +218,5 @@ export default async function PdfV5SmokePage() {
   console.log("PDF_V5_SMOKE_OK", JSON.stringify(result));
   return <pre>{JSON.stringify(result, null, 2)}</pre>;
 }
+
+// This route is temporary and is removed after the Vercel smoke test passes.
