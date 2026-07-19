@@ -1,5 +1,5 @@
-import { BriefingBuilderClient } from "./briefing-builder-client";
+import { BriefingBuilderClientV2 } from "./briefing-builder-client-v2";
 
 export default function BriefingPage() {
-  return <BriefingBuilderClient />;
+  return <BriefingBuilderClientV2 />;
 }
