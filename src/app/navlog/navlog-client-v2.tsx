@@ -1,0 +1,274 @@
+"use client";
+
+import { createPortal } from "react-dom";
+import { useEffect, useRef, useState } from "react";
+import { NavlogClient as BaseNavlogClient } from "./navlog-client";
+import {
+  formatOperationalSeconds,
+  formatNavlogDuration,
+} from "@/lib/operational-duration";
+
+type AlternateStatus = {
+  duration: string;
+  detail: string;
+  tone: "ok" | "caution" | "blocked";
+} | null;
+
+function findLabel(root: HTMLElement, text: string) {
+  return Array.from(root.querySelectorAll("label")).find((label) =>
+    Array.from(label.querySelectorAll("span")).some(
+      (span) => span.textContent?.trim() === text
+    )
+  );
+}
+
+function parseDisplayedDuration(value: string) {
+  const hoursMatch = value.match(/(\d+)\s*h(?:\s*(\d+)\s*min)?/i);
+  if (hoursMatch) {
+    return Number(hoursMatch[1]) * 3600 + Number(hoursMatch[2] ?? 0) * 60;
+  }
+
+  const clockMatch = value.match(/^(\d{1,2}):(\d{2})$/);
+  if (clockMatch) {
+    return Number(clockMatch[1]) * 60 + Number(clockMatch[2]);
+  }
+
+  const minuteMatch = value.match(/(\d+)\s*min/i);
+  return minuteMatch ? Number(minuteMatch[1]) * 60 : 0;
+}
+
+function findSummaryGrid(root: HTMLElement) {
+  const eteLabel = Array.from(root.querySelectorAll("p")).find(
+    (item) => item.textContent?.trim() === "ETE"
+  );
+  return (eteLabel?.parentElement?.parentElement as HTMLElement | null) ?? null;
+}
+
+function readEteSeconds(root: HTMLElement) {
+  const eteLabel = Array.from(root.querySelectorAll("p")).find(
+    (item) => item.textContent?.trim() === "ETE"
+  );
+  const value = eteLabel?.parentElement?.querySelector("p.font-semibold");
+  return parseDisplayedDuration(value?.textContent?.trim() ?? "");
+}
+
+function readAircraft(root: HTMLElement) {
+  const select = findLabel(root, "Aircraft")?.querySelector("select");
+  return select instanceof HTMLSelectElement ? select.value : "";
+}
+
+function readGroundMinutes(root: HTMLElement, fallback: number) {
+  const input = findLabel(root, "Ground/taxi time")?.querySelector("input");
+  if (!(input instanceof HTMLInputElement)) return fallback;
+  const value = Number(input.value);
+  return Number.isFinite(value) ? Math.max(0, value) : fallback;
+}
+
+function readAlternateStatus(root: HTMLElement): AlternateStatus {
+  const element = Array.from(root.querySelectorAll("div")).find((candidate) => {
+    const text = candidate.textContent?.trim() ?? "";
+    return text.startsWith("HOLD MAX") && candidate.className.includes("rounded-xl");
+  });
+
+  if (!element) return null;
+
+  const text = element.textContent?.replace(/\s+/g, " ").trim() ?? "";
+  const duration =
+    text.match(/HOLD MAX\s+((?:\d+\s*h(?:\s*\d+\s*min)?|\d{1,2}:\d{2}))/i)?.[1] ??
+    "";
+  const detail = element.querySelector("span")?.textContent?.trim() ?? "";
+  const className = String(element.className);
+  const tone = className.includes("red-")
+    ? "blocked"
+    : className.includes("amber-")
+      ? "caution"
+      : "ok";
+
+  return duration ? { duration, detail, tone } : null;
+}
+
+function hasAlternateMarker(root: HTMLElement) {
+  return Array.from(root.querySelectorAll("button")).some(
+    (button) => button.textContent?.trim() === "Unset alternate"
+  );
+}
+
+function updateFuelUnits(
+  root: HTMLElement,
+  showGallons: boolean,
+  originals: Map<Text, string>
+) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+
+  nodes.forEach((node) => {
+    const parent = node.parentElement;
+    if (!parent || ["SCRIPT", "STYLE", "OPTION"].includes(parent.tagName)) return;
+
+    const original = originals.get(node) ?? node.nodeValue ?? "";
+    if (!originals.has(node) && /\b\d+\(\d+\)\b/.test(original)) {
+      originals.set(node, original);
+    }
+
+    const stored = originals.get(node);
+    if (!stored) return;
+
+    const next = showGallons
+      ? stored
+      : stored.replace(/\b(\d+)\(\d+\)\b/g, "$1");
+
+    if (node.nodeValue !== next) node.nodeValue = next;
+  });
+}
+
+function TotalTimeCard({ eteSeconds, groundMinutes }: {
+  eteSeconds: number;
+  groundMinutes: number;
+}) {
+  const totalSeconds = eteSeconds + groundMinutes * 60;
+
+  return (
+    <div className="rounded-2xl border border-zinc-200 bg-white p-3" aria-live="polite">
+      <p className="text-zinc-500">Block time</p>
+      <p className="font-semibold text-zinc-950">
+        {formatOperationalSeconds(totalSeconds)}
+      </p>
+      <p className="mt-0.5 text-[11px] text-zinc-500">
+        ETE {formatNavlogDuration(eteSeconds)} + ground {groundMinutes} min
+      </p>
+    </div>
+  );
+}
+
+function AlternateCard({ status, markerSet }: {
+  status: AlternateStatus;
+  markerSet: boolean;
+}) {
+  const tone = status?.tone ?? "caution";
+  const classes =
+    tone === "blocked"
+      ? "border-red-200 bg-red-50 text-red-800"
+      : tone === "caution"
+        ? "border-amber-200 bg-amber-50 text-amber-800"
+        : "border-emerald-200 bg-emerald-50 text-emerald-800";
+
+  return (
+    <div className={`rounded-2xl border p-3 ${classes}`} aria-live="polite">
+      <p className="text-xs font-medium opacity-75">Alternate</p>
+      {status ? (
+        <>
+          <p className="font-semibold">Leave within {status.duration}</p>
+          <p className="mt-0.5 text-[11px] opacity-80">
+            {status.detail || "Includes the alternate leg and 45 min final reserve."}
+          </p>
+        </>
+      ) : markerSet ? (
+        <>
+          <p className="font-semibold">Alternate route incomplete</p>
+          <p className="mt-0.5 text-[11px] opacity-80">
+            Add at least one leg after the point marked Start alternate.
+          </p>
+        </>
+      ) : (
+        <>
+          <p className="font-semibold">Not set</p>
+          <p className="mt-0.5 text-[11px] opacity-80">
+            Mark the destination with Start alternate to calculate the latest diversion time.
+          </p>
+        </>
+      )}
+    </div>
+  );
+}
+
+export function NavlogClientV2() {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const fuelOriginalsRef = useRef(new Map<Text, string>());
+  const [summaryGrid, setSummaryGrid] = useState<HTMLElement | null>(null);
+  const [eteSeconds, setEteSeconds] = useState(0);
+  const [groundMinutes, setGroundMinutes] = useState(20);
+  const [aircraft, setAircraft] = useState("Tecnam P2006T");
+  const [alternateStatus, setAlternateStatus] = useState<AlternateStatus>(null);
+  const [alternateMarkerSet, setAlternateMarkerSet] = useState(false);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const sync = () => {
+      const nextAircraft = readAircraft(root);
+      const nextGroundMinutes = readGroundMinutes(root, groundMinutes);
+      const nextGrid = findSummaryGrid(root);
+      const nextStatus = readAlternateStatus(root);
+      const nextMarkerSet = hasAlternateMarker(root);
+
+      updateFuelUnits(
+        root,
+        nextAircraft === "Piper PA-28",
+        fuelOriginalsRef.current
+      );
+
+      if (nextGrid) {
+        nextGrid.classList.remove("md:grid-cols-4");
+        nextGrid.classList.add("md:grid-cols-6");
+      }
+
+      setSummaryGrid((current) => (current === nextGrid ? current : nextGrid));
+      setEteSeconds(readEteSeconds(root));
+      setGroundMinutes(nextGroundMinutes);
+      setAircraft(nextAircraft);
+      setAlternateStatus((current) =>
+        JSON.stringify(current) === JSON.stringify(nextStatus) ? current : nextStatus
+      );
+      setAlternateMarkerSet(nextMarkerSet);
+    };
+
+    const handleInput = () => queueMicrotask(sync);
+    sync();
+    root.addEventListener("input", handleInput);
+    root.addEventListener("change", handleInput);
+    root.addEventListener("click", handleInput);
+
+    const observer = new MutationObserver(sync);
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      characterData: true,
+    });
+
+    return () => {
+      observer.disconnect();
+      root.removeEventListener("input", handleInput);
+      root.removeEventListener("change", handleInput);
+      root.removeEventListener("click", handleInput);
+    };
+  }, [groundMinutes]);
+
+  return (
+    <div ref={rootRef}>
+      <BaseNavlogClient />
+      {summaryGrid
+        ? createPortal(
+            <>
+              <TotalTimeCard
+                eteSeconds={eteSeconds}
+                groundMinutes={groundMinutes}
+              />
+              <AlternateCard
+                status={alternateStatus}
+                markerSet={alternateMarkerSet}
+              />
+            </>,
+            summaryGrid
+          )
+        : null}
+      <span className="sr-only" aria-live="polite">
+        {aircraft === "Piper PA-28"
+          ? "Fuel shown in litres and US gallons."
+          : "Fuel shown in litres."}
+      </span>
+    </div>
+  );
+}
