@@ -23,17 +23,20 @@ function findLabel(root: HTMLElement, text: string) {
 }
 
 function parseDisplayedDuration(value: string) {
-  const hoursMatch = value.match(/(\d+)\s*h(?:\s*(\d+)\s*min)?/i);
+  const normalized = value.replace(/\s+/g, " ").trim();
+  const hoursMatch = normalized.match(/(\d+)\s*h(?:\s*(\d+)\s*min)?/i);
   if (hoursMatch) {
     return Number(hoursMatch[1]) * 3600 + Number(hoursMatch[2] ?? 0) * 60;
   }
 
-  const clockMatch = value.match(/^(\d{1,2}):(\d{2})$/);
+  const clockMatch = normalized.match(/^(\d{1,2}):(\d{2})$/);
   if (clockMatch) {
-    return Number(clockMatch[1]) * 60 + Number(clockMatch[2]);
+    const first = Number(clockMatch[1]);
+    const second = Number(clockMatch[2]);
+    return first >= 60 ? first * 60 + second : first * 60 + second;
   }
 
-  const minuteMatch = value.match(/(\d+)\s*min/i);
+  const minuteMatch = normalized.match(/(\d+)\s*min/i);
   return minuteMatch ? Number(minuteMatch[1]) * 60 : 0;
 }
 
@@ -44,17 +47,27 @@ function findSummaryGrid(root: HTMLElement) {
   return (eteLabel?.parentElement?.parentElement as HTMLElement | null) ?? null;
 }
 
-function readEteSeconds(root: HTMLElement) {
+function readEteValue(root: HTMLElement) {
   const eteLabel = Array.from(root.querySelectorAll("p")).find(
     (item) => item.textContent?.trim() === "ETE"
   );
-  const value = eteLabel?.parentElement?.querySelector("p.font-semibold");
-  return parseDisplayedDuration(value?.textContent?.trim() ?? "");
+  return eteLabel?.parentElement?.querySelector("p.font-semibold") as HTMLElement | null;
+}
+
+function readEteSeconds(root: HTMLElement) {
+  return parseDisplayedDuration(readEteValue(root)?.textContent?.trim() ?? "");
 }
 
 function readAircraft(root: HTMLElement) {
   const select = findLabel(root, "Aircraft")?.querySelector("select");
-  return select instanceof HTMLSelectElement ? select.value : "";
+  if (!(select instanceof HTMLSelectElement)) return "";
+  const selectedText = select.selectedOptions[0]?.textContent?.trim() ?? "";
+  return `${select.value} ${selectedText}`.trim();
+}
+
+function isPiperAircraft(value: string) {
+  const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return normalized.includes("PIPER") || normalized.includes("PA28");
 }
 
 function readGroundMinutes(root: HTMLElement, fallback: number) {
@@ -66,7 +79,7 @@ function readGroundMinutes(root: HTMLElement, fallback: number) {
 
 function readAlternateStatus(root: HTMLElement): AlternateStatus {
   const element = Array.from(root.querySelectorAll("div")).find((candidate) => {
-    const text = candidate.textContent?.trim() ?? "";
+    const text = candidate.textContent?.replace(/\s+/g, " ").trim() ?? "";
     return text.startsWith("HOLD MAX") && candidate.className.includes("rounded-xl");
   });
 
@@ -74,7 +87,7 @@ function readAlternateStatus(root: HTMLElement): AlternateStatus {
 
   const text = element.textContent?.replace(/\s+/g, " ").trim() ?? "";
   const duration =
-    text.match(/HOLD MAX\s+((?:\d+\s*h(?:\s*\d+\s*min)?|\d{1,2}:\d{2}))/i)?.[1] ??
+    text.match(/HOLD MAX\s+((?:\d+\s*h(?:\s*\d+\s*min)?|\d{1,3}:\d{2}))/i)?.[1] ??
     "";
   const detail = element.querySelector("span")?.textContent?.trim() ?? "";
   const className = String(element.className);
@@ -84,7 +97,13 @@ function readAlternateStatus(root: HTMLElement): AlternateStatus {
       ? "caution"
       : "ok";
 
-  return duration ? { duration, detail, tone } : null;
+  if (!duration) return null;
+  const seconds = parseDisplayedDuration(duration);
+  return {
+    duration: formatOperationalSeconds(seconds),
+    detail,
+    tone,
+  };
 }
 
 function hasAlternateMarker(root: HTMLElement) {
@@ -131,12 +150,12 @@ function TotalTimeCard({ eteSeconds, groundMinutes }: {
 
   return (
     <div className="rounded-2xl border border-zinc-200 bg-white p-3" aria-live="polite">
-      <p className="text-zinc-500">Block time</p>
+      <p className="text-zinc-500">Total time</p>
       <p className="font-semibold text-zinc-950">
         {formatOperationalSeconds(totalSeconds)}
       </p>
       <p className="mt-0.5 text-[11px] text-zinc-500">
-        ETE {formatNavlogDuration(eteSeconds)} + ground {groundMinutes} min
+        ETE {formatNavlogDuration(eteSeconds)} + ground {formatOperationalSeconds(groundMinutes * 60)}
       </p>
     </div>
   );
@@ -161,7 +180,7 @@ function AlternateCard({ status, markerSet }: {
         <>
           <p className="font-semibold">Leave within {status.duration}</p>
           <p className="mt-0.5 text-[11px] opacity-80">
-            {status.detail || "Includes the alternate leg and 45 min final reserve."}
+            {status.detail || "Time available at destination before leaving for the alternate and landing with the 45 min final reserve."}
           </p>
         </>
       ) : markerSet ? (
@@ -175,7 +194,7 @@ function AlternateCard({ status, markerSet }: {
         <>
           <p className="font-semibold">Not set</p>
           <p className="mt-0.5 text-[11px] opacity-80">
-            Mark the destination with Start alternate to calculate the latest diversion time.
+            Mark the destination with Start alternate to calculate how long you may remain before diverting.
           </p>
         </>
       )}
@@ -203,10 +222,11 @@ export function NavlogClientV2() {
       const nextGrid = findSummaryGrid(root);
       const nextStatus = readAlternateStatus(root);
       const nextMarkerSet = hasAlternateMarker(root);
+      const nextEteSeconds = readEteSeconds(root);
 
       updateFuelUnits(
         root,
-        nextAircraft === "Piper PA-28",
+        isPiperAircraft(nextAircraft),
         fuelOriginalsRef.current
       );
 
@@ -215,8 +235,14 @@ export function NavlogClientV2() {
         nextGrid.classList.add("md:grid-cols-6");
       }
 
+      const eteValue = readEteValue(root);
+      const formattedEte = formatNavlogDuration(nextEteSeconds);
+      if (eteValue && eteValue.textContent !== formattedEte) {
+        eteValue.textContent = formattedEte;
+      }
+
       setSummaryGrid((current) => (current === nextGrid ? current : nextGrid));
-      setEteSeconds(readEteSeconds(root));
+      setEteSeconds(nextEteSeconds);
       setGroundMinutes(nextGroundMinutes);
       setAircraft(nextAircraft);
       setAlternateStatus((current) =>
@@ -265,7 +291,7 @@ export function NavlogClientV2() {
           )
         : null}
       <span className="sr-only" aria-live="polite">
-        {aircraft === "Piper PA-28"
+        {isPiperAircraft(aircraft)
           ? "Fuel shown in litres and US gallons."
           : "Fuel shown in litres."}
       </span>
