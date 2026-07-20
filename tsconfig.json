@@ -22,6 +22,9 @@
       "@/lib/navlog-engine": [
         "./src/lib/navlog-engine-display.ts"
       ],
+      "@/lib/pdf/navlog-form-pdf": [
+        "./src/lib/pdf/navlog-form-pdf-v2.ts"
+      ],
       "@/lib/pdf/p2006t-performance-pdf-v3": [
         "./src/lib/pdf/p2006t-performance-pdf-v6.ts"
       ],
