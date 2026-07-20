@@ -1,1 +1,1 @@
-export { P2006TMissionClientV6 as P2006TMissionClient } from "./p2006t-mission-client-v6";
+export { P2006TMissionClientV7 as P2006TMissionClient } from "./p2006t-mission-client-v7";
