@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { P2006TMissionClientV2 } from "./p2006t-mission-client-v2";
+import { formatOperationalMinutes } from "@/lib/operational-duration";
 
 function updateControlledSelect(select: HTMLSelectElement, value: string) {
   const setter = Object.getOwnPropertyDescriptor(
@@ -12,6 +13,15 @@ function updateControlledSelect(select: HTMLSelectElement, value: string) {
   select.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
+function formatLongMinuteText(value: string) {
+  return value.replace(/\b(\d+)\s*min\b/gi, (match, minutesText) => {
+    const minutes = Number(minutesText);
+    return Number.isFinite(minutes) && minutes >= 60
+      ? formatOperationalMinutes(minutes)
+      : match;
+  });
+}
+
 function replaceCopy(root: HTMLElement) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -19,20 +29,22 @@ function replaceCopy(root: HTMLElement) {
 
   nodes.forEach((node) => {
     const current = node.nodeValue ?? "";
-    const next = current
-      .replace(/OM\/POH planning margin/gi, "OM buffer")
-      .replace(/25% briefing\/planning buffer/gi, "OM buffer")
-      .replace(/briefing\/planning buffer/gi, "OM buffer")
-      .replace(/The applicable OM remains controlling\.?/gi, "")
-      .replace(/This planning figure is not itself an AFM correction\.?/gi, "")
-      .replace(
-        /One page per aerodrome with takeoff and landing source tables\./gi,
-        "One compact page per aerodrome with four enlarged AFM tables."
-      )
-      .replace(
-        /Two readable pages per aerodrome: take-off tables and landing tables\./gi,
-        "One compact page per aerodrome with four enlarged AFM tables."
-      );
+    const next = formatLongMinuteText(
+      current
+        .replace(/OM\/POH planning margin/gi, "OM buffer")
+        .replace(/25% briefing\/planning buffer/gi, "OM buffer")
+        .replace(/briefing\/planning buffer/gi, "OM buffer")
+        .replace(/The applicable OM remains controlling\.?/gi, "")
+        .replace(/This planning figure is not itself an AFM correction\.?/gi, "")
+        .replace(
+          /One page per aerodrome with takeoff and landing source tables\./gi,
+          "One compact page per aerodrome with four enlarged AFM tables."
+        )
+        .replace(
+          /Two readable pages per aerodrome: take-off tables and landing tables\./gi,
+          "One compact page per aerodrome with four enlarged AFM tables."
+        )
+    );
     if (next !== current) node.nodeValue = next;
   });
 }
