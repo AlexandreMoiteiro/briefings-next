@@ -15,11 +15,9 @@ export type NavlogSetupForm = {
   aircraftType: NavlogAircraftType;
   registration: string;
   callsign: string;
-
   climbTas: number;
   cruiseTas: number;
   descentTas: number;
-
   fuelFlowLh: number;
   taxiFuelL: number;
   taxiFuelFlowLh: number;
@@ -30,18 +28,14 @@ export type NavlogSetupForm = {
   instructor: string;
   student: string;
   taxiMin: number;
-
   windFrom: number;
   windKt: number;
   useGlobalWind: boolean;
-
   magVar: number;
   magDirection: "E" | "W";
-
   rocFpm: number;
   rodFpm: number;
   defaultAltitude: number;
-
   showReferencePoints: boolean;
   referenceLayers: NavlogReferenceLayer[];
   showAirways: boolean;
@@ -157,11 +151,9 @@ export const navlogDefaultSetup: NavlogSetupForm = {
   aircraftType: "Tecnam P2006T",
   registration: "CS-EBX",
   callsign: "RVP",
-
   climbTas: defaultProfile.climbTas,
   cruiseTas: defaultProfile.cruiseTas,
   descentTas: defaultProfile.descentTas,
-
   fuelFlowLh: defaultProfile.fuelFlowLh,
   taxiFuelL: defaultProfile.taxiFuelL,
   taxiFuelFlowLh: defaultProfile.taxiFuelFlowLh,
@@ -172,18 +164,14 @@ export const navlogDefaultSetup: NavlogSetupForm = {
   instructor: "",
   student: "",
   taxiMin: defaultProfile.taxiMin,
-
   windFrom: 0,
   windKt: 0,
   useGlobalWind: true,
-
   magVar: 1.0,
   magDirection: "W",
-
   rocFpm: defaultProfile.rocFpm,
   rodFpm: defaultProfile.rodFpm,
   defaultAltitude: defaultProfile.defaultAltitude,
-
   showReferencePoints: true,
   referenceLayers: navlogReferenceLayers,
   showAirways: true,
@@ -260,6 +248,7 @@ export type NavlogPoint = {
   name: string;
   lat: number;
   lon: number;
+  alt: number;
   src: NavlogPointSource;
   routes: string;
   remarks: string;
@@ -274,22 +263,24 @@ export type NavlogVor = {
 };
 
 export type NavlogAirway = {
-  route: string;
-  sequence: number;
-  code: string;
+  airway: string;
+  seq: number;
+  point: string;
   lat: number;
   lon: number;
-  pointType: string;
+  routeType: string;
+  lower: string;
+  upper: string;
+  mea: string;
+  remarks: string;
 };
 
 export type NavlogProcedure = {
-  source: string;
-  aerodrome: string;
-  procedure: string;
-  sequence: number;
-  code: string;
-  lat: number;
-  lon: number;
+  id: string;
+  name: string;
+  kind: string;
+  runway?: string;
+  transition?: string;
 };
 
 export type NavlogDataBundle = {
@@ -303,11 +294,11 @@ export type NavlogRouteWaypoint = {
   id: string;
   point: NavlogPoint;
   altitudeFt: number;
-  stopMin: number;
-  note: string;
   useGlobalWind: boolean;
   windFrom: number;
   windKt: number;
+  stopMin: number;
+  note: string;
   vorPref: "AUTO" | "FIXED";
   vorIdent: string;
   suppressAutoVertical?: boolean;
@@ -324,22 +315,24 @@ export type NavlogRouteNode = {
   src: string;
   note: string;
   stopMin: number;
-  useGlobalWind?: boolean;
-  windFrom?: number;
-  windKt?: number;
-  vorPref?: "AUTO" | "FIXED" | "NONE";
-  vorIdent?: string;
+  useGlobalWind: boolean;
+  windFrom: number;
+  windKt: number;
+  vorPref: "AUTO" | "FIXED";
+  vorIdent: string;
   calcDetail?: string;
   suppressAutoVertical?: boolean;
+  alternateMarker?: boolean;
 };
+
+export type NavlogLegProfile = "CLIMB" | "LEVEL" | "DESCENT" | "STOP";
 
 export type NavlogLeg = {
   i: number;
   from: NavlogRouteNode;
   to: NavlogRouteNode;
-  profile: "CLIMB" | "LEVEL" | "DESCENT";
+  profile: NavlogLegProfile;
   tc: number;
-  wca: number;
   th: number;
   mh: number;
   tas: number;
@@ -348,16 +341,15 @@ export type NavlogLeg = {
   eteSec: number;
   burnL: number;
   holdSec: number;
-  holdDistNm: number;
   holdBurnL: number;
-  cumDistNm: number;
-  cumTimeSec: number;
   efobStartL: number;
   efobAfterLegL: number;
   efobEndL: number;
   clockStart: string;
   clockArrive: string;
   clockEnd: string;
+  windFrom: number;
+  windKt: number;
   tracking: string;
 };
 
