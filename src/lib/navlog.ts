@@ -74,7 +74,7 @@ export const navlogAircraftProfiles: Record<
     fuelFlowLh: 36,
     taxiFuelL: 5,
     taxiFuelFlowLh: 16,
-    startEfob: 200,
+    startEfob: 194.4,
     taxiMin: 20,
     rocFpm: 850,
     rodFpm: 500,
@@ -260,7 +260,6 @@ export type NavlogPoint = {
   name: string;
   lat: number;
   lon: number;
-  alt: number;
   src: NavlogPointSource;
   routes: string;
   remarks: string;
@@ -275,24 +274,22 @@ export type NavlogVor = {
 };
 
 export type NavlogAirway = {
-  airway: string;
-  seq: number;
-  point: string;
+  route: string;
+  sequence: number;
+  code: string;
   lat: number;
   lon: number;
-  routeType: string;
-  lower: string;
-  upper: string;
-  mea: string;
-  remarks: string;
+  pointType: string;
 };
 
 export type NavlogProcedure = {
-  id: string;
-  name: string;
-  kind: string;
-  runway?: string;
-  transition?: string;
+  source: string;
+  aerodrome: string;
+  procedure: string;
+  sequence: number;
+  code: string;
+  lat: number;
+  lon: number;
 };
 
 export type NavlogDataBundle = {
@@ -306,11 +303,11 @@ export type NavlogRouteWaypoint = {
   id: string;
   point: NavlogPoint;
   altitudeFt: number;
+  stopMin: number;
+  note: string;
   useGlobalWind: boolean;
   windFrom: number;
   windKt: number;
-  stopMin: number;
-  note: string;
   vorPref: "AUTO" | "FIXED";
   vorIdent: string;
   suppressAutoVertical?: boolean;
@@ -327,24 +324,22 @@ export type NavlogRouteNode = {
   src: string;
   note: string;
   stopMin: number;
-  useGlobalWind: boolean;
-  windFrom: number;
-  windKt: number;
-  vorPref: "AUTO" | "FIXED";
-  vorIdent: string;
+  useGlobalWind?: boolean;
+  windFrom?: number;
+  windKt?: number;
+  vorPref?: "AUTO" | "FIXED" | "NONE";
+  vorIdent?: string;
   calcDetail?: string;
   suppressAutoVertical?: boolean;
-  alternateMarker?: boolean;
 };
-
-export type NavlogLegProfile = "CLIMB" | "LEVEL" | "DESCENT" | "STOP";
 
 export type NavlogLeg = {
   i: number;
   from: NavlogRouteNode;
   to: NavlogRouteNode;
-  profile: NavlogLegProfile;
+  profile: "CLIMB" | "LEVEL" | "DESCENT";
   tc: number;
+  wca: number;
   th: number;
   mh: number;
   tas: number;
@@ -353,15 +348,16 @@ export type NavlogLeg = {
   eteSec: number;
   burnL: number;
   holdSec: number;
+  holdDistNm: number;
   holdBurnL: number;
+  cumDistNm: number;
+  cumTimeSec: number;
   efobStartL: number;
   efobAfterLegL: number;
   efobEndL: number;
   clockStart: string;
   clockArrive: string;
   clockEnd: string;
-  windFrom: number;
-  windKt: number;
   tracking: string;
 };
 
