@@ -3,6 +3,7 @@ import {
   type PerformanceAerodrome,
   type PerformanceRunway,
 } from "@/lib/performance/aerodromes";
+import { applyAipRunwayOverrides } from "@/lib/performance/aip-runway-overrides";
 
 const AERODROME_DB = PERFORMANCE_AERODROMES as Record<
   string,
@@ -58,7 +59,6 @@ export function isaTempC(elevFt: number) {
 export function densityAltitudeFt(elevFt: number, qnhHpa: number, oatC: number) {
   const pa = pressureAltitudeFt(elevFt, qnhHpa);
   const isa = isaTempC(elevFt);
-
   return pa + 120 * (oatC - isa);
 }
 
@@ -73,12 +73,8 @@ export function windComponents(
   const crosswind = windKt * Math.sin(rad);
 
   let crosswindSide: WindComponentsResult["crosswindSide"] = "";
-
-  if (crosswind > 0) {
-    crosswindSide = "R";
-  } else if (crosswind < 0) {
-    crosswindSide = "L";
-  }
+  if (crosswind > 0) crosswindSide = "R";
+  if (crosswind < 0) crosswindSide = "L";
 
   return {
     headwindKt: round(headwind, 1),
@@ -103,12 +99,10 @@ export function chooseBestRunwayByWind(
 
   for (const runway of aerodrome.runways) {
     const wind = windComponents(runway.qfu, windFrom, windKt);
-
     if (!best) {
       best = { runway, ...wind };
       continue;
     }
-
     if (
       wind.headwindKt > best.headwindKt ||
       (Math.abs(wind.headwindKt - best.headwindKt) < 0.1 &&
@@ -124,7 +118,10 @@ export function chooseBestRunwayByWind(
 export function evaluatePerformanceLeg(
   leg: PerformanceLegInput
 ): PerformanceLegResult {
-  const aerodrome = AERODROME_DB[leg.icao] ?? null;
+  const sourceAerodrome = AERODROME_DB[leg.icao] ?? null;
+  const aerodrome = sourceAerodrome
+    ? applyAipRunwayOverrides(leg.icao, sourceAerodrome)
+    : null;
 
   if (!aerodrome) {
     return {
