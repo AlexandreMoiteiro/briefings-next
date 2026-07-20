@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect, useRef, useState } from "react";
 import { BriefingBuilderClient as BaseBriefingBuilderClient } from "./briefing-builder-client";
 import {
@@ -32,6 +33,13 @@ function findSelectByLabel(root: HTMLElement, labelText: string) {
   return label?.querySelector("select") as HTMLSelectElement | null;
 }
 
+function findMissionSection(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll("h3")).find(
+    (candidate) => candidate.textContent?.trim() === "Mission details"
+  );
+  return (heading?.closest("section") as HTMLElement | null) ?? null;
+}
+
 function ensureP2006Options(root: HTMLElement) {
   const aircraftType = findSelectByLabel(root, "Aircraft type");
   if (aircraftType && !aircraftType.querySelector('option[value="P2006T"]')) {
@@ -62,9 +70,8 @@ function ensureP2006Options(root: HTMLElement) {
 
 export function BriefingBuilderClientV2() {
   const legacyRootRef = useRef<HTMLDivElement>(null);
-  const [useP2006T, setUseP2006T] = useState(true);
-  const [registration, setRegistration] =
-    useState<BriefingAircraftOverride["registration"]>("D-GSEV");
+  const initializedRef = useRef(false);
+  const [missionSection, setMissionSection] = useState<HTMLElement | null>(null);
   const [objectivesName, setObjectivesName] = useState("");
 
   useEffect(() => {
@@ -73,34 +80,59 @@ export function BriefingBuilderClientV2() {
 
     const sync = () => {
       ensureP2006Options(root);
-      if (!useP2006T) return;
       const registrationSelect = findSelectByLabel(root, "Registration");
       const aircraftTypeSelect = findSelectByLabel(root, "Aircraft type");
-      if (registrationSelect && registrationSelect.value !== registration) {
-        nativeSelectValue(registrationSelect, registration);
+
+      if (!initializedRef.current && registrationSelect && aircraftTypeSelect) {
+        initializedRef.current = true;
+        nativeSelectValue(aircraftTypeSelect, "P2006T");
+        nativeSelectValue(registrationSelect, "D-GSEV");
       }
-      if (aircraftTypeSelect && aircraftTypeSelect.value !== "P2006T") {
+
+      const registration = registrationSelect?.value;
+      if (
+        registrationSelect &&
+        aircraftTypeSelect &&
+        registration &&
+        P2006T_REGISTRATIONS.includes(
+          registration as BriefingAircraftOverride["registration"]
+        ) &&
+        aircraftTypeSelect.value !== "P2006T"
+      ) {
         nativeSelectValue(aircraftTypeSelect, "P2006T");
       }
+
+      if (
+        aircraftTypeSelect?.value === "P2006T" &&
+        registration &&
+        P2006T_REGISTRATIONS.includes(
+          registration as BriefingAircraftOverride["registration"]
+        )
+      ) {
+        setBriefingAircraftOverride({
+          enabled: true,
+          aircraftType: "Tecnam P2006T",
+          registration: registration as BriefingAircraftOverride["registration"],
+        });
+      } else {
+        setBriefingAircraftOverride(null);
+      }
+
+      const section = findMissionSection(root);
+      setMissionSection((current) => (current === section ? current : section));
     };
 
+    const handleChange = () => queueMicrotask(sync);
     sync();
+    root.addEventListener("change", handleChange);
     const observer = new MutationObserver(sync);
     observer.observe(root, { subtree: true, childList: true });
-    return () => observer.disconnect();
-  }, [registration, useP2006T]);
 
-  useEffect(() => {
-    setBriefingAircraftOverride(
-      useP2006T
-        ? {
-            enabled: true,
-            aircraftType: "Tecnam P2006T",
-            registration,
-          }
-        : null
-    );
-  }, [registration, useP2006T]);
+    return () => {
+      root.removeEventListener("change", handleChange);
+      observer.disconnect();
+    };
+  }, []);
 
   useEffect(() => {
     return () => {
@@ -109,96 +141,50 @@ export function BriefingBuilderClientV2() {
     };
   }, []);
 
+  const objectivesUpload = (
+    <div className="mt-6 border-t border-zinc-200 pt-6">
+      <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
+        Mission objectives PDF
+      </h3>
+      <p className="mt-1 text-sm leading-6 text-zinc-500">
+        Optional. The selected PDF is inserted directly after the mission summary.
+      </p>
+      <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-5 py-6 text-center hover:bg-zinc-100">
+        <span className="text-sm font-semibold text-zinc-950">
+          {objectivesName || "Choose mission objectives PDF"}
+        </span>
+        <span className="mt-1 text-xs text-zinc-500">PDF only</span>
+        <input
+          type="file"
+          accept="application/pdf,.pdf"
+          className="sr-only"
+          onChange={(event) => {
+            const file = event.target.files?.[0] ?? null;
+            setMissionObjectivesPdf(file);
+            setObjectivesName(file?.name ?? "");
+            event.currentTarget.value = "";
+          }}
+        />
+      </label>
+      {objectivesName ? (
+        <button
+          type="button"
+          onClick={() => {
+            setMissionObjectivesPdf(null);
+            setObjectivesName("");
+          }}
+          className="mt-3 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-red-600"
+        >
+          Remove objectives PDF
+        </button>
+      ) : null}
+    </div>
+  );
+
   return (
-    <div className="space-y-6">
-      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <div className="grid gap-5 lg:grid-cols-2">
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Aircraft
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Tecnam P2006T is selected by default for the mission summary and
-              final briefing PDF.
-            </p>
-            <label className="mt-4 flex items-center gap-3 rounded-2xl border border-zinc-200 p-3">
-              <input
-                type="checkbox"
-                checked={useP2006T}
-                onChange={(event) => setUseP2006T(event.target.checked)}
-                className="h-4 w-4"
-              />
-              <span className="text-sm font-medium text-zinc-800">
-                Tecnam P2006T (default)
-              </span>
-            </label>
-            <label className="mt-3 block space-y-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-                Registration
-              </span>
-              <select
-                value={registration}
-                disabled={!useP2006T}
-                onChange={(event) =>
-                  setRegistration(
-                    event.target.value as BriefingAircraftOverride["registration"]
-                  )
-                }
-                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm disabled:bg-zinc-100"
-              >
-                {P2006T_REGISTRATIONS.map((item) => (
-                  <option key={item} value={item}>
-                    {item}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-
-          <div>
-            <h2 className="text-lg font-semibold tracking-tight text-zinc-950">
-              Include mission objectives PDF
-            </h2>
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
-              Optional. The selected PDF is inserted directly after the mission
-              summary in the generated briefing.
-            </p>
-            <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-5 py-7 text-center hover:bg-zinc-100">
-              <span className="text-sm font-semibold text-zinc-950">
-                {objectivesName || "Choose mission objectives PDF"}
-              </span>
-              <span className="mt-1 text-xs text-zinc-500">PDF only</span>
-              <input
-                type="file"
-                accept="application/pdf,.pdf"
-                className="sr-only"
-                onChange={(event) => {
-                  const file = event.target.files?.[0] ?? null;
-                  setMissionObjectivesPdf(file);
-                  setObjectivesName(file?.name ?? "");
-                  event.currentTarget.value = "";
-                }}
-              />
-            </label>
-            {objectivesName ? (
-              <button
-                type="button"
-                onClick={() => {
-                  setMissionObjectivesPdf(null);
-                  setObjectivesName("");
-                }}
-                className="mt-3 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-red-600"
-              >
-                Remove objectives PDF
-              </button>
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <div ref={legacyRootRef}>
-        <BaseBriefingBuilderClient />
-      </div>
+    <div ref={legacyRootRef}>
+      <BaseBriefingBuilderClient />
+      {missionSection ? createPortal(objectivesUpload, missionSection) : null}
     </div>
   );
 }
