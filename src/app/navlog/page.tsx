@@ -1,5 +1,5 @@
-import { NavlogClientV4 } from "./navlog-client-v4";
+import { NavlogClientV3 } from "./navlog-client-v3";
 
 export default function NavlogPage() {
-  return <NavlogClientV4 />;
+  return <NavlogClientV3 />;
 }
