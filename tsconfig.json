@@ -23,10 +23,13 @@
         "./src/lib/navlog-engine-display.ts"
       ],
       "@/lib/pdf/navlog-form-pdf": [
-        "./src/lib/pdf/navlog-form-pdf-v2.ts"
+        "./src/lib/pdf/navlog-form-pdf-v3.ts"
+      ],
+      "@/lib/performance/p2006t-performance": [
+        "./src/lib/performance/p2006t-performance-conditioned.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf-v3": [
-        "./src/lib/pdf/p2006t-performance-pdf-v6.ts"
+        "./src/lib/pdf/p2006t-performance-pdf-v7.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf": [
         "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
