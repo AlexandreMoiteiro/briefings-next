@@ -19,6 +19,14 @@ function findAircraftSelect(root: HTMLElement) {
   }) as HTMLSelectElement | undefined;
 }
 
+function hideOriginalAircraftControl(select: HTMLSelectElement) {
+  const label = select.closest("label");
+  if (!(label instanceof HTMLElement)) return;
+
+  label.hidden = true;
+  label.setAttribute("aria-hidden", "true");
+}
+
 function changeSelect(select: HTMLSelectElement, value: Aircraft) {
   const optionIndex = Array.from(select.options).findIndex(
     (option) => option.value === value
@@ -51,6 +59,9 @@ export function NavlogClientV5() {
     const sync = () => {
       const select = findAircraftSelect(root);
       if (!select) return;
+
+      hideOriginalAircraftControl(select);
+
       const value = select.value as Aircraft;
       if (AIRCRAFT.includes(value)) {
         setAircraft((current) => (current === value ? current : value));
