@@ -46,6 +46,23 @@ function spreadRect(rect: Rect): Rect {
   };
 }
 
+function maskExistingText(
+  page: PDFPage,
+  rect: Rect,
+  preferredSize: number
+) {
+  const horizontalInset = 1.2;
+  const availableHeight = Math.max(0, rect.height - 4);
+  const maskHeight = Math.min(availableHeight, preferredSize + 5);
+  page.drawRectangle({
+    x: rect.x + horizontalInset,
+    y: rect.y + (rect.height - maskHeight) / 2,
+    width: Math.max(0, rect.width - horizontalInset * 2),
+    height: maskHeight,
+    color: rgb(1, 1, 1),
+  });
+}
+
 function drawCentered(
   page: PDFPage,
   rect: Rect,
@@ -53,14 +70,7 @@ function drawCentered(
   font: PDFFont,
   preferredSize = 6.6
 ) {
-  const inset = 0.9;
-  page.drawRectangle({
-    x: rect.x + inset,
-    y: rect.y + inset,
-    width: Math.max(0, rect.width - inset * 2),
-    height: Math.max(0, rect.height - inset * 2),
-    color: rgb(1, 1, 1),
-  });
+  maskExistingText(page, rect, preferredSize);
 
   let size = preferredSize;
   while (size > 4.5 && font.widthOfTextAtSize(value, size) > rect.width - 5) {
