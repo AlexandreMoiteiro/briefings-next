@@ -64,11 +64,22 @@ type VfrKmzManifest = {
   overlays: VfrKmzOverlayItem[];
 };
 
+type PdfTile = {
+  x: number;
+  y: number;
+  bytes: ArrayBuffer | null;
+};
+
 const PAGE_WIDTH = 842;
 const PAGE_HEIGHT = 595;
 const MAP_FRAME: PlotFrame = { x: 24, y: 24, width: 794, height: 547 };
-const MAX_PDF_TILE_COUNT = 240;
+const MAX_PDF_TILE_COUNT = 96;
 const WEB_MERCATOR_MAX_LATITUDE = 85.05112878;
+const STANDARD_MAP_MAX_ZOOM = 14;
+const OPEN_TOPO_PROXY_TEMPLATE =
+  "/api/navlog-map-tile?source=opentopo&z={z}&x={x}&y={y}";
+const VFR_PROXY_TEMPLATE =
+  "/api/navlog-map-tile?source=vfr&z={z}&x={x}&y={y}";
 
 function safeText(value: unknown) {
   if (value === null || value === undefined) return "";
@@ -116,10 +127,18 @@ function expandRouteBounds(nodes: PlotNode[]): GeoBounds {
   }
 
   return {
-    north: centerLat + latSpan / 2,
-    south: centerLat - latSpan / 2,
-    east: centerLon + lonSpan / 2,
-    west: centerLon - lonSpan / 2,
+    north: clamp(
+      centerLat + latSpan / 2,
+      -WEB_MERCATOR_MAX_LATITUDE,
+      WEB_MERCATOR_MAX_LATITUDE
+    ),
+    south: clamp(
+      centerLat - latSpan / 2,
+      -WEB_MERCATOR_MAX_LATITUDE,
+      WEB_MERCATOR_MAX_LATITUDE
+    ),
+    east: clamp(centerLon + lonSpan / 2, -180, 180),
+    west: clamp(centerLon - lonSpan / 2, -180, 180),
   };
 }
 
@@ -186,7 +205,7 @@ function getBestVfrLevel(
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { cache: "force-cache" });
 
     if (!response.ok) return null;
 
@@ -198,10 +217,16 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 }
 
 async function fetchArrayBuffer(url: string) {
-  const response = await fetch(url);
+  const response = await fetch(url, { cache: "force-cache" });
 
   if (!response.ok) {
-    throw new Error(`Could not fetch image: ${response.status}`);
+    throw new Error(`Could not fetch map image: HTTP ${response.status}`);
+  }
+
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (contentType && !contentType.toLowerCase().startsWith("image/")) {
+    throw new Error("The map image request did not return an image.");
   }
 
   return response.arrayBuffer();
@@ -298,7 +323,42 @@ function resolveTileUrl(template: string, zoom: number, x: number, y: number) {
     : new URL(path, window.location.href).toString();
 }
 
-async function drawVfrXyzTileBackground({
+async function loadPdfTiles(
+  template: string,
+  zoom: number,
+  range: ReturnType<typeof getTileRange>
+) {
+  const tiles: PdfTile[] = [];
+
+  for (let y = range.north; y <= range.south; y += 1) {
+    for (let x = range.west; x <= range.east; x += 1) {
+      tiles.push({ x, y, bytes: null });
+    }
+  }
+
+  return Promise.all(
+    tiles.map(async (tile) => {
+      try {
+        return {
+          ...tile,
+          bytes: await fetchArrayBuffer(
+            resolveTileUrl(template, zoom, tile.x, tile.y)
+          ),
+        };
+      } catch (error) {
+        console.error("Route-map tile failed", {
+          zoom,
+          x: tile.x,
+          y: tile.y,
+          error,
+        });
+        return tile;
+      }
+    })
+  );
+}
+
+async function drawXyzTileBackground({
   pdfDoc,
   page,
   tilesUrl,
@@ -315,30 +375,7 @@ async function drawVfrXyzTileBackground({
 }) {
   const zoom = choosePdfTileZoom(bounds, maximumZoom);
   const range = getTileRange(bounds, zoom);
-  const tiles: { x: number; y: number; bytes: ArrayBuffer | null }[] = [];
-
-  for (let y = range.north; y <= range.south; y += 1) {
-    for (let x = range.west; x <= range.east; x += 1) {
-      tiles.push({ x, y, bytes: null });
-    }
-  }
-
-  const loadedTiles = await Promise.all(
-    tiles.map(async (tile) => {
-      try {
-        return {
-          ...tile,
-          bytes: await fetchArrayBuffer(
-            resolveTileUrl(tilesUrl, zoom, tile.x, tile.y)
-          ),
-        };
-      } catch (error) {
-        console.error(error);
-        return tile;
-      }
-    })
-  );
-
+  const loadedTiles = await loadPdfTiles(tilesUrl, zoom, range);
   let drawn = 0;
 
   page.pushOperators(
@@ -371,7 +408,7 @@ async function drawVfrXyzTileBackground({
       });
       drawn += 1;
     } catch (error) {
-      console.error(error);
+      console.error("Could not embed route-map tile", error);
     }
   }
 
@@ -425,21 +462,17 @@ async function drawVfrChartBackground({
       const image = await pdfDoc.embedPng(imageBytes);
       const northWest = project(overlay.north, overlay.west);
       const southEast = project(overlay.south, overlay.east);
-      const x = Math.min(northWest.x, southEast.x);
-      const y = Math.min(northWest.y, southEast.y);
-      const width = Math.abs(southEast.x - northWest.x);
-      const height = Math.abs(northWest.y - southEast.y);
 
       page.drawImage(image, {
-        x,
-        y,
-        width,
-        height,
+        x: Math.min(northWest.x, southEast.x),
+        y: Math.min(northWest.y, southEast.y),
+        width: Math.abs(southEast.x - northWest.x),
+        height: Math.abs(northWest.y - southEast.y),
         opacity: 0.98,
       });
       drawn += 1;
     } catch (error) {
-      console.error(error);
+      console.error("Could not embed VFR chart overlay", error);
     }
   }
 
@@ -449,24 +482,54 @@ async function drawVfrChartBackground({
 }
 
 function drawNorthArrow(page: PDFPage, boldFont: PDFFont) {
+  const box = {
+    x: MAP_FRAME.x + MAP_FRAME.width - 35,
+    y: MAP_FRAME.y + MAP_FRAME.height - 52,
+    width: 26,
+    height: 40,
+  };
+
+  page.drawRectangle({
+    ...box,
+    color: rgb(1, 1, 1),
+    opacity: 0.82,
+  });
   page.drawText("N", {
-    x: MAP_FRAME.x + MAP_FRAME.width - 24,
-    y: MAP_FRAME.y + MAP_FRAME.height - 28,
+    x: box.x + 9,
+    y: box.y + 25,
     size: 11,
     font: boldFont,
     color: rgb(0.05, 0.05, 0.05),
   });
   page.drawLine({
-    start: {
-      x: MAP_FRAME.x + MAP_FRAME.width - 18,
-      y: MAP_FRAME.y + MAP_FRAME.height - 42,
-    },
-    end: {
-      x: MAP_FRAME.x + MAP_FRAME.width - 18,
-      y: MAP_FRAME.y + MAP_FRAME.height - 16,
-    },
+    start: { x: box.x + 13, y: box.y + 7 },
+    end: { x: box.x + 13, y: box.y + 27 },
     thickness: 1.2,
     color: rgb(0.05, 0.05, 0.05),
+  });
+}
+
+function drawMapAttribution(page: PDFPage, font: PDFFont, text: string) {
+  const size = 5.5;
+  const padding = 3;
+  const width = font.widthOfTextAtSize(text, size) + padding * 2;
+  const x = MAP_FRAME.x + MAP_FRAME.width - width - 3;
+  const y = MAP_FRAME.y + 3;
+
+  page.drawRectangle({
+    x,
+    y,
+    width,
+    height: size + padding * 2,
+    color: rgb(1, 1, 1),
+    opacity: 0.8,
+  });
+  page.drawText(text, {
+    x: x + padding,
+    y: y + padding,
+    size,
+    font,
+    color: rgb(0.15, 0.15, 0.15),
   });
 }
 
@@ -478,10 +541,18 @@ export async function buildNavlogRouteMapPdf({
   vfrChartManifestUrl = "",
   vfrChartManifestLevel = null,
 }: BuildNavlogRouteMapPdfInput) {
+  const nodes = getPlottedRouteNodes(routeWaypoints);
+
+  if (nodes.length < 2) {
+    throw new Error("The route map needs at least two valid waypoints.");
+  }
+
   const pdfDoc = await PDFDocument.create();
   const page = pdfDoc.addPage([PAGE_WIDTH, PAGE_HEIGHT]);
+  const regularFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
-  const nodes = getPlottedRouteNodes(routeWaypoints);
+  const bounds = expandRouteBounds(nodes);
+  const project = buildProjector(bounds, MAP_FRAME);
 
   page.drawRectangle({
     x: MAP_FRAME.x,
@@ -493,72 +564,100 @@ export async function buildNavlogRouteMapPdf({
     borderWidth: 0.8,
   });
 
-  if (nodes.length >= 2) {
-    const bounds = expandRouteBounds(nodes);
-    const project = buildProjector(bounds, MAP_FRAME);
+  let backgroundImagesDrawn = 0;
+  let attribution = "";
 
-    if (mapSourceMode === "vfr-chart" && vfrChartTilesUrl) {
-      await drawVfrXyzTileBackground({
-        pdfDoc,
-        page,
-        tilesUrl: vfrChartTilesUrl,
-        maximumZoom: vfrChartMaxNativeZoom,
-        bounds,
-        project,
-      });
-    } else if (mapSourceMode === "vfr-chart" && vfrChartManifestUrl) {
-      await drawVfrChartBackground({
-        pdfDoc,
-        page,
-        manifestUrl: vfrChartManifestUrl,
-        manifestLevel: vfrChartManifestLevel,
-        bounds,
-        project,
-      });
-    }
+  if (mapSourceMode === "vfr-chart" && vfrChartTilesUrl) {
+    backgroundImagesDrawn = await drawXyzTileBackground({
+      pdfDoc,
+      page,
+      tilesUrl: VFR_PROXY_TEMPLATE,
+      maximumZoom: vfrChartMaxNativeZoom,
+      bounds,
+      project,
+    });
+    attribution = "VFR chart";
+  } else if (mapSourceMode === "vfr-chart" && vfrChartManifestUrl) {
+    backgroundImagesDrawn = await drawVfrChartBackground({
+      pdfDoc,
+      page,
+      manifestUrl: vfrChartManifestUrl,
+      manifestLevel: vfrChartManifestLevel,
+      bounds,
+      project,
+    });
+    attribution = "VFR chart";
+  } else if (mapSourceMode === "standard") {
+    backgroundImagesDrawn = await drawXyzTileBackground({
+      pdfDoc,
+      page,
+      tilesUrl: OPEN_TOPO_PROXY_TEMPLATE,
+      maximumZoom: STANDARD_MAP_MAX_ZOOM,
+      bounds,
+      project,
+    });
+    attribution = "Map: OpenTopoMap / OpenStreetMap contributors";
+  }
 
-    const positions = nodes.map((node) => project(node.lat, node.lon));
+  if (backgroundImagesDrawn === 0) {
+    throw new Error(
+      "The map background could not be loaded. No route-map PDF was generated."
+    );
+  }
 
-    for (let i = 1; i < positions.length; i += 1) {
-      page.drawLine({
-        start: positions[i - 1],
-        end: positions[i],
-        thickness: 3.6,
-        color: rgb(0.95, 0.12, 0.08),
-        opacity: 0.92,
-      });
-      page.drawLine({
-        start: positions[i - 1],
-        end: positions[i],
-        thickness: 1.35,
-        color: rgb(1, 1, 1),
-        opacity: 0.98,
-      });
-    }
+  const positions = nodes.map((node) => project(node.lat, node.lon));
 
-    nodes.forEach((node, index) => {
-      const position = positions[index];
-
-      page.drawCircle({
-        x: position.x,
-        y: position.y,
-        size: 4.8,
-        color: rgb(1, 1, 1),
-        borderColor: rgb(0.05, 0.05, 0.05),
-        borderWidth: 1.1,
-      });
-
-      page.drawText(nodeLabel(node), {
-        x: position.x + 6,
-        y: position.y + (index % 2 === 0 ? 6 : -12),
-        size: 7.5,
-        font: boldFont,
-        color: rgb(0.02, 0.02, 0.02),
-      });
+  for (let index = 1; index < positions.length; index += 1) {
+    page.drawLine({
+      start: positions[index - 1],
+      end: positions[index],
+      thickness: 3.6,
+      color: rgb(0.95, 0.12, 0.08),
+      opacity: 0.92,
+    });
+    page.drawLine({
+      start: positions[index - 1],
+      end: positions[index],
+      thickness: 1.35,
+      color: rgb(1, 1, 1),
+      opacity: 0.98,
     });
   }
 
-  drawNorthArrow(page, boldFont);
+  nodes.forEach((node, index) => {
+    const position = positions[index];
+    const label = nodeLabel(node);
+    const fontSize = 7.5;
+    const labelWidth = boldFont.widthOfTextAtSize(label, fontSize);
+    const labelY = position.y + (index % 2 === 0 ? 6 : -12);
 
-  return pdfDoc.save();
+    page.drawCircle({
+      x: position.x,
+      y: position.y,
+      size: 4.8,
+      color: rgb(1, 1, 1),
+      borderColor: rgb(0.05, 0.05, 0.05),
+      borderWidth: 1.1,
+    });
+    page.drawRectangle({
+      x: position.x + 4.5,
+      y: labelY - 1.5,
+      width: labelWidth + 4,
+      height: fontSize + 3,
+      color: rgb(1, 1, 1),
+      opacity: 0.76,
+    });
+    page.drawText(label, {
+      x: position.x + 6,
+      y: labelY,
+      size: fontSize,
+      font: boldFont,
+      color: rgb(0.02, 0.02, 0.02),
+    });
+  });
+
+  drawNorthArrow(page, boldFont);
+  drawMapAttribution(page, regularFont, attribution);
+
+  return pdfDoc.save({ useObjectStreams: true, addDefaultPage: false });
 }
