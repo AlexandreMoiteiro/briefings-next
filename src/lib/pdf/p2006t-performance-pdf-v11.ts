@@ -10,13 +10,19 @@ import { formatOperationalMinutes } from "@/lib/operational-duration";
 import { getP2006TTaxiMinutes } from "@/lib/performance/p2006t-taxi-time-store";
 import {
   buildP2006TPerformancePdfV3 as buildP2006TPerformancePdfV8,
-  DEFAULT_P2006T_PDF_OPTIONS,
   downloadP2006TPerformancePdfV3,
   type BuildP2006TPerformancePdfV3Input,
   type P2006TPdfOptions,
 } from "./p2006t-performance-pdf-v8";
 
-export { DEFAULT_P2006T_PDF_OPTIONS, downloadP2006TPerformancePdfV3 };
+export const DEFAULT_P2006T_PDF_OPTIONS: P2006TPdfOptions = {
+  includePerformanceTables: false,
+  includeEnroutePage: false,
+  includeCruisePage: false,
+  includeKneeboard: false,
+};
+
+export { downloadP2006TPerformancePdfV3 };
 export type { BuildP2006TPerformancePdfV3Input, P2006TPdfOptions };
 
 type Rect = { x: number; y: number; width: number; height: number };
@@ -42,6 +48,23 @@ function spreadRect(rect: Rect): Rect {
   };
 }
 
+function maskExistingText(
+  page: PDFPage,
+  rect: Rect,
+  preferredSize: number
+) {
+  const horizontalInset = 1.2;
+  const availableHeight = Math.max(0, rect.height - 4);
+  const maskHeight = Math.min(availableHeight, preferredSize + 5);
+  page.drawRectangle({
+    x: rect.x + horizontalInset,
+    y: rect.y + (rect.height - maskHeight) / 2,
+    width: Math.max(0, rect.width - horizontalInset * 2),
+    height: maskHeight,
+    color: rgb(1, 1, 1),
+  });
+}
+
 function drawCentered(
   page: PDFPage,
   rect: Rect,
@@ -49,14 +72,7 @@ function drawCentered(
   font: PDFFont,
   preferredSize = 6.6
 ) {
-  const inset = 1.5;
-  page.drawRectangle({
-    x: rect.x + inset,
-    y: rect.y + inset,
-    width: Math.max(0, rect.width - inset * 2),
-    height: Math.max(0, rect.height - inset * 2),
-    color: rgb(1, 1, 1),
-  });
+  maskExistingText(page, rect, preferredSize);
 
   let size = preferredSize;
   while (size > 4.5 && font.widthOfTextAtSize(value, size) > rect.width - 6) {
