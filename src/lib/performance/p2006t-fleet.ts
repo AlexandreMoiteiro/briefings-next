@@ -28,6 +28,9 @@ export const P2006T_FLEET: P2006TFleetAircraft[] = [
     maxMassKg: 1230,
     validationStatus: "awaiting-builder",
     afmDocument: "P2006T_CS-EBX_AFM_Ed4r22_inc.Supp.pdf",
+    emptyMassKg: 883,
+    emptyMomentKgm: 370.86,
+    emptyDataSource: "Aircraft weighing record · S/N 184",
   },
   {
     registration: "D-GSEV",
