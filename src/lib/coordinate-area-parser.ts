@@ -6,6 +6,8 @@ export type CoordinateParseResult = {
   errors: string[];
 };
 
+type Hemisphere = "N" | "S" | "E" | "W";
+
 type Candidate = {
   start: number;
   end: number;
@@ -16,29 +18,17 @@ type Candidate = {
   warnings: string[];
 };
 
-type Hemisphere = "N" | "S" | "E" | "W";
-
 const VFR_BOUNDS = {
   south: 35.124950538548724,
   west: -10.25,
   north: 42.3125,
   east: -6.00004279020789,
-} as const;
+};
 
 function applyHemisphere(value: number, hemisphere: Hemisphere) {
   return hemisphere === "S" || hemisphere === "W"
     ? -Math.abs(value)
     : Math.abs(value);
-}
-
-function validateCoordinate(lat: number, lon: number) {
-  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
-    throw new Error("Latitude outside the valid range (-90 to 90).");
-  }
-
-  if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
-    throw new Error("Longitude outside the valid range (-180 to 180).");
-  }
 }
 
 function dmsToDecimal(
@@ -57,6 +47,16 @@ function dmsToDecimal(
   );
 }
 
+function validateCoordinate(lat: number, lon: number) {
+  if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
+    throw new Error("Latitude outside the valid range (-90 to 90).");
+  }
+
+  if (!Number.isFinite(lon) || lon < -180 || lon > 180) {
+    throw new Error("Longitude outside the valid range (-180 to 180).");
+  }
+}
+
 function parseCompact(
   rawDigits: string,
   hemisphere: Hemisphere,
@@ -68,7 +68,6 @@ function parseCompact(
   const dmLength = degreeDigits + 2;
   const dmsLength = degreeDigits + 4;
 
-  // Preserve the old Area Map OCR recovery behaviour.
   if (kind === "lat" && digits.length === 5) {
     warnings.push(`${digits}${hemisphere} interpreted as 3${digits}${hemisphere}.`);
     digits = `3${digits}`;
@@ -120,21 +119,23 @@ function parseDirectionalToken(raw: string, kind: "lat" | "lon") {
     throw new Error(`Missing hemisphere in directional ${kind} boundary.`);
   }
 
-  const digits = compact.replace(/[NSEW]/g, "");
-  return parseCompact(digits, hemisphere as Hemisphere, kind);
+  return parseCompact(
+    compact.replace(/[NSEW]/g, ""),
+    hemisphere as Hemisphere,
+    kind
+  );
 }
 
 function parseDirectionalArea(input: string): CoordinateParseResult | null {
-  const hasDirectionalQualifier = /\b[NSWE]\s+OF\b/i.test(input);
-  if (!hasDirectionalQualifier) return null;
+  if (!/\b[NSWE]\s+OF\b/i.test(input)) return null;
 
   const warnings: string[] = [];
   const errors: string[] = [];
   const matchedClauses: string[] = [];
-  let north = VFR_BOUNDS.north;
-  let south = VFR_BOUNDS.south;
-  let east = VFR_BOUNDS.east;
-  let west = VFR_BOUNDS.west;
+  let north: number = VFR_BOUNDS.north;
+  let south: number = VFR_BOUNDS.south;
+  let east: number = VFR_BOUNDS.east;
+  let west: number = VFR_BOUNDS.west;
 
   const latitudeRegex =
     /\b([NS])\s+OF\s+((?:[NS]\s*)?\d{4,6}(?:\s*[NS])?)\b/gi;
@@ -143,35 +144,37 @@ function parseDirectionalArea(input: string): CoordinateParseResult | null {
 
   for (const match of input.matchAll(latitudeRegex)) {
     try {
-      const areaSide = match[1].toUpperCase();
       const parsed = parseDirectionalToken(match[2], "lat");
       warnings.push(...parsed.warnings);
       matchedClauses.push(match[0].trim());
 
-      if (areaSide === "S") {
+      if (match[1].toUpperCase() === "S") {
         north = Math.min(north, parsed.value);
       } else {
         south = Math.max(south, parsed.value);
       }
     } catch (error) {
-      errors.push(error instanceof Error ? error.message : "Invalid latitude boundary.");
+      errors.push(
+        error instanceof Error ? error.message : "Invalid latitude boundary."
+      );
     }
   }
 
   for (const match of input.matchAll(longitudeRegex)) {
     try {
-      const areaSide = match[1].toUpperCase();
       const parsed = parseDirectionalToken(match[2], "lon");
       warnings.push(...parsed.warnings);
       matchedClauses.push(match[0].trim());
 
-      if (areaSide === "W") {
+      if (match[1].toUpperCase() === "W") {
         east = Math.min(east, parsed.value);
       } else {
         west = Math.max(west, parsed.value);
       }
     } catch (error) {
-      errors.push(error instanceof Error ? error.message : "Invalid longitude boundary.");
+      errors.push(
+        error instanceof Error ? error.message : "Invalid longitude boundary."
+      );
     }
   }
 
@@ -192,13 +195,16 @@ function parseDirectionalArea(input: string): CoordinateParseResult | null {
   }
 
   if (errors.length) {
-    return { points: [], warnings: Array.from(new Set(warnings)), errors };
+    return {
+      points: [],
+      warnings: Array.from(new Set(warnings)),
+      errors,
+    };
   }
 
   warnings.push(
     "Directional area clipped to the available Portugal VFR chart coverage."
   );
-
   const raw = matchedClauses.join(" AND ");
   const corners = [
     { lat: north, lon: west },
@@ -296,21 +302,26 @@ function collectSymbolicSuffix(input: string, candidates: Candidate[]) {
 
   for (const match of input.matchAll(regex)) {
     try {
-      const lat = dmsToDecimal(
-        Number(match[1]),
-        Number(match[2]),
-        Number(match[3] ?? 0),
-        match[4].toUpperCase() as Hemisphere
+      addCandidate(
+        candidates,
+        input,
+        match,
+        20,
+        dmsToDecimal(
+          Number(match[1]),
+          Number(match[2]),
+          Number(match[3] ?? 0),
+          match[4].toUpperCase() as Hemisphere
+        ),
+        dmsToDecimal(
+          Number(match[5]),
+          Number(match[6]),
+          Number(match[7] ?? 0),
+          match[8].toUpperCase() as Hemisphere
+        )
       );
-      const lon = dmsToDecimal(
-        Number(match[5]),
-        Number(match[6]),
-        Number(match[7] ?? 0),
-        match[8].toUpperCase() as Hemisphere
-      );
-      addCandidate(candidates, input, match, 20, lat, lon);
     } catch {
-      // Ignore malformed pairs and report a generic message if nothing parses.
+      // Ignore malformed pairs.
     }
   }
 }
@@ -320,21 +331,26 @@ function collectSymbolicPrefix(input: string, candidates: Candidate[]) {
 
   for (const match of input.matchAll(regex)) {
     try {
-      const lat = dmsToDecimal(
-        Number(match[2]),
-        Number(match[3]),
-        Number(match[4] ?? 0),
-        match[1].toUpperCase() as Hemisphere
+      addCandidate(
+        candidates,
+        input,
+        match,
+        20,
+        dmsToDecimal(
+          Number(match[2]),
+          Number(match[3]),
+          Number(match[4] ?? 0),
+          match[1].toUpperCase() as Hemisphere
+        ),
+        dmsToDecimal(
+          Number(match[6]),
+          Number(match[7]),
+          Number(match[8] ?? 0),
+          match[5].toUpperCase() as Hemisphere
+        )
       );
-      const lon = dmsToDecimal(
-        Number(match[6]),
-        Number(match[7]),
-        Number(match[8] ?? 0),
-        match[5].toUpperCase() as Hemisphere
-      );
-      addCandidate(candidates, input, match, 20, lat, lon);
     } catch {
-      // Ignore malformed pairs and report a generic message if nothing parses.
+      // Ignore malformed pairs.
     }
   }
 }
@@ -347,15 +363,20 @@ function collectDecimalHemisphereSuffix(
 
   for (const match of input.matchAll(regex)) {
     try {
-      const lat = applyHemisphere(
-        Number(match[1]),
-        match[2].toUpperCase() as Hemisphere
+      addCandidate(
+        candidates,
+        input,
+        match,
+        30,
+        applyHemisphere(
+          Number(match[1]),
+          match[2].toUpperCase() as Hemisphere
+        ),
+        applyHemisphere(
+          Number(match[3]),
+          match[4].toUpperCase() as Hemisphere
+        )
       );
-      const lon = applyHemisphere(
-        Number(match[3]),
-        match[4].toUpperCase() as Hemisphere
-      );
-      addCandidate(candidates, input, match, 30, lat, lon);
     } catch {
       // Ignore malformed pairs.
     }
@@ -370,15 +391,20 @@ function collectDecimalHemispherePrefix(
 
   for (const match of input.matchAll(regex)) {
     try {
-      const lat = applyHemisphere(
-        Number(match[2]),
-        match[1].toUpperCase() as Hemisphere
+      addCandidate(
+        candidates,
+        input,
+        match,
+        30,
+        applyHemisphere(
+          Number(match[2]),
+          match[1].toUpperCase() as Hemisphere
+        ),
+        applyHemisphere(
+          Number(match[4]),
+          match[3].toUpperCase() as Hemisphere
+        )
       );
-      const lon = applyHemisphere(
-        Number(match[4]),
-        match[3].toUpperCase() as Hemisphere
-      );
-      addCandidate(candidates, input, match, 30, lat, lon);
     } catch {
       // Ignore malformed pairs.
     }
