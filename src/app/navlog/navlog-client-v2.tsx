@@ -33,7 +33,7 @@ function parseDisplayedDuration(value: string) {
   if (clockMatch) {
     const first = Number(clockMatch[1]);
     const second = Number(clockMatch[2]);
-    return first >= 60 ? first * 60 + second : first * 60 + second;
+    return first * 60 + second;
   }
 
   const minuteMatch = normalized.match(/(\d+)\s*min/i);
@@ -54,8 +54,37 @@ function readEteValue(root: HTMLElement) {
   return eteLabel?.parentElement?.querySelector("p.font-semibold") as HTMLElement | null;
 }
 
-function readEteSeconds(root: HTMLElement) {
-  return parseDisplayedDuration(readEteValue(root)?.textContent?.trim() ?? "");
+function readAlternateTripSeconds(root: HTMLElement) {
+  const row = Array.from(root.querySelectorAll("p")).find((item) =>
+    (item.textContent?.replace(/\s+/g, " ").trim() ?? "").startsWith(
+      "Alternate time:"
+    )
+  );
+  const value = row?.querySelector("span.font-semibold")?.textContent?.trim() ?? "";
+  return parseDisplayedDuration(value);
+}
+
+function readDestinationEteSeconds(root: HTMLElement, alternateTripSeconds: number) {
+  const value = readEteValue(root);
+  if (!value) return 0;
+
+  const displayedSeconds = parseDisplayedDuration(value.textContent?.trim() ?? "");
+  const storedFullSeconds = Number(value.dataset.fullRouteEteSeconds);
+  const lastDestinationSeconds = Number(value.dataset.destinationEteSeconds);
+  const wrapperStillOwnsDisplayedValue =
+    Number.isFinite(storedFullSeconds) &&
+    Number.isFinite(lastDestinationSeconds) &&
+    displayedSeconds === lastDestinationSeconds;
+
+  const fullRouteSeconds = wrapperStillOwnsDisplayedValue
+    ? storedFullSeconds
+    : displayedSeconds;
+  const destinationSeconds = Math.max(0, fullRouteSeconds - alternateTripSeconds);
+
+  value.dataset.fullRouteEteSeconds = String(fullRouteSeconds);
+  value.dataset.destinationEteSeconds = String(destinationSeconds);
+
+  return destinationSeconds;
 }
 
 function readAircraft(root: HTMLElement) {
@@ -142,9 +171,14 @@ function updateFuelUnits(
   });
 }
 
-function TotalTimeCard({ eteSeconds, groundMinutes }: {
+function TotalTimeCard({
+  eteSeconds,
+  groundMinutes,
+  alternateTripSeconds,
+}: {
   eteSeconds: number;
   groundMinutes: number;
+  alternateTripSeconds: number;
 }) {
   const totalSeconds = eteSeconds + groundMinutes * 60;
 
@@ -155,8 +189,14 @@ function TotalTimeCard({ eteSeconds, groundMinutes }: {
         {formatOperationalSeconds(totalSeconds)}
       </p>
       <p className="mt-0.5 text-[11px] text-zinc-500">
-        ETE {formatNavlogDuration(eteSeconds)} + ground {formatOperationalSeconds(groundMinutes * 60)}
+        Flight {formatNavlogDuration(eteSeconds)} + ground{" "}
+        {formatOperationalSeconds(groundMinutes * 60)}
       </p>
+      {alternateTripSeconds > 0 ? (
+        <p className="mt-0.5 text-[11px] font-medium text-amber-700">
+          + {formatNavlogDuration(alternateTripSeconds)} ALT
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -209,6 +249,7 @@ export function NavlogClientV2() {
   const [eteSeconds, setEteSeconds] = useState(0);
   const [groundMinutes, setGroundMinutes] = useState(20);
   const [aircraft, setAircraft] = useState("Tecnam P2006T");
+  const [alternateTripSeconds, setAlternateTripSeconds] = useState(0);
   const [alternateStatus, setAlternateStatus] = useState<AlternateStatus>(null);
   const [alternateMarkerSet, setAlternateMarkerSet] = useState(false);
 
@@ -222,7 +263,11 @@ export function NavlogClientV2() {
       const nextGrid = findSummaryGrid(root);
       const nextStatus = readAlternateStatus(root);
       const nextMarkerSet = hasAlternateMarker(root);
-      const nextEteSeconds = readEteSeconds(root);
+      const nextAlternateTripSeconds = readAlternateTripSeconds(root);
+      const nextEteSeconds = readDestinationEteSeconds(
+        root,
+        nextAlternateTripSeconds
+      );
 
       updateFuelUnits(
         root,
@@ -245,6 +290,7 @@ export function NavlogClientV2() {
       setEteSeconds(nextEteSeconds);
       setGroundMinutes(nextGroundMinutes);
       setAircraft(nextAircraft);
+      setAlternateTripSeconds(nextAlternateTripSeconds);
       setAlternateStatus((current) =>
         JSON.stringify(current) === JSON.stringify(nextStatus) ? current : nextStatus
       );
@@ -281,6 +327,7 @@ export function NavlogClientV2() {
               <TotalTimeCard
                 eteSeconds={eteSeconds}
                 groundMinutes={groundMinutes}
+                alternateTripSeconds={alternateTripSeconds}
               />
               <AlternateCard
                 status={alternateStatus}
