@@ -1,5 +1,5 @@
-import { AreaMapClient } from "./area-map-client";
+import { AreaMapClientV2 } from "./area-map-client-v2";
 
 export default function AreaMapPage() {
-  return <AreaMapClient />;
+  return <AreaMapClientV2 />;
 }
