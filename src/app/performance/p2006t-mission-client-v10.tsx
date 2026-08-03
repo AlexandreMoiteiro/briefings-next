@@ -14,20 +14,20 @@ const DOWNLOADS: Array<{
 }> = [
   {
     mode: "form",
-    title: "Download performance form",
-    description: "Only the completed official M&B and Performance form spread.",
+    title: "Download do formulário",
+    description: "Apenas o formulário oficial de M&B e Performance preenchido.",
   },
   {
     mode: "kneeboard",
-    title: "Download kneeboard",
+    title: "Download do kneeboard",
     description:
-      "Only the standard kneeboard and the OEI sheet with ASDR, gradient and service ceiling calculations.",
+      "Apenas o kneeboard normal e a folha OEI com ASDR, gradiente e service ceiling.",
   },
   {
     mode: "tables",
-    title: "Download performance tables",
+    title: "Download das tabelas",
     description:
-      "Aerodrome, enroute, cruise and mapped OEI source tables with the calculation cells highlighted.",
+      "Tabelas de aeródromo, enroute, cruise e a tabela OEI mapeada com as células usadas assinaladas.",
   },
 ];
 
@@ -76,7 +76,7 @@ export function P2006TMissionClientV10() {
         const hiddenStatus = Array.from(section?.querySelectorAll("p") ?? [])
           .map((item) => item.textContent?.trim() ?? "")
           .find((text) => /generated|failed|não|erro|error/i.test(text));
-        setStatus(hiddenStatus || "PDF generated and download started.");
+        setStatus(hiddenStatus || "PDF gerado e download iniciado.");
         setBusyMode(null);
         sawDisabledRef.current = false;
       }
@@ -113,11 +113,11 @@ export function P2006TMissionClientV10() {
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div>
           <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
-            PDF downloads
+            Downloads PDF
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
-            Generate each operational document separately. The tables PDF uses
-            the OEI mapper geometry saved in Admin for the selected aircraft.
+            Gere cada documento operacional em separado. O PDF das tabelas usa
+            a geometria OEI guardada no mapper do Admin para a matrícula selecionada.
           </p>
         </div>
 
@@ -133,7 +133,7 @@ export function P2006TMissionClientV10() {
                 className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-500 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <span className="block text-sm font-semibold text-zinc-950">
-                  {busy ? "Generating..." : downloadOption.title}
+                  {busy ? "A gerar..." : downloadOption.title}
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-zinc-500">
                   {downloadOption.description}
@@ -145,8 +145,8 @@ export function P2006TMissionClientV10() {
 
         {!available && !busyMode ? (
           <p className="mt-3 text-sm text-amber-700">
-            Complete all four aerodrome calculations and the aircraft empty
-            mass before downloading.
+            Complete os quatro cálculos de aeródromo e a massa vazia do avião
+            antes de fazer os downloads.
           </p>
         ) : null}
         {status ? <p className="mt-3 text-sm text-zinc-600">{status}</p> : null}
