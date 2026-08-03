@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { P2006TOeiMapper } from "./p2006-oei-mapper";
 import { P2006TSourceMapperShellV11 } from "./p2006-source-mapper-shell-v11";
 
 export default function AdminP2006PerformancePage() {
@@ -17,7 +18,9 @@ export default function AdminP2006PerformancePage() {
               Performance tables are detected automatically from the visible grid in
               each source PNG. Form page 1 now contains both its writable loading
               fields and the complete Mass &amp; Balance graph on the same coordinate
-              surface. Form page 2 remains manual.
+              surface. Form page 2 remains manual. The dedicated OEI mapper below
+              stores the 6 × 24 VySE table geometry used by the separate performance
+              tables PDF.
             </p>
           </div>
 
@@ -51,6 +54,7 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
+        <P2006TOeiMapper />
         <P2006TSourceMapperShellV11 />
       </section>
     </main>
