@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { P2006TOeiMapper } from "./p2006-oei-mapper";
 import { P2006TSourceMapperShellV11 } from "./p2006-source-mapper-shell-v11";
 
 export default function AdminP2006PerformancePage() {
@@ -14,13 +13,12 @@ export default function AdminP2006PerformancePage() {
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
               Guided visual audit mapper
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Performance tables are detected automatically from the visible grid in
-              each source PNG. Form page 1 now contains both its writable loading
-              fields and the complete Mass &amp; Balance graph on the same coordinate
-              surface. Form page 2 remains manual. The dedicated OEI mapper below
-              stores the 6 × 24 VySE table geometry used by the separate performance
-              tables PDF.
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
+              O mesmo percurso guiado inclui agora take-off, landing, climb Vy,
+              climb Vx, OEI VySE e as quatro matrizes de cruise, além das páginas
+              do formulário e do gráfico de Mass &amp; Balance. Cada tabela pode ser
+              confirmada, redetetada, delimitada manualmente e guardada para a
+              respetiva matrícula.
             </p>
           </div>
 
@@ -54,7 +52,6 @@ export default function AdminP2006PerformancePage() {
           </div>
         </header>
 
-        <P2006TOeiMapper />
         <P2006TSourceMapperShellV11 />
       </section>
     </main>
