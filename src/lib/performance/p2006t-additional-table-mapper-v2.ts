@@ -130,15 +130,20 @@ export function readP2006TAdditionalTableMappings() {
   const stored = parseStore(
     window.localStorage.getItem(P2006T_ADDITIONAL_TABLE_STORAGE_KEY)
   );
-  const store = Object.keys(stored).length ? stored : readBaseMappings();
-  let changed = !Object.keys(stored).length && Object.keys(store).length > 0;
+  const migratingToV2 = Object.keys(stored).length === 0;
+  const store = migratingToV2 ? readBaseMappings() : stored;
+  let changed = migratingToV2;
 
   for (const registration of REGISTRATIONS) {
     const key = correctedKey(registration);
     const corrected = correctedMapping(registration);
     const current = store[key];
 
-    if (!current || savedAtMs(current.savedAt) <= savedAtMs(corrected.savedAt)) {
+    if (
+      migratingToV2 ||
+      !current ||
+      savedAtMs(current.savedAt) <= savedAtMs(corrected.savedAt)
+    ) {
       store[key] = corrected;
       changed = true;
     }
