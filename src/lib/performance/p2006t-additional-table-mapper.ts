@@ -50,24 +50,18 @@ export type P2006TAdditionalTableDefinition = {
   >;
 };
 
-type Overlay = {
-  image: string;
-  columns: number[];
-  rows: number[];
-};
-
+type Overlay = { image: string; columns: number[]; rows: number[] };
 type EnrouteOverlays = {
   vy: Record<P2006TRegistration, Overlay>;
   vx: Record<P2006TRegistration, Overlay>;
 };
-
+type CruiseAltitude = "0" | "3000" | "6000" | "9000";
 type CruiseOverlays = {
   cruise: Record<
     P2006TRegistration,
-    Record<"0" | "3000" | "6000" | "9000", Overlay>
+    Record<CruiseAltitude, Overlay>
   >;
 };
-
 type LegacyOeiStore = Partial<
   Record<
     P2006TRegistration,
@@ -90,9 +84,7 @@ export const P2006T_DEFAULT_OEI_GRID_RECT = {
 };
 
 function sourcePrefix(registration: P2006TRegistration) {
-  if (registration === "CS-EBX") return "SW";
-  if (registration === "D-GSEV") return "S";
-  return "";
+  return registration === "CS-EBX" ? "SW" : registration === "D-GSEV" ? "S" : "";
 }
 
 function printedPage(registration: P2006TRegistration, page: number) {
@@ -116,26 +108,30 @@ function gridFromRect(
   };
 }
 
+function overlaySource(
+  overlay: Overlay,
+  sourceLabel: string
+): P2006TAdditionalTableSource {
+  return {
+    image: overlay.image,
+    columnCenters: [...overlay.columns],
+    rowCenters: [...overlay.rows],
+    sourceLabel,
+  };
+}
+
 function sourceRecord(
   family: "vy" | "vx"
 ): Record<P2006TRegistration, P2006TAdditionalTableSource> {
   return Object.fromEntries(
-    REGISTRATIONS.map((registration) => {
-      const overlay = ENROUTE[family][registration];
-      return [
-        registration,
-        {
-          ...overlay,
-          columnCenters: overlay.columns,
-          rowCenters: overlay.rows,
-          sourceLabel: `AFM ${printedPage(
-            registration,
-            family === "vy" ? 12 : 13
-          )}`,
-        },
-      ];
-    })
-  ) as Record<P2006TRegistration, P2006TAdditionalTableSource>;
+    REGISTRATIONS.map((registration) => [
+      registration,
+      overlaySource(
+        ENROUTE[family][registration],
+        `AFM ${printedPage(registration, family === "vy" ? 12 : 13)}`
+      ),
+    ])
+  ) as unknown as Record<P2006TRegistration, P2006TAdditionalTableSource>;
 }
 
 function oeiSourceRecord(): Record<
@@ -154,28 +150,35 @@ function oeiSourceRecord(): Record<
         sourceLabel: `AFM ${printedPage(registration, 14)}`,
       },
     ])
-  ) as Record<P2006TRegistration, P2006TAdditionalTableSource>;
+  ) as unknown as Record<P2006TRegistration, P2006TAdditionalTableSource>;
 }
 
 function cruiseSourceRecord(
-  altitude: "0" | "3000" | "6000" | "9000"
+  altitude: CruiseAltitude
 ): Record<P2006TRegistration, P2006TAdditionalTableSource> {
   const page = altitude === "0" ? 16 : altitude === "9000" ? 18 : 17;
   return Object.fromEntries(
-    REGISTRATIONS.map((registration) => {
-      const overlay = CRUISE.cruise[registration][altitude];
-      return [
-        registration,
-        {
-          ...overlay,
-          columnCenters: overlay.columns,
-          rowCenters: overlay.rows,
-          sourceLabel: `AFM ${printedPage(registration, page)} · ${altitude} ft`,
-        },
-      ];
-    })
-  ) as Record<P2006TRegistration, P2006TAdditionalTableSource>;
+    REGISTRATIONS.map((registration) => [
+      registration,
+      overlaySource(
+        CRUISE.cruise[registration][altitude],
+        `AFM ${printedPage(registration, page)} · ${altitude} ft`
+      ),
+    ])
+  ) as unknown as Record<P2006TRegistration, P2006TAdditionalTableSource>;
 }
+
+const CRUISE_DEFINITIONS = (["0", "3000", "6000", "9000"] as const).map(
+  (altitude): P2006TAdditionalTableDefinition => ({
+    id: `cruise-${altitude}`,
+    shortTitle: altitude === "0" ? "Cruise SL" : `Cruise ${Number(altitude) / 1000}k`,
+    title: `Cruise performance · ${altitude} ft`,
+    group: "Cruise",
+    description:
+      "Map the complete published cruise matrix for this pressure altitude, including RPM, MAP and the ISA -30, ISA and ISA +30 performance groups.",
+    sourceByRegistration: cruiseSourceRecord(altitude),
+  })
+);
 
 export const P2006T_ADDITIONAL_TABLES: P2006TAdditionalTableDefinition[] = [
   {
@@ -205,17 +208,7 @@ export const P2006T_ADDITIONAL_TABLES: P2006TAdditionalTableDefinition[] = [
       "Map the six columns and 24 rows on the aircraft-specific OEI page. The saved geometry is also used to highlight the gradient and 50 ft/min service-ceiling cells in the tables PDF.",
     sourceByRegistration: oeiSourceRecord(),
   },
-  ...(["0", "3000", "6000", "9000"] as const).map(
-    (altitude): P2006TAdditionalTableDefinition => ({
-      id: `cruise-${altitude}`,
-      shortTitle: `Cruise ${Number(altitude) / 1000}k`,
-      title: `Cruise performance · ${altitude} ft`,
-      group: "Cruise",
-      description:
-        "Map the complete published cruise matrix for this pressure altitude, including RPM, MAP and the ISA -30, ISA and ISA +30 performance groups.",
-      sourceByRegistration: cruiseSourceRecord(altitude),
-    })
-  ),
+  ...CRUISE_DEFINITIONS,
 ];
 
 export function p2006TAdditionalTableKey(
@@ -229,11 +222,14 @@ export function centersToOuterRect(grid: P2006TTableGrid) {
   const axisBounds = (centers: number[]) => {
     if (centers.length === 0) return [0, 1] as const;
     if (centers.length === 1) return [centers[0] - 0.01, centers[0] + 0.01] as const;
-    const first = centers[0] - (centers[1] - centers[0]) / 2;
-    const last =
-      centers[centers.length - 1] +
-      (centers[centers.length - 1] - centers[centers.length - 2]) / 2;
-    return [Math.max(0, first), Math.min(1, last)] as const;
+    return [
+      Math.max(0, centers[0] - (centers[1] - centers[0]) / 2),
+      Math.min(
+        1,
+        centers[centers.length - 1] +
+          (centers[centers.length - 1] - centers[centers.length - 2]) / 2
+      ),
+    ] as const;
   };
   const [left, right] = axisBounds(grid.columnCenters);
   const [top, bottom] = axisBounds(grid.rowCenters);
@@ -270,14 +266,14 @@ export function readP2006TAdditionalTableMappings() {
     const legacy = raw ? (JSON.parse(raw) as LegacyOeiStore) : {};
     for (const registration of REGISTRATIONS) {
       const key = p2006TAdditionalTableKey("oei-vyse", registration);
-      if (store[key] || !legacy[registration]?.rect) continue;
-      const grid = gridFromRect(legacy[registration]!.rect, 6, 24);
+      const entry = legacy[registration];
+      if (store[key] || !entry?.rect) continue;
       store[key] = {
-        ...grid,
+        ...gridFromRect(entry.rect, 6, 24),
         confirmed: true,
         confidence: 0.8,
         method: "legacy-oei",
-        savedAt: legacy[registration]!.savedAt,
+        savedAt: entry.savedAt,
       };
     }
   } catch {
