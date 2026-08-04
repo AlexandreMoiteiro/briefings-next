@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   P2006T_REGISTRATIONS,
   type P2006TRegistration,
@@ -17,7 +18,7 @@ import {
   setP2006TBaseGrid,
   writeP2006TBaseCaptures,
 } from "./p2006-base-grid-storage";
-import { P2006TGridFineAdjustment } from "./p2006-grid-fine-adjustment";
+import { P2006TDraggableGridOverlay } from "./p2006-draggable-grid-overlay";
 import { STAGES } from "./p2006-mapper-definitions";
 import { P2006TSourceMapper as LegacyMapper } from "./p2006-source-mapper-v27";
 import { P2006TAdditionalTableMapper } from "./p2006-additional-table-mapper";
@@ -26,23 +27,14 @@ type ActiveStage =
   | { kind: "base"; index: number }
   | { kind: "additional"; index: number };
 
-type NavigationItem =
-  | {
-      key: string;
-      kind: "base";
-      index: number;
-      shortTitle: string;
-      title: string;
-      group: string;
-    }
-  | {
-      key: string;
-      kind: "additional";
-      index: number;
-      shortTitle: string;
-      title: string;
-      group: string;
-    };
+type NavigationItem = {
+  key: string;
+  kind: "base" | "additional";
+  index: number;
+  shortTitle: string;
+  title: string;
+  group: string;
+};
 
 function sameActive(left: ActiveStage, right: ActiveStage) {
   return left.kind === right.kind && left.index === right.index;
@@ -56,9 +48,22 @@ function liveProgressKey(
 }
 
 function progressText(button: HTMLButtonElement) {
-  const text = button.textContent ?? "";
-  const match = text.match(/(\d+)\s*\/\s*(\d+)\s*complete/i);
+  const progressSpan = Array.from(button.querySelectorAll("span")).find((span) =>
+    /\d+\s*\/\s*\d+\s*complete/i.test(span.textContent ?? "")
+  );
+  const match = progressSpan?.textContent?.match(
+    /(\d+)\s*\/\s*(\d+)\s*complete/i
+  );
   return match ? `${match[1]}/${match[2]}` : null;
+}
+
+function progressLabel(value: string | undefined) {
+  const match = value?.match(/^(\d+)\/(\d+)$/);
+  if (!match) return "Por iniciar";
+  const complete = Number(match[1]);
+  const total = Number(match[2]);
+  if (complete >= total && total > 0) return "Concluído";
+  return `${complete} de ${total} concluídos`;
 }
 
 function sameRecord(left: Record<string, string>, right: Record<string, string>) {
@@ -80,7 +85,7 @@ export function P2006TSourceMapper() {
   const [liveBaseProgress, setLiveBaseProgress] = useState<Record<string, string>>(
     {}
   );
-  const [baseAdjustmentStatus, setBaseAdjustmentStatus] = useState("");
+  const [baseSurface, setBaseSurface] = useState<HTMLElement | null>(null);
 
   const navigation = useMemo<NavigationItem[]>(() => {
     const performance = STAGES.flatMap((stage, index) =>
@@ -212,6 +217,32 @@ export function P2006TSourceMapper() {
     };
   }, [active, legacyRevision, liveBaseProgress, registration]);
 
+  useEffect(() => {
+    setBaseSurface(null);
+    if (active.kind !== "base" || activeBaseStage?.type !== "performance") {
+      return;
+    }
+
+    const findSurface = () => {
+      const root = legacyRef.current;
+      if (!root) return;
+      const surfaces = Array.from(
+        root.querySelectorAll<HTMLElement>(
+          ".relative.mx-auto.select-none.bg-white"
+        )
+      );
+      const surface = surfaces.find((candidate) => candidate.querySelector("img"));
+      if (surface) setBaseSurface(surface);
+    };
+
+    const frame = window.requestAnimationFrame(findSurface);
+    const timeout = window.setTimeout(findSurface, 250);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(timeout);
+    };
+  }, [active, activeBaseStage, legacyRevision, registration]);
+
   const progressByKey = useMemo(() => {
     if (typeof window === "undefined") return {} as Record<string, string>;
     const captures = readP2006TBaseCaptures();
@@ -227,8 +258,7 @@ export function P2006TSourceMapper() {
           return [item.key, mapping?.confirmed ? "1/1" : "0/1"];
         }
         const stage = STAGES[item.index];
-        const live =
-          liveBaseProgress[liveProgressKey(registration, stage.id)];
+        const live = liveBaseProgress[liveProgressKey(registration, stage.id)];
         if (live) return [item.key, live];
         const complete = stage.steps.filter(
           (step) =>
@@ -251,11 +281,8 @@ export function P2006TSourceMapper() {
   }, [activeBaseStage, legacyRevision, registration, revision]);
 
   function activate(item: NavigationItem) {
-    const next: ActiveStage = { kind: item.kind, index: item.index };
-    if (!sameActive(active, next)) {
-      setActive(next);
-      setBaseAdjustmentStatus("");
-    }
+    const next: ActiveStage = { kind: item.kind, index: item.index } as ActiveStage;
+    if (!sameActive(active, next)) setActive(next);
   }
 
   function move(offset: number) {
@@ -266,9 +293,10 @@ export function P2006TSourceMapper() {
 
   function saveLegacyReactState() {
     const root = legacyRef.current;
-    const button = Array.from(root?.querySelectorAll<HTMLButtonElement>("button") ?? []).find(
-      (candidate) =>
-        candidate.textContent?.trim() === "Save browser progress"
+    const button = Array.from(
+      root?.querySelectorAll<HTMLButtonElement>("button") ?? []
+    ).find(
+      (candidate) => candidate.textContent?.trim() === "Save browser progress"
     );
     button?.click();
   }
@@ -293,16 +321,13 @@ export function P2006TSourceMapper() {
         activeBaseStage,
         registration,
         {
-          ...nextGrid,
-          confirmed: false,
+          columnCenters: nextGrid.columnCenters,
+          rowCenters: nextGrid.rowCenters,
+          confirmed: current?.confirmed ?? nextGrid.confirmed,
         }
       );
       writeP2006TBaseCaptures(updated);
-      setBaseAdjustmentStatus(
-        current?.confirmed
-          ? "A grelha foi ajustada e ficou por reconfirmar. Os restantes itens concluídos foram preservados."
-          : "Ajuste guardado. Confirme a grelha quando estiver alinhada."
-      );
+      setBaseSurface(null);
       setLegacyRevision((value) => value + 1);
       setRevision((value) => value + 1);
     }, 60);
@@ -323,10 +348,8 @@ export function P2006TSourceMapper() {
               Todas as tabelas P2006T no mesmo mapper
             </h2>
             <p className="mt-2 max-w-5xl text-sm leading-6 text-zinc-600">
-              Take-off, landing, climb Vy/Vx, OEI VySE e cruise usam a mesma
-              navegação. O progresso mostrado inclui imediatamente o estado real do
-              mapper e os antigos mapas T/O e landing são migrados para a grelha
-              atual, sem obrigar a repetir trabalho já concluído.
+              As tabelas já concluídas mantêm o progresso. Nas grelhas, basta
+              arrastar diretamente uma linha azul para a posição correta.
             </p>
           </div>
 
@@ -336,10 +359,9 @@ export function P2006TSourceMapper() {
             </span>
             <select
               value={registration}
-              onChange={(event) => {
-                setRegistration(event.target.value as P2006TRegistration);
-                setBaseAdjustmentStatus("");
-              }}
+              onChange={(event) =>
+                setRegistration(event.target.value as P2006TRegistration)
+              }
               className="block rounded-xl border border-sky-200 bg-white px-3 py-2 text-sm font-semibold"
             >
               {P2006T_REGISTRATIONS.map((candidate) => (
@@ -353,6 +375,9 @@ export function P2006TSourceMapper() {
           {navigation.map((item) => {
             const selected =
               item.kind === active.kind && item.index === active.index;
+            const progress = progressByKey[item.key];
+            const shared =
+              item.kind === "base" && STAGES[item.index].type !== "performance";
             return (
               <button
                 key={item.key}
@@ -372,12 +397,11 @@ export function P2006TSourceMapper() {
                 <span className="mt-1 block text-sm font-semibold">
                   {item.shortTitle}
                 </span>
-                <span className="mt-1 block text-xs opacity-70">
-                  {progressByKey[item.key] ?? "0/1"} concluído ·{" "}
-                  {item.kind === "base" &&
-                  STAGES[item.index].type !== "performance"
-                    ? "partilhado"
-                    : registration}
+                <span className="mt-1 block text-xs font-semibold opacity-75">
+                  Estado: {progressLabel(progress)}
+                </span>
+                <span className="mt-0.5 block text-[10px] opacity-60">
+                  {shared ? "Partilhado" : registration}
                 </span>
               </button>
             );
@@ -386,17 +410,9 @@ export function P2006TSourceMapper() {
       </section>
 
       {activeBaseGrid && activeBaseStage?.type === "performance" ? (
-        <P2006TGridFineAdjustment
-          grid={activeBaseGrid}
-          columnLabels={["-25 °C", "0 °C", "25 °C", "50 °C", "ISA"]}
-          title={`${activeBaseStage.shortTitle} · ajuste manual da grelha`}
-          onChange={adjustBaseGrid}
-        />
-      ) : null}
-
-      {baseAdjustmentStatus ? (
-        <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-          {baseAdjustmentStatus}
+        <p className="rounded-2xl border border-sky-200 bg-white px-4 py-3 text-sm font-semibold text-sky-800">
+          Arraste diretamente as linhas azuis sobre a tabela. A nova posição fica
+          guardada quando largar.
         </p>
       ) : null}
 
@@ -408,6 +424,17 @@ export function P2006TSourceMapper() {
       >
         <LegacyMapper key={legacyRevision} />
       </div>
+
+      {baseSurface && activeBaseGrid
+        ? createPortal(
+            <P2006TDraggableGridOverlay
+              grid={activeBaseGrid}
+              showCells={false}
+              onCommit={adjustBaseGrid}
+            />,
+            baseSurface
+          )
+        : null}
 
       {activeAdditional ? (
         <P2006TAdditionalTableMapper
