@@ -20,6 +20,7 @@ import {
   type P2006TTableGrid,
   type P2006TTableMapping,
 } from "@/lib/performance/p2006t-additional-table-mapper";
+import { P2006TGridFineAdjustment } from "./p2006-grid-fine-adjustment";
 
 type DragState = {
   startX: number;
@@ -222,6 +223,19 @@ function refineVisibleGrid(
   };
 }
 
+function columnLabels(definition: P2006TAdditionalTableDefinition) {
+  if (definition.id === "enroute-vy") {
+    return ["Vy", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
+  }
+  if (definition.id === "enroute-vx") {
+    return ["Vx", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
+  }
+  if (definition.id === "oei-vyse") {
+    return ["VySE", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
+  }
+  return undefined;
+}
+
 function GridOverlay({ mapping }: { mapping: P2006TTableMapping }) {
   const xBoundaries = boundariesFromCenters(mapping.columnCenters);
   const yBoundaries = boundariesFromCenters(mapping.rowCenters);
@@ -325,7 +339,11 @@ export function P2006TAdditionalTableMapper({
     setManualBoxMode(false);
     setDrag(null);
     setZoom(100);
-    setStatus(loaded[key] ? "Mapeamento guardado carregado." : "Geometria AFM carregada para confirmação.");
+    setStatus(
+      loaded[key]
+        ? "Mapeamento guardado carregado."
+        : "Geometria AFM carregada para confirmação."
+    );
   }, [definition, key, registration]);
 
   const draftRect = useMemo(() => (drag ? rectFromDrag(drag) : null), [drag]);
@@ -516,7 +534,24 @@ export function P2006TAdditionalTableMapper({
             </div>
           </section>
 
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+          <P2006TGridFineAdjustment
+            grid={mapping}
+            columnLabels={columnLabels(definition)}
+            onChange={(nextGrid) => {
+              persist({
+                ...mapping,
+                ...nextGrid,
+                confidence: 1,
+                method: "manual-box",
+                savedAt: new Date().toISOString(),
+              });
+              setStatus(
+                "Ajuste manual guardado. Confirme novamente a grelha quando estiver alinhada."
+              );
+            }}
+          />
+
+          <div className="mb-3 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
