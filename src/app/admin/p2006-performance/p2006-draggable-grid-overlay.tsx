@@ -58,10 +58,12 @@ export function P2006TDraggableGridOverlay({
   grid,
   onCommit,
   showCells = true,
+  disabled = false,
 }: {
   grid: P2006TDraggableGrid;
   onCommit: (grid: P2006TDraggableGrid) => void;
   showCells?: boolean;
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useState(grid);
   const [drag, setDrag] = useState<DragTarget>(null);
@@ -79,6 +81,7 @@ export function P2006TDraggableGridOverlay({
     event: ReactPointerEvent<SVGLineElement>,
     target: Exclude<DragTarget, null>
   ) {
+    if (disabled) return;
     event.preventDefault();
     event.stopPropagation();
     event.currentTarget.ownerSVGElement?.setPointerCapture(event.pointerId);
@@ -86,7 +89,7 @@ export function P2006TDraggableGridOverlay({
   }
 
   function move(event: ReactPointerEvent<SVGSVGElement>) {
-    if (!drag) return;
+    if (!drag || disabled) return;
     event.preventDefault();
     const point = normalizedPointer(event);
     setDraft((current) =>
@@ -107,7 +110,7 @@ export function P2006TDraggableGridOverlay({
   }
 
   function finish(event: ReactPointerEvent<SVGSVGElement>) {
-    if (!drag) return;
+    if (!drag || disabled) return;
     event.preventDefault();
     event.currentTarget.releasePointerCapture?.(event.pointerId);
     setDrag(null);
@@ -119,7 +122,7 @@ export function P2006TDraggableGridOverlay({
       viewBox="0 0 1000 1000"
       preserveAspectRatio="none"
       className="absolute inset-0 z-20 h-full w-full"
-      style={{ touchAction: "none" }}
+      style={{ touchAction: "none", pointerEvents: disabled ? "none" : "auto" }}
       onPointerMove={move}
       onPointerUp={finish}
       onPointerCancel={finish}
