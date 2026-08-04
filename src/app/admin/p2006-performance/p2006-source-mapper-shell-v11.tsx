@@ -5,6 +5,11 @@ import {
   P2006T_REGISTRATIONS,
   type P2006TRegistration,
 } from "@/lib/performance/p2006t-fleet";
+import {
+  P2006T_ADDITIONAL_TABLES,
+  P2006T_ADDITIONAL_TABLE_STORAGE_KEY,
+  P2006T_LEGACY_OEI_STORAGE_KEY,
+} from "@/lib/performance/p2006t-additional-table-mapper";
 import { P2006TSourceMapper } from "./p2006-source-mapper";
 import {
   STAGES,
@@ -172,7 +177,11 @@ export function P2006TSourceMapperShellV11() {
     const perAircraft = STAGES.filter(
       (stage) => stage.type === "performance"
     ).reduce((sum, stage) => sum + stage.steps.length, 0);
-    return shared + perAircraft * P2006T_REGISTRATIONS.length;
+    const additionalPerAircraft = P2006T_ADDITIONAL_TABLES.length;
+    return (
+      shared +
+      (perAircraft + additionalPerAircraft) * P2006T_REGISTRATIONS.length
+    );
   }, []);
 
   useEffect(() => {
@@ -235,6 +244,8 @@ export function P2006TSourceMapperShellV11() {
   function clearProgress() {
     window.localStorage.removeItem(STORAGE_KEY);
     window.localStorage.removeItem(GRID_META_KEY);
+    window.localStorage.removeItem(P2006T_ADDITIONAL_TABLE_STORAGE_KEY);
+    window.localStorage.removeItem(P2006T_LEGACY_OEI_STORAGE_KEY);
     window.localStorage.setItem(MIGRATION_KEY, "1");
     setSummary({ kept: 0, removed: 0, migrated: 0, source: "blank map" });
     setMapperKey((value) => value + 1);
@@ -254,7 +265,8 @@ export function P2006TSourceMapperShellV11() {
             <p className="mt-1 max-w-4xl text-sm leading-6 text-zinc-600">
               Importing an older JSON moves the four page-one field rectangles into
               the M&amp;B page automatically. Existing graph points, guide lines and
-              page-two fields are preserved.
+              page-two fields are preserved. Starting blank now clears all take-off,
+              landing, climb, OEI and cruise mappings together.
             </p>
           </div>
 
