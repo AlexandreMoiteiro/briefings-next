@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { P2006TCalculationPreview } from "./p2006-calculation-preview-v3";
+import { P2006TCalculationPreview } from "./p2006-calculation-preview-v4";
 
 export default function P2006TCalculationPreviewPage() {
   return (
