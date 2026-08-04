@@ -21,13 +21,13 @@ const DOWNLOADS: Array<{
     mode: "kneeboard",
     title: "Download do kneeboard",
     description:
-      "Apenas o kneeboard normal e a folha OEI com ASDR, gradiente e service ceiling.",
+      "Uma única página com pesos, combustível, enroute e os valores ASDR/OEI de cada aeródromo.",
   },
   {
     mode: "tables",
     title: "Download das tabelas",
     description:
-      "Tabelas de aeródromo, enroute, cruise e a tabela OEI mapeada com as células usadas assinaladas.",
+      "Tabelas AFM com células usadas, contas completas das correções e evidência OEI por aeródromo.",
   },
 ];
 
