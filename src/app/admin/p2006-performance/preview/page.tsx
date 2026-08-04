@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { P2006TCalculationPreview } from "./p2006-calculation-preview-v4";
 import { P2006TAdditionalTableAudit } from "./p2006-additional-table-audit";
+import { P2006TCruise3000PolicyNote } from "./p2006-cruise-3000-policy-note";
 
 export default function P2006TCalculationPreviewPage() {
   return (
@@ -37,6 +38,7 @@ export default function P2006TCalculationPreviewPage() {
         </header>
 
         <P2006TCalculationPreview />
+        <P2006TCruise3000PolicyNote />
         <P2006TAdditionalTableAudit />
       </section>
     </main>
