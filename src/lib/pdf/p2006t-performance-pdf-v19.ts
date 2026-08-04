@@ -15,6 +15,7 @@ const A4_WIDTH = 595;
 const A4_HEIGHT = 842;
 const A3_WIDTH = 1191;
 const A3_HEIGHT = 842;
+const PDF_RENDERER_VERSION = "p2006t-v22-complete-oei";
 const NORMALIZED_TARGET = {
   x: 22,
   y: 20,
@@ -78,6 +79,7 @@ function cacheKey(
   mode: ReturnType<typeof getP2006TDownloadMode>
 ) {
   return JSON.stringify({
+    renderer: PDF_RENDERER_VERSION,
     mode,
     registration: input.registration,
     date: input.date,
@@ -106,7 +108,6 @@ export async function buildP2006TPerformancePdfV3(
   const cached = PDF_CACHE.get(key);
   if (cached) return Uint8Array.from(cached);
 
-  // Allow the busy label to render before pdf-lib starts the heavier work.
   await new Promise<void>((resolve) => window.setTimeout(resolve, 0));
 
   const bytes = await buildP2006TPerformancePdfV18(input);
