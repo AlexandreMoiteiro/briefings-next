@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import {
+  clearP2006TDownloadMode,
   setP2006TDownloadMode,
   type P2006TDownloadMode,
 } from "@/lib/pdf/p2006t-download-mode";
@@ -47,11 +48,23 @@ function exportButton(section: HTMLElement | null) {
   );
 }
 
+function hiddenPdfStatus(section: HTMLElement | null) {
+  return (
+    Array.from(section?.querySelectorAll("p") ?? [])
+      .map((item) => item.textContent?.trim() ?? "")
+      .find((text) => /generated|failed|error|erro|não foi|could not/i.test(text)) ??
+    ""
+  );
+}
+
 export function P2006TMissionClientV10() {
   const rootRef = useRef<HTMLDivElement>(null);
   const originalSectionRef = useRef<HTMLElement | null>(null);
   const originalButtonRef = useRef<HTMLButtonElement | null>(null);
+  const busyModeRef = useRef<P2006TDownloadMode | null>(null);
+  const baselineStatusRef = useRef("");
   const sawDisabledRef = useRef(false);
+  const startedAtRef = useRef(0);
   const [available, setAvailable] = useState(false);
   const [busyMode, setBusyMode] = useState<P2006TDownloadMode | null>(null);
   const [status, setStatus] = useState("");
@@ -60,6 +73,15 @@ export function P2006TMissionClientV10() {
     const root = rootRef.current;
     if (!root) return;
 
+    const finish = (message: string) => {
+      busyModeRef.current = null;
+      sawDisabledRef.current = false;
+      setBusyMode(null);
+      setStatus(message);
+      const button = originalButtonRef.current;
+      setAvailable(Boolean(button && !button.disabled));
+    };
+
     const sync = () => {
       const section = pdfSection(root);
       const button = exportButton(section);
@@ -67,25 +89,44 @@ export function P2006TMissionClientV10() {
       originalButtonRef.current = button;
 
       if (section) section.style.display = "none";
-      setAvailable(Boolean(button && !button.disabled));
 
-      if (busyMode && button?.disabled) {
-        sawDisabledRef.current = true;
+      const activeMode = busyModeRef.current;
+      if (!activeMode) {
+        setAvailable(Boolean(button && !button.disabled));
+        return;
       }
-      if (busyMode && sawDisabledRef.current && button && !button.disabled) {
-        const hiddenStatus = Array.from(section?.querySelectorAll("p") ?? [])
-          .map((item) => item.textContent?.trim() ?? "")
-          .find((text) => /generated|failed|não|erro|error/i.test(text));
-        setStatus(hiddenStatus || "PDF gerado e download iniciado.");
-        setBusyMode(null);
-        sawDisabledRef.current = false;
+
+      setAvailable(false);
+      if (button?.disabled) sawDisabledRef.current = true;
+
+      const hiddenStatus = hiddenPdfStatus(section);
+      const statusChanged =
+        Boolean(hiddenStatus) && hiddenStatus !== baselineStatusRef.current;
+      const finishedByStatus =
+        statusChanged && /generated|failed|error|erro|não foi|could not/i.test(hiddenStatus);
+      const finishedByButton =
+        sawDisabledRef.current && Boolean(button && !button.disabled);
+
+      if (finishedByStatus || finishedByButton) {
+        finish(hiddenStatus || "PDF gerado e download iniciado.");
+        return;
+      }
+
+      if (Date.now() - startedAtRef.current > 180_000) {
+        clearP2006TDownloadMode();
+        finish("A geração demorou demasiado tempo. Pode tentar novamente.");
       }
     };
 
     sync();
-    const interval = window.setInterval(sync, 250);
+    const interval = window.setInterval(sync, 200);
     const observer = new MutationObserver(sync);
-    observer.observe(root, { subtree: true, childList: true, attributes: true });
+    observer.observe(root, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
 
     return () => {
       window.clearInterval(interval);
@@ -94,16 +135,34 @@ export function P2006TMissionClientV10() {
         originalSectionRef.current.style.display = "";
       }
     };
-  }, [busyMode]);
+  }, []);
 
   function download(mode: P2006TDownloadMode) {
     const button = originalButtonRef.current;
-    if (!button || button.disabled || busyMode) return;
+    const section = originalSectionRef.current;
+    if (!button || button.disabled || busyModeRef.current) return;
+
+    baselineStatusRef.current = hiddenPdfStatus(section);
+    sawDisabledRef.current = false;
+    startedAtRef.current = Date.now();
+    busyModeRef.current = mode;
     setP2006TDownloadMode(mode);
     setStatus("");
-    sawDisabledRef.current = false;
     setBusyMode(mode);
-    button.click();
+    setAvailable(false);
+
+    // Run on the next task so the selected card can paint its busy state first.
+    window.setTimeout(() => {
+      const current = originalButtonRef.current;
+      if (!current || current.disabled) {
+        clearP2006TDownloadMode();
+        busyModeRef.current = null;
+        setBusyMode(null);
+        setStatus("O gerador PDF ainda não está disponível.");
+        return;
+      }
+      current.click();
+    }, 0);
   }
 
   return (
@@ -116,8 +175,8 @@ export function P2006TMissionClientV10() {
             Downloads PDF
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
-            Gere cada documento operacional em separado. O PDF das tabelas usa
-            a geometria OEI guardada no mapper do Admin para a matrícula selecionada.
+            Gere cada documento operacional em separado. Depois de terminar um
+            download, os três botões ficam novamente disponíveis.
           </p>
         </div>
 
