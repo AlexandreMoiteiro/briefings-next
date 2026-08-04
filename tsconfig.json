@@ -31,8 +31,11 @@
       "@/lib/performance/p2006t-performance": [
         "./src/lib/performance/p2006t-performance-conditioned.ts"
       ],
+      "@/lib/performance/p2006t-additional-table-mapper": [
+        "./src/lib/performance/p2006t-additional-table-mapper-v2.ts"
+      ],
       "@/lib/pdf/p2006t-performance-pdf-v3": [
-        "./src/lib/pdf/p2006t-performance-pdf-v15.ts"
+        "./src/lib/pdf/p2006t-performance-pdf-v16.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf": [
         "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
