@@ -14,8 +14,9 @@ export default function P2006TCalculationPreviewPage() {
               Calculation preview
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Review the mapped geometry and follow the Mass &amp; Balance path and
-              takeoff or landing interpolation directly on the original pages.
+              Review the mapped geometry, follow the Mass &amp; Balance path and the
+              take-off or landing interpolation on the original pages, and validate
+              the exact explanatory wording proposed for the Performance engine.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
