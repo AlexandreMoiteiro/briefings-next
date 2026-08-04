@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { P2006TCalculationPreview } from "./p2006-calculation-preview-v4";
+import { P2006TAdditionalTableAudit } from "./p2006-additional-table-audit";
 
 export default function P2006TCalculationPreviewPage() {
   return (
@@ -11,12 +12,12 @@ export default function P2006TCalculationPreviewPage() {
               Admin · Tecnam P2006T
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Calculation preview
+              Calculation and table audit
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Review the mapped geometry, follow the Mass &amp; Balance path and the
-              take-off or landing interpolation on the original pages, and validate
-              the exact explanatory wording proposed for the Performance engine.
+              Review the Mass &amp; Balance path, take-off and landing interpolation,
+              the proposed Performance-engine wording and the mapped Vy, Vx, OEI and
+              cruise tables on their original AFM pages.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -36,6 +37,7 @@ export default function P2006TCalculationPreviewPage() {
         </header>
 
         <P2006TCalculationPreview />
+        <P2006TAdditionalTableAudit />
       </section>
     </main>
   );
