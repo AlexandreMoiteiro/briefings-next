@@ -20,7 +20,7 @@ import {
   type P2006TTableGrid,
   type P2006TTableMapping,
 } from "@/lib/performance/p2006t-additional-table-mapper";
-import { P2006TGridFineAdjustment } from "./p2006-grid-fine-adjustment";
+import { P2006TDraggableGridOverlay } from "./p2006-draggable-grid-overlay";
 
 type DragState = {
   startX: number;
@@ -168,9 +168,11 @@ function refineVisibleGrid(
       let marked = 0;
       let samples = 0;
       if (orientation === "vertical") {
-        const start = Math.max(0, Math.floor(top * height));
-        const end = Math.min(height - 1, Math.ceil(bottom * height));
-        for (let y = start; y <= end; y += 2) {
+        for (
+          let y = Math.max(0, Math.floor(top * height));
+          y <= Math.min(height - 1, Math.ceil(bottom * height));
+          y += 2
+        ) {
           samples += 1;
           if (
             isDark(candidate - 1, y) ||
@@ -181,9 +183,11 @@ function refineVisibleGrid(
           }
         }
       } else {
-        const start = Math.max(0, Math.floor(left * width));
-        const end = Math.min(width - 1, Math.ceil(right * width));
-        for (let x = start; x <= end; x += 2) {
+        for (
+          let x = Math.max(0, Math.floor(left * width));
+          x <= Math.min(width - 1, Math.ceil(right * width));
+          x += 2
+        ) {
           samples += 1;
           if (
             isDark(x, candidate - 1) ||
@@ -210,80 +214,16 @@ function refineVisibleGrid(
   const refinedY = expectedY.map((boundary) =>
     searchBoundary(boundary, "horizontal")
   );
-  const confidence = clamp(
-    mean([...refinedX, ...refinedY].map((result) => result.score)) * 2.8
-  );
 
   return {
     columnCenters: centersFromBoundaries(
       refinedX.map((result) => result.position)
     ),
     rowCenters: centersFromBoundaries(refinedY.map((result) => result.position)),
-    confidence,
+    confidence: clamp(
+      mean([...refinedX, ...refinedY].map((result) => result.score)) * 2.8
+    ),
   };
-}
-
-function columnLabels(definition: P2006TAdditionalTableDefinition) {
-  if (definition.id === "enroute-vy") {
-    return ["Vy", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
-  }
-  if (definition.id === "enroute-vx") {
-    return ["Vx", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
-  }
-  if (definition.id === "oei-vyse") {
-    return ["VySE", "-25 °C", "0 °C", "25 °C", "50 °C", "ISA"];
-  }
-  return undefined;
-}
-
-function GridOverlay({ mapping }: { mapping: P2006TTableMapping }) {
-  const xBoundaries = boundariesFromCenters(mapping.columnCenters);
-  const yBoundaries = boundariesFromCenters(mapping.rowCenters);
-  const stroke = mapping.confirmed ? "rgb(5 150 105)" : "rgb(217 119 6)";
-  const fill = mapping.confirmed
-    ? "rgba(5,150,105,0.055)"
-    : "rgba(245,158,11,0.07)";
-
-  return (
-    <svg
-      viewBox="0 0 1000 1000"
-      preserveAspectRatio="none"
-      className="pointer-events-none absolute inset-0 h-full w-full"
-    >
-      {mapping.rowCenters.flatMap((row, rowIndex) =>
-        mapping.columnCenters.map((column, columnIndex) => {
-          const left = xBoundaries[columnIndex];
-          const right = xBoundaries[columnIndex + 1];
-          const top = yBoundaries[rowIndex];
-          const bottom = yBoundaries[rowIndex + 1];
-          return (
-            <rect
-              key={`${rowIndex}-${columnIndex}`}
-              x={left * 1000}
-              y={top * 1000}
-              width={(right - left) * 1000}
-              height={(bottom - top) * 1000}
-              fill={fill}
-              stroke={stroke}
-              strokeWidth="1.2"
-              vectorEffect="non-scaling-stroke"
-            />
-          );
-        })
-      )}
-      {mapping.rowCenters.flatMap((row, rowIndex) =>
-        mapping.columnCenters.map((column, columnIndex) => (
-          <circle
-            key={`centre-${rowIndex}-${columnIndex}`}
-            cx={column * 1000}
-            cy={row * 1000}
-            r="2.3"
-            fill={stroke}
-          />
-        ))
-      )}
-    </svg>
-  );
 }
 
 function downloadJson(filename: string, value: unknown) {
@@ -330,10 +270,10 @@ export function P2006TAdditionalTableMapper({
 
   useEffect(() => {
     const loaded = readP2006TAdditionalTableMappings();
-    const next =
-      loaded[key] ?? initialP2006TAdditionalTableMapping(definition, registration);
     setStore(loaded);
-    setMapping(next);
+    setMapping(
+      loaded[key] ?? initialP2006TAdditionalTableMapping(definition, registration)
+    );
     setImageReady(false);
     setDetecting(false);
     setManualBoxMode(false);
@@ -367,26 +307,16 @@ export function P2006TAdditionalTableMapper({
   }
 
   function confirmGrid() {
-    const next = {
+    persist({
       ...mapping,
       confirmed: true,
       savedAt: new Date().toISOString(),
-    };
-    persist(next);
-    setStatus(
-      `${definition.shortTitle} · ${registration}: grelha confirmada e guardada.`
-    );
-  }
-
-  function saveProgress() {
-    const next = { ...mapping, savedAt: new Date().toISOString() };
-    persist(next);
-    setStatus("Progresso guardado neste browser.");
+    });
+    setStatus(`${definition.shortTitle} · ${registration}: grelha confirmada.`);
   }
 
   function restoreAfmGeometry() {
-    const next = initialP2006TAdditionalTableMapping(definition, registration);
-    setMapping(next);
+    setMapping(initialP2006TAdditionalTableMapping(definition, registration));
     setManualBoxMode(false);
     setDrag(null);
     setStatus("Geometria AFM reposta; confirme para a guardar.");
@@ -406,15 +336,9 @@ export function P2006TAdditionalTableMapper({
           method: "pixel-refine",
           savedAt: null,
         });
-        setStatus(
-          refined.confidence >= 0.55
-            ? "Grelha redetetada; verifique a sobreposição e confirme."
-            : "A deteção teve confiança baixa; use a geometria AFM ou delimite a matriz manualmente."
-        );
+        setStatus("Grelha redetetada; verifique e confirme.");
       } catch {
-        setStatus(
-          "Não foi possível analisar os píxeis desta página; a geometria AFM permanece disponível."
-        );
+        setStatus("Não foi possível redetetar esta página.");
       } finally {
         setDetecting(false);
       }
@@ -438,13 +362,12 @@ export function P2006TAdditionalTableMapper({
     if (!drag) return;
     const point = pointerPosition(event);
     const rect = rectFromDrag({ ...drag, ...point });
-    const grid = gridFromOuterBox(
-      rect,
-      source.columnCenters.length,
-      source.rowCenters.length
-    );
     setMapping({
-      ...grid,
+      ...gridFromOuterBox(
+        rect,
+        source.columnCenters.length,
+        source.rowCenters.length
+      ),
       confirmed: false,
       confidence: 0.55,
       method: "manual-box",
@@ -452,7 +375,7 @@ export function P2006TAdditionalTableMapper({
     });
     setDrag(null);
     setManualBoxMode(false);
-    setStatus("Matriz delimitada manualmente; verifique e confirme.");
+    setStatus("Matriz delimitada; arraste diretamente qualquer linha para afinar.");
   }
 
   return (
@@ -461,7 +384,7 @@ export function P2006TAdditionalTableMapper({
         <div className="rounded-3xl border border-zinc-200 bg-white p-4">
           <section className="mb-3 rounded-2xl border-2 border-sky-300 bg-sky-50 p-4">
             <p className="text-xs font-semibold uppercase tracking-[0.16em] text-sky-700">
-              Tarefa 1/1 · {definition.group}
+              {definition.group}
             </p>
             <h3 className="mt-1 text-xl font-semibold text-zinc-950">
               {definition.title}
@@ -469,95 +392,75 @@ export function P2006TAdditionalTableMapper({
             <p className="mt-2 text-sm leading-6 text-zinc-700">
               {definition.description}
             </p>
+            <p className="mt-3 rounded-xl bg-white px-3 py-2 text-sm font-semibold text-sky-800">
+              Arraste diretamente as linhas azuis da grelha. A posição fica guardada ao largar.
+            </p>
 
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span
-                  className={`rounded-full px-3 py-1.5 text-sm font-semibold ${confidenceClass}`}
-                >
-                  {mapping.method === "afm-overlay"
-                    ? "Geometria AFM preparada"
-                    : `Confiança ${confidencePercentage}%`}
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <span className={`rounded-full px-3 py-1.5 text-sm font-semibold ${confidenceClass}`}>
+                {mapping.method === "afm-overlay"
+                  ? "Geometria AFM preparada"
+                  : `Confiança ${confidencePercentage}%`}
+              </span>
+              <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600">
+                {mapping.columnCenters.length} colunas · {mapping.rowCenters.length} linhas
+              </span>
+              {mapping.confirmed ? (
+                <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-900">
+                  Concluído
                 </span>
-                <span className="rounded-full bg-white px-3 py-1.5 text-xs font-semibold text-zinc-600">
-                  {mapping.columnCenters.length} colunas · {mapping.rowCenters.length} linhas · {mapping.method}
-                </span>
-                {mapping.confirmed ? (
-                  <span className="rounded-full bg-emerald-100 px-3 py-1.5 text-xs font-semibold text-emerald-900">
-                    Confirmado
-                  </span>
-                ) : null}
-              </div>
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={!imageReady || detecting}
-                  onClick={confirmGrid}
-                  className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
-                >
-                  Confirmar grelha
-                </button>
-                <button
-                  type="button"
-                  disabled={!imageReady || detecting}
-                  onClick={runDetection}
-                  className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 disabled:text-zinc-300"
-                >
-                  {detecting ? "A detetar…" : "Redetetar automaticamente"}
-                </button>
-                <button
-                  type="button"
-                  disabled={!imageReady}
-                  onClick={() => {
-                    setManualBoxMode(true);
-                    setDrag(null);
-                  }}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 disabled:text-zinc-300"
-                >
-                  Delimitar matriz manualmente
-                </button>
-                <button
-                  type="button"
-                  onClick={restoreAfmGeometry}
-                  className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700"
-                >
-                  Repor geometria AFM
-                </button>
-              </div>
-
-              {manualBoxMode ? (
-                <p className="rounded-xl bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900">
-                  Arraste um retângulo do limite superior esquerdo ao limite inferior direito da matriz numérica completa.
-                </p>
               ) : null}
             </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={!imageReady || detecting}
+                onClick={confirmGrid}
+                className="rounded-xl bg-emerald-700 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
+              >
+                Confirmar grelha
+              </button>
+              <button
+                type="button"
+                disabled={!imageReady || detecting}
+                onClick={runDetection}
+                className="rounded-xl border border-sky-200 bg-white px-4 py-2.5 text-sm font-semibold text-sky-800 disabled:text-zinc-300"
+              >
+                {detecting ? "A detetar…" : "Redetetar automaticamente"}
+              </button>
+              <button
+                type="button"
+                disabled={!imageReady}
+                onClick={() => {
+                  setManualBoxMode(true);
+                  setDrag(null);
+                }}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 disabled:text-zinc-300"
+              >
+                Redesenhar limite exterior
+              </button>
+              <button
+                type="button"
+                onClick={restoreAfmGeometry}
+                className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700"
+              >
+                Repor geometria AFM
+              </button>
+            </div>
+
+            {manualBoxMode ? (
+              <p className="mt-3 rounded-xl bg-amber-100 px-3 py-2 text-sm font-semibold text-amber-900">
+                Arraste um retângulo à volta da matriz completa.
+              </p>
+            ) : null}
           </section>
 
-          <P2006TGridFineAdjustment
-            grid={mapping}
-            columnLabels={columnLabels(definition)}
-            onChange={(nextGrid) => {
-              persist({
-                ...mapping,
-                ...nextGrid,
-                confidence: 1,
-                method: "manual-box",
-                savedAt: new Date().toISOString(),
-              });
-              setStatus(
-                "Ajuste manual guardado. Confirme novamente a grelha quando estiver alinhada."
-              );
-            }}
-          />
-
-          <div className="mb-3 mt-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-2">
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() =>
-                  setZoom((value) => Math.max(MIN_ZOOM, value - ZOOM_STEP))
-                }
+                onClick={() => setZoom((value) => Math.max(MIN_ZOOM, value - ZOOM_STEP))}
                 className="h-9 w-9 rounded-lg border bg-white font-semibold"
               >
                 −
@@ -572,9 +475,7 @@ export function P2006TAdditionalTableMapper({
               />
               <button
                 type="button"
-                onClick={() =>
-                  setZoom((value) => Math.min(MAX_ZOOM, value + ZOOM_STEP))
-                }
+                onClick={() => setZoom((value) => Math.min(MAX_ZOOM, value + ZOOM_STEP))}
                 className="h-9 w-9 rounded-lg border bg-white font-semibold"
               >
                 +
@@ -614,7 +515,22 @@ export function P2006TAdditionalTableMapper({
                 onLoad={() => setImageReady(true)}
                 className="block h-auto w-full"
               />
-              <GridOverlay mapping={mapping} />
+              <P2006TDraggableGridOverlay
+                grid={mapping}
+                disabled={manualBoxMode}
+                onCommit={(grid) => {
+                  persist({
+                    ...mapping,
+                    columnCenters: grid.columnCenters,
+                    rowCenters: grid.rowCenters,
+                    confirmed: mapping.confirmed,
+                    confidence: 1,
+                    method: "manual-box",
+                    savedAt: new Date().toISOString(),
+                  });
+                  setStatus("Ajuste guardado.");
+                }}
+              />
               {draftRect ? (
                 <div
                   className="pointer-events-none absolute border-2 border-dashed border-amber-600 bg-amber-200/15"
@@ -633,13 +549,14 @@ export function P2006TAdditionalTableMapper({
         <aside className="space-y-4">
           <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Progresso da tabela
+              Estado
             </p>
             <p className="mt-2 text-2xl font-semibold">
-              {mapping.confirmed ? "1/1" : "0/1"}
+              {mapping.confirmed ? "Concluído" : "Por confirmar"}
             </p>
             <p className="mt-3 text-sm leading-6 text-zinc-600">
-              Limite mapeado: {centersToOuterRect(mapping).width.toFixed(3)} × {centersToOuterRect(mapping).height.toFixed(3)} da página.
+              Limite mapeado: {centersToOuterRect(mapping).width.toFixed(3)} ×{" "}
+              {centersToOuterRect(mapping).height.toFixed(3)} da página.
             </p>
             <div className="mt-4 grid grid-cols-2 gap-2">
               <button
@@ -666,7 +583,10 @@ export function P2006TAdditionalTableMapper({
             <div className="mt-4 grid gap-2">
               <button
                 type="button"
-                onClick={saveProgress}
+                onClick={() => {
+                  persist({ ...mapping, savedAt: new Date().toISOString() });
+                  setStatus("Progresso guardado neste browser.");
+                }}
                 className="rounded-xl border px-4 py-2 text-sm font-semibold"
               >
                 Guardar progresso no browser
