@@ -11,6 +11,7 @@ import {
   p2006TAdditionalTableKey,
   readP2006TAdditionalTableMappings,
   type P2006TAdditionalTableDefinition,
+  type P2006TAdditionalTableMappingStore,
   type P2006TTableMapping,
 } from "@/lib/performance/p2006t-additional-table-mapper";
 
@@ -83,23 +84,28 @@ export function P2006TAdditionalTableAudit() {
   const [registration, setRegistration] =
     useState<P2006TRegistration>("CS-EAQ");
   const [tableIndex, setTableIndex] = useState(0);
-  const [revision, setRevision] = useState(0);
+  const [mappings, setMappings] =
+    useState<P2006TAdditionalTableMappingStore>({});
 
   useEffect(() => {
-    const refresh = () => setRevision((value) => value + 1);
+    const refresh = () => setMappings(readP2006TAdditionalTableMappings());
+    refresh();
     window.addEventListener("storage", refresh);
-    return () => window.removeEventListener("storage", refresh);
+    window.addEventListener("focus", refresh);
+    return () => {
+      window.removeEventListener("storage", refresh);
+      window.removeEventListener("focus", refresh);
+    };
   }, []);
 
   const definition = P2006T_ADDITIONAL_TABLES[tableIndex];
   const source = definition.sourceByRegistration[registration];
-  const mapping = useMemo(() => {
-    const stored = readP2006TAdditionalTableMappings();
-    return (
-      stored[p2006TAdditionalTableKey(definition.id, registration)] ??
-      initialP2006TAdditionalTableMapping(definition, registration)
-    );
-  }, [definition, registration, revision]);
+  const mapping = useMemo(
+    () =>
+      mappings[p2006TAdditionalTableKey(definition.id, registration)] ??
+      initialP2006TAdditionalTableMapping(definition, registration),
+    [definition, mappings, registration]
+  );
 
   return (
     <section className="space-y-5 rounded-3xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
@@ -136,9 +142,8 @@ export function P2006TAdditionalTableAudit() {
       <nav className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
         {P2006T_ADDITIONAL_TABLES.map((candidate, index) => {
           const selected = index === tableIndex;
-          const stored = readP2006TAdditionalTableMappings()[
-            p2006TAdditionalTableKey(candidate.id, registration)
-          ];
+          const stored =
+            mappings[p2006TAdditionalTableKey(candidate.id, registration)];
           return (
             <button
               key={candidate.id}
