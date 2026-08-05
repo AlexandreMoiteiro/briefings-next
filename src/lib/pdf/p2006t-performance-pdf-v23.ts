@@ -83,9 +83,6 @@ function fullTableCrop(image: PDFImage, grid: ExactGrid, target: Rect) {
   const columns = axisEdges(grid.columnCenters);
   const rows = axisEdges(grid.rowCenters);
 
-  // The six mapped columns start at VySE and do not include the AFM weight and
-  // pressure-altitude columns. Extend substantially to the left and above the
-  // first mapped cell so the original AFM table is shown in full.
   const left = Math.max(0, columns[0] - 0.3);
   const right = Math.min(1, columns.at(-1)! + 0.035);
   const top = Math.max(0, rows[0] - 0.16);
@@ -292,12 +289,14 @@ function addVyGradient(
   if (pageIndex >= output.getPageCount()) return;
 
   const result = enrouteClimb(input);
-  if (!result?.climb.rateFpm || !result.climb.tasKt) return;
+  const rateFpm = result?.climb.rateFpm;
+  const tasKt = result?.climb.tasKt;
+  if (!result || !rateFpm || !tasKt) return;
 
-  const { climb, departure } = result;
-  const groundSpeedKt = Math.max(1, climb.tasKt - departure.headwindKt);
+  const { departure } = result;
+  const groundSpeedKt = Math.max(1, tasKt - departure.headwindKt);
   const gradientPct =
-    (climb.rateFpm /
+    (rateFpm /
       Math.max(1, groundSpeedKt * FEET_PER_MINUTE_PER_KNOT)) *
     100;
   const componentLabel = departure.headwindKt >= 0 ? "HW" : "TW";
@@ -315,10 +314,10 @@ function addVyGradient(
   });
   page.drawText(
     `Vy climb gradient using departure wind: TAS ~${whole(
-      climb.tasKt
+      tasKt
     )} kt | ${componentLabel} ~${componentKt} kt -> GS ~${whole(
       groundSpeedKt
-    )} kt; ${whole(climb.rateFpm)} / (${whole(
+    )} kt; ${whole(rateFpm)} / (${whole(
       groundSpeedKt
     )} x 101.27) x 100 = ~${oneDecimal(gradientPct)}%.`,
     {
