@@ -55,8 +55,9 @@ function hiddenPdfStatus(section: HTMLElement | null) {
   return (
     Array.from(section?.querySelectorAll("p") ?? [])
       .map((item) => item.textContent?.trim() ?? "")
-      .find((text) => /generated|failed|error|erro|não foi|could not/i.test(text)) ??
-    ""
+      .find((text) =>
+        /generated|failed|error|erro|não foi|could not/i.test(text)
+      ) ?? ""
   );
 }
 
@@ -66,11 +67,19 @@ function hideUnusableFuel(root: HTMLElement) {
   );
   const metric = label?.closest("div.rounded-2xl") as HTMLElement | null;
   if (!metric) return;
+
   if (!metric.hidden) metric.hidden = true;
+  if (metric.getAttribute("aria-hidden") !== "true") {
+    metric.setAttribute("aria-hidden", "true");
+  }
   const grid = metric.parentElement;
   if (grid) {
-    grid.classList.remove("sm:grid-cols-3");
-    grid.classList.add("sm:grid-cols-2");
+    if (grid.classList.contains("sm:grid-cols-3")) {
+      grid.classList.remove("sm:grid-cols-3");
+    }
+    if (!grid.classList.contains("sm:grid-cols-2")) {
+      grid.classList.add("sm:grid-cols-2");
+    }
   }
 }
 
@@ -80,25 +89,28 @@ export function P2006TMissionClientV10() {
   const originalButtonRef = useRef<HTMLButtonElement | null>(null);
   const busyModeRef = useRef<P2006TDownloadMode | null>(null);
   const baselineStatusRef = useRef("");
-  const sawDisabledRef = useRef(false);
-  const startedAtRef = useRef(0);
+  const watchdogRef = useRef<number | null>(null);
   const [available, setAvailable] = useState(false);
   const [busyMode, setBusyMode] = useState<P2006TDownloadMode | null>(null);
   const [status, setStatus] = useState("");
 
+  function releaseDownload(message: string) {
+    if (watchdogRef.current !== null) {
+      window.clearTimeout(watchdogRef.current);
+      watchdogRef.current = null;
+    }
+    clearP2006TDownloadMode();
+    busyModeRef.current = null;
+    setBusyMode(null);
+    setStatus(message);
+
+    const button = originalButtonRef.current;
+    setAvailable(Boolean(button && !button.disabled));
+  }
+
   useEffect(() => {
     const root = rootRef.current;
     if (!root) return;
-
-    const finish = (message: string) => {
-      clearP2006TDownloadMode();
-      busyModeRef.current = null;
-      sawDisabledRef.current = false;
-      setBusyMode(null);
-      setStatus(message);
-      const button = originalButtonRef.current;
-      setAvailable(Boolean(button && !button.disabled));
-    };
 
     const sync = () => {
       enhanceAerodromePerformance(root);
@@ -109,7 +121,9 @@ export function P2006TMissionClientV10() {
       originalSectionRef.current = section;
       if (button) originalButtonRef.current = button;
 
-      if (section) section.style.display = "none";
+      if (section && section.style.display !== "none") {
+        section.style.display = "none";
+      }
 
       const activeMode = busyModeRef.current;
       if (!activeMode) {
@@ -118,42 +132,32 @@ export function P2006TMissionClientV10() {
       }
 
       setAvailable(false);
-      if (
-        button?.disabled ||
-        /Generating/i.test(button?.textContent?.trim() ?? "")
-      ) {
-        sawDisabledRef.current = true;
-      }
-
       const hiddenStatus = hiddenPdfStatus(section);
       const statusChanged =
         Boolean(hiddenStatus) && hiddenStatus !== baselineStatusRef.current;
-      const finishedByStatus =
-        statusChanged && /generated|failed|error|erro|não foi|could not/i.test(hiddenStatus);
-      const finishedByButton =
-        sawDisabledRef.current && Boolean(button && !button.disabled);
-
-      if (finishedByStatus || finishedByButton) {
-        finish(hiddenStatus || "PDF gerado e download iniciado.");
-        return;
-      }
-
-      if (Date.now() - startedAtRef.current > 120_000) {
-        finish("A geração demorou demasiado tempo. Pode tentar novamente.");
+      if (
+        statusChanged &&
+        /generated|failed|error|erro|não foi|could not/i.test(hiddenStatus)
+      ) {
+        releaseDownload(hiddenStatus);
       }
     };
 
     const onFinished = () => {
-      if (busyModeRef.current) finish("PDF gerado e download iniciado.");
+      if (busyModeRef.current) {
+        releaseDownload("PDF gerado e download iniciado.");
+      }
     };
+
     const onFailed = (event: Event) => {
       if (!busyModeRef.current) return;
       const custom = event as CustomEvent<{ message?: string }>;
-      finish(custom.detail?.message || "Não foi possível gerar o PDF.");
+      releaseDownload(
+        custom.detail?.message || "Não foi possível gerar o PDF."
+      );
     };
 
     sync();
-    const interval = window.setInterval(sync, 250);
     const observer = new MutationObserver(sync);
     observer.observe(root, {
       subtree: true,
@@ -165,10 +169,13 @@ export function P2006TMissionClientV10() {
     window.addEventListener(P2006T_DOWNLOAD_FAILED_EVENT, onFailed);
 
     return () => {
-      window.clearInterval(interval);
       observer.disconnect();
       window.removeEventListener(P2006T_DOWNLOAD_FINISHED_EVENT, onFinished);
       window.removeEventListener(P2006T_DOWNLOAD_FAILED_EVENT, onFailed);
+      if (watchdogRef.current !== null) {
+        window.clearTimeout(watchdogRef.current);
+        watchdogRef.current = null;
+      }
       clearP2006TDownloadMode();
       if (originalSectionRef.current) {
         originalSectionRef.current.style.display = "";
@@ -181,22 +188,30 @@ export function P2006TMissionClientV10() {
     const section = originalSectionRef.current;
     if (!button || button.disabled || busyModeRef.current) return;
 
+    clearP2006TDownloadMode();
     baselineStatusRef.current = hiddenPdfStatus(section);
-    sawDisabledRef.current = false;
-    startedAtRef.current = Date.now();
     busyModeRef.current = mode;
     setP2006TDownloadMode(mode);
     setStatus("");
     setBusyMode(mode);
     setAvailable(false);
 
+    if (watchdogRef.current !== null) {
+      window.clearTimeout(watchdogRef.current);
+    }
+    watchdogRef.current = window.setTimeout(() => {
+      if (busyModeRef.current) {
+        releaseDownload(
+          "A geração demorou demasiado tempo. Os downloads foram libertados para tentar novamente."
+        );
+      }
+    }, 90_000);
+
+    // Let the busy card paint before starting the client-side PDF work.
     window.setTimeout(() => {
       const current = originalButtonRef.current;
       if (!current || current.disabled) {
-        clearP2006TDownloadMode();
-        busyModeRef.current = null;
-        setBusyMode(null);
-        setStatus("O gerador PDF ainda não está disponível.");
+        releaseDownload("O gerador PDF ainda não está disponível.");
         return;
       }
       current.click();
@@ -213,8 +228,8 @@ export function P2006TMissionClientV10() {
             Downloads PDF
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
-            Gere cada documento operacional em separado. Depois de terminar um
-            download, os três botões ficam novamente disponíveis.
+            Gere cada documento operacional em separado. Assim que o browser
+            inicia o download, os três botões ficam novamente disponíveis.
           </p>
         </div>
 

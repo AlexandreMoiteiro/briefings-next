@@ -1,4 +1,7 @@
-import type { P2006TPerformanceResult, P2006TPerformanceRow } from "./p2006t-performance";
+import type {
+  P2006TPerformanceResult,
+  P2006TPerformanceRow,
+} from "./p2006t-performance";
 import {
   calculateP2006TPerformance as calculateBaseP2006TPerformance,
   p2006tDistanceSources,
@@ -18,8 +21,8 @@ export { p2006tDistanceSources };
 
 type Input = Parameters<typeof calculateBaseP2006TPerformance>[0];
 
-function up(value: number, increment = 10) {
-  return Math.ceil(Math.max(0, Number(value || 0)) / increment) * increment;
+function practical10(value: number) {
+  return Math.round(Math.max(0, Number(value || 0)) / 10) * 10;
 }
 
 function down(value: number, increment = 50) {
@@ -37,11 +40,22 @@ function uphillSlope(slopePct: number) {
 export async function calculateP2006TPerformance(
   input: Input
 ): Promise<P2006TPerformanceResult> {
-  const { registration, result, takeoffWeightKg, landingWeightKg, conditions } = input;
+  const {
+    registration,
+    result,
+    takeoffWeightKg,
+    landingWeightKg,
+    conditions,
+  } = input;
   const role = result.leg.role;
   const icao = result.leg.icao;
   if (!result.aerodrome || !result.bestRunway) {
-    return { ok: false, role, icao, reason: "Aerodrome or runway data is unavailable." };
+    return {
+      ok: false,
+      role,
+      icao,
+      reason: "Aerodrome or runway data is unavailable.",
+    };
   }
 
   try {
@@ -50,19 +64,47 @@ export async function calculateP2006TPerformance(
       pressureAltitudeFt: result.pressureAltitudeFt,
       oatC: result.leg.tempC,
     };
-    const [takeoffGround, takeoff50, landingGround, landing50] = await Promise.all([
-      conservativeP2006TDistance({ ...common, family: "takeoff", profile: "ground", weightKg: takeoffWeightKg }),
-      conservativeP2006TDistance({ ...common, family: "takeoff", profile: "50ft", weightKg: takeoffWeightKg }),
-      conservativeP2006TDistance({ ...common, family: "landing", profile: "ground", weightKg: landingWeightKg }),
-      conservativeP2006TDistance({ ...common, family: "landing", profile: "50ft", weightKg: landingWeightKg }),
-    ]);
+    const [takeoffGround, takeoff50, landingGround, landing50] =
+      await Promise.all([
+        conservativeP2006TDistance({
+          ...common,
+          family: "takeoff",
+          profile: "ground",
+          weightKg: takeoffWeightKg,
+        }),
+        conservativeP2006TDistance({
+          ...common,
+          family: "takeoff",
+          profile: "50ft",
+          weightKg: takeoffWeightKg,
+        }),
+        conservativeP2006TDistance({
+          ...common,
+          family: "landing",
+          profile: "ground",
+          weightKg: landingWeightKg,
+        }),
+        conservativeP2006TDistance({
+          ...common,
+          family: "landing",
+          profile: "50ft",
+          weightKg: landingWeightKg,
+        }),
+      ]);
 
     const tw = tailwindKt(result.headwindKt);
     const slope = uphillSlope(conditions.uphillSlopePct);
-    const takeoffGroundM = up((takeoffGround.distanceM + tw * 10) * (1 + slope * 0.05));
-    const takeoff50M = up(takeoff50.distanceM + tw * 10);
-    const landingGroundM = up(landingGround.distanceM + tw * 11);
-    const landing50M = up(landing50.distanceM + tw * 11);
+
+    // The AFM lookup itself is deliberately conservative: next higher
+    // weight, pressure-altitude and temperature cell, with no interpolation.
+    // After applying only adverse corrections, present operational distances
+    // to the nearest 10 m instead of carrying artificial decimal precision.
+    const takeoffGroundM = practical10(
+      (takeoffGround.distanceM + tw * 10) * (1 + slope * 0.05)
+    );
+    const takeoff50M = practical10(takeoff50.distanceM + tw * 10);
+    const landingGroundM = practical10(landingGround.distanceM + tw * 11);
+    const landing50M = practical10(landing50.distanceM + tw * 11);
     const runway = result.bestRunway;
     const climb = p2006tTakeoffClimbPerformance(
       registration,
@@ -99,8 +141,10 @@ export async function calculateP2006TPerformance(
       landing50M,
       takeoffMarginM: Math.round(runway.toda - takeoff50M),
       landingMarginM: Math.round(runway.lda - landing50M),
-      takeoffPct: runway.toda > 0 ? Math.ceil((takeoff50M / runway.toda) * 100) : 0,
-      landingPct: runway.lda > 0 ? Math.ceil((landing50M / runway.lda) * 100) : 0,
+      takeoffPct:
+        runway.toda > 0 ? Math.round((takeoff50M / runway.toda) * 100) : 0,
+      landingPct:
+        runway.lda > 0 ? Math.round((landing50M / runway.lda) * 100) : 0,
       takeoffOk: takeoff50M <= runway.toda,
       landingOk: landing50M <= runway.lda,
       rocFpm: down(climb?.rateFpm ?? 850),
