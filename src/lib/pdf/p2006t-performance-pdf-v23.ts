@@ -7,6 +7,7 @@ import {
   pushGraphicsState,
   rectangle,
   rgb,
+  type PDFFont,
   type PDFImage,
   type PDFPage,
 } from "pdf-lib";
@@ -17,21 +18,30 @@ import { calculateP2006TOeiPerformance } from "@/lib/performance/p2006t-oei";
 import { getP2006TOeiTraceCells } from "@/lib/performance/p2006t-oei-table";
 import { getP2006TPerformanceSettings } from "@/lib/performance/p2006t-performance-settings";
 import { p2006tClimbPerformance } from "@/lib/performance/p2006t-climb-cruise";
-import { getP2006TDownloadMode } from "./p2006t-download-mode";
 import {
-  buildP2006TPerformancePdfV3 as buildP2006TPerformancePdfV20,
+  getP2006TDownloadMode,
+  P2006T_DOWNLOAD_FAILED_EVENT,
+  P2006T_DOWNLOAD_FINISHED_EVENT,
+} from "./p2006t-download-mode";
+import {
+  buildP2006TPerformancePdfV3 as buildP2006TPerformancePdfV19,
   DEFAULT_P2006T_PDF_OPTIONS,
-  downloadP2006TPerformancePdfV3,
+  downloadP2006TPerformancePdfV3 as downloadP2006TPerformancePdfV19,
   type BuildP2006TPerformancePdfV3Input,
   type P2006TPdfOptions,
-} from "./p2006t-performance-pdf-v20";
+} from "./p2006t-performance-pdf-v19";
 
-export { DEFAULT_P2006T_PDF_OPTIONS, downloadP2006TPerformancePdfV3 };
+export { DEFAULT_P2006T_PDF_OPTIONS };
 export type { BuildP2006TPerformancePdfV3Input, P2006TPdfOptions };
 
 const A3_WIDTH = 1191;
 const A3_HEIGHT = 842;
 const FEET_PER_MINUTE_PER_KNOT = 101.268591;
+const FINAL_CACHE_LIMIT = 6;
+const FINAL_CACHE = new Map<string, Uint8Array>();
+const IN_FLIGHT = new Map<string, Promise<Uint8Array>>();
+const OEI_SOURCE_CACHE = new Map<P2006TRegistration, Promise<Uint8Array>>();
+const RENDERER_VERSION = "p2006t-v24-conservative-fast";
 
 type Rect = { x: number; y: number; width: number; height: number };
 type ExactGrid = { columnCenters: number[]; rowCenters: number[] };
@@ -53,8 +63,16 @@ function whole(value: number) {
   return Math.round(Number(value || 0));
 }
 
+function roundUp10(value: number) {
+  return Math.ceil(Math.max(0, Number(value || 0)) / 10) * 10;
+}
+
 function oneDecimal(value: number) {
   return Number(value || 0).toFixed(1);
+}
+
+function roleLabel(role: P2006TPerformanceRow["role"]) {
+  return role === "Alternate" ? "Alternate 1" : role;
 }
 
 function exactOeiGrid(registration: P2006TRegistration): ExactGrid {
@@ -69,9 +87,9 @@ function axisEdges(centers: readonly number[]) {
   if (centers.length === 1) return [centers[0] - 0.01, centers[0] + 0.01];
   return [
     Math.max(0, centers[0] - (centers[1] - centers[0]) / 2),
-    ...centers.slice(0, -1).map(
-      (center, index) => (center + centers[index + 1]) / 2
-    ),
+    ...centers
+      .slice(0, -1)
+      .map((center, index) => (center + centers[index + 1]) / 2),
     Math.min(
       1,
       centers.at(-1)! + (centers.at(-1)! - centers.at(-2)!) / 2
@@ -82,7 +100,6 @@ function axisEdges(centers: readonly number[]) {
 function fullTableCrop(image: PDFImage, grid: ExactGrid, target: Rect) {
   const columns = axisEdges(grid.columnCenters);
   const rows = axisEdges(grid.rowCenters);
-
   const left = Math.max(0, columns[0] - 0.3);
   const right = Math.min(1, columns.at(-1)! + 0.035);
   const top = Math.max(0, rows[0] - 0.16);
@@ -255,6 +272,119 @@ function redrawPanelTable(
   });
 }
 
+function wrapText(text: string, font: PDFFont, size: number, width: number) {
+  const words = text.replace(/[^\x20-\x7E]/g, " ").split(/\s+/).filter(Boolean);
+  const lines: string[] = [];
+  let current = "";
+  words.forEach((word) => {
+    const next = current ? `${current} ${word}` : word;
+    if (!current || font.widthOfTextAtSize(next, size) <= width) {
+      current = next;
+    } else {
+      lines.push(current);
+      current = word;
+    }
+  });
+  if (current) lines.push(current);
+  return lines;
+}
+
+function conservativeLookupLine(row: P2006TPerformanceRow) {
+  const takeoff = row.takeoffTrace;
+  const landing = row.landingTrace;
+  const same =
+    takeoff.lowerWeightKg === landing.lowerWeightKg &&
+    takeoff.lowerAltitudeFt === landing.lowerAltitudeFt &&
+    takeoff.lowerTemperatureC === landing.lowerTemperatureC;
+  const lookup = (trace: P2006TPerformanceRow["takeoffTrace"]) =>
+    `${whole(trace.lowerWeightKg)} kg / ${whole(
+      trace.lowerAltitudeFt
+    )} ft / ${whole(trace.lowerTemperatureC)} C`;
+  return same
+    ? `Conservative AFM lookup: ${lookup(takeoff)} for takeoff and landing. No interpolation.`
+    : `Conservative AFM lookup: T/O ${lookup(takeoff)}; LDG ${lookup(
+        landing
+      )}. No interpolation.`;
+}
+
+function conservativeWindLine(row: P2006TPerformanceRow) {
+  if (row.headwindKt >= 0) {
+    return `Wind: ${String(whole(row.windFrom)).padStart(3, "0")}/${whole(
+      row.windKt
+    )} kt. Headwind credit is ignored for the planning distance.`;
+  }
+  return `Wind: ${String(whole(row.windFrom)).padStart(3, "0")}/${whole(
+    row.windKt
+  )} kt. Tailwind is rounded up and the AFM tailwind penalty is added.`;
+}
+
+function redrawConservativeAerodromeNote(
+  page: PDFPage,
+  row: P2006TPerformanceRow,
+  font: PDFFont,
+  bold: PDFFont
+) {
+  const size = page.getSize();
+  const rect = { x: 28, y: 18, width: size.width - 56, height: 178 };
+  page.drawRectangle({
+    ...rect,
+    color: rgb(1, 1, 1),
+    borderColor: rgb(0.24, 0.27, 0.33),
+    borderWidth: 0.65,
+  });
+
+  const takeoffRequired = roundUp10(row.takeoff50M * 1.25);
+  const landingRequired = roundUp10(row.landing50M * 1.25);
+  const takeoffPct = Math.ceil(
+    (takeoffRequired / Math.max(1, row.todaM)) * 100
+  );
+  const landingPct = Math.ceil(
+    (landingRequired / Math.max(1, row.ldaM)) * 100
+  );
+  const asdr = roundUp10(row.takeoffGroundRollM + row.landingGroundRollM);
+  const lines = [
+    `${roleLabel(row.role)} ${row.icao} RWY ${row.runway} | actual W ${whole(
+      row.takeoffWeightKg
+    )} kg | PA ${whole(row.paFt)} ft | OAT ${whole(row.oatC)} C.`,
+    conservativeLookupLine(row),
+    conservativeWindLine(row),
+    `T/O to 50 ft: ${whole(
+      row.takeoff50M
+    )} m after conservative rounding; OM x 1.25 -> ${takeoffRequired} m (${takeoffPct}% of ${whole(
+      row.todaM
+    )} m TODA).`,
+    `Landing from 50 ft: ${whole(
+      row.landing50M
+    )} m after conservative rounding; OM x 1.25 -> ${landingRequired} m (${landingPct}% of ${whole(
+      row.ldaM
+    )} m LDA).`,
+    `Ground roll: no paved-runway credit; takeoff uphill penalty is retained; favourable landing-slope credit is ignored. ASDR estimate ~${asdr} m.`,
+  ];
+
+  let y = rect.y + rect.height - 17;
+  lines.forEach((line, index) => {
+    const selectedFont = index <= 2 ? bold : font;
+    const textSize = index === 0 ? 7.4 : 6.8;
+    const wrapped = wrapText(
+      line,
+      selectedFont,
+      textSize,
+      rect.width - 20
+    ).slice(0, 2);
+    wrapped.forEach((part) => {
+      page.drawText(part, {
+        x: rect.x + 10,
+        y,
+        size: textSize,
+        font: selectedFont,
+        color: rgb(0.05, 0.06, 0.09),
+      });
+      y -= 11.2;
+    });
+    y -= 1.2;
+  });
+}
+
 function enrouteClimb(input: BuildP2006TPerformancePdfV3Input) {
   const settings = getP2006TPerformanceSettings();
   const departure =
@@ -296,9 +426,7 @@ function addVyGradient(
   const { departure } = result;
   const groundSpeedKt = Math.max(1, tasKt - departure.headwindKt);
   const gradientPct =
-    (rateFpm /
-      Math.max(1, groundSpeedKt * FEET_PER_MINUTE_PER_KNOT)) *
-    100;
+    (rateFpm / Math.max(1, groundSpeedKt * FEET_PER_MINUTE_PER_KNOT)) * 100;
   const componentLabel = departure.headwindKt >= 0 ? "HW" : "TW";
   const componentKt = whole(Math.abs(departure.headwindKt));
   const page = output.getPage(pageIndex);
@@ -330,6 +458,36 @@ function addVyGradient(
   );
 }
 
+async function loadOeiSource(registration: P2006TRegistration) {
+  const cached = OEI_SOURCE_CACHE.get(registration);
+  if (cached) return cached;
+
+  const promise = (async () => {
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => controller.abort(), 15_000);
+    try {
+      const response = await fetch(
+        `/api/p2006-oei-source?registration=${encodeURIComponent(registration)}`,
+        { cache: "force-cache", signal: controller.signal }
+      );
+      if (!response.ok) {
+        throw new Error("Could not load the mapped OEI source page.");
+      }
+      return new Uint8Array(await response.arrayBuffer());
+    } finally {
+      window.clearTimeout(timeout);
+    }
+  })();
+
+  OEI_SOURCE_CACHE.set(registration, promise);
+  try {
+    return await promise;
+  } catch (error) {
+    OEI_SOURCE_CACHE.delete(registration);
+    throw error;
+  }
+}
+
 async function enhanceTables(
   bytes: Uint8Array,
   input: BuildP2006TPerformancePdfV3Input
@@ -337,14 +495,20 @@ async function enhanceTables(
   const output = await PDFDocument.load(bytes);
   if (output.getPageCount() === 0) return bytes;
 
-  const response = await fetch(
-    `/api/p2006-oei-source?registration=${encodeURIComponent(input.registration)}`,
-    { cache: "force-cache" }
-  );
-  if (!response.ok) throw new Error("Could not load the mapped OEI source page.");
-  const image = await output.embedPng(await response.arrayBuffer());
-  const oeiPage = output.getPage(output.getPageCount() - 1);
+  const [sourceBytes, font, bold] = await Promise.all([
+    loadOeiSource(input.registration),
+    output.embedFont(StandardFonts.Helvetica),
+    output.embedFont(StandardFonts.HelveticaBold),
+  ]);
 
+  input.rows.forEach((row, index) => {
+    if (index < output.getPageCount()) {
+      redrawConservativeAerodromeNote(output.getPage(index), row, font, bold);
+    }
+  });
+
+  const image = await output.embedPng(sourceBytes);
+  const oeiPage = output.getPage(output.getPageCount() - 1);
   const margin = 24;
   const gap = 16;
   const titleSpace = 42;
@@ -380,11 +544,80 @@ async function enhanceTables(
   return output.save({ useObjectStreams: false, addDefaultPage: false });
 }
 
+function cacheKey(
+  input: BuildP2006TPerformancePdfV3Input,
+  mode: ReturnType<typeof getP2006TDownloadMode>
+) {
+  return JSON.stringify({
+    renderer: RENDERER_VERSION,
+    mode,
+    registration: input.registration,
+    date: input.date,
+    loading: input.loading,
+    fuelTimes: input.fuelTimes,
+    mission: input.mission,
+    rows: input.rows,
+    cruiseTemperatureC: input.cruiseTemperatureC,
+    options: input.options,
+  });
+}
+
+function remember(key: string, bytes: Uint8Array) {
+  if (FINAL_CACHE.size >= FINAL_CACHE_LIMIT) {
+    const oldest = FINAL_CACHE.keys().next().value as string | undefined;
+    if (oldest) FINAL_CACHE.delete(oldest);
+  }
+  FINAL_CACHE.set(key, Uint8Array.from(bytes));
+}
+
+function dispatchFailure(error: unknown) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(
+    new CustomEvent(P2006T_DOWNLOAD_FAILED_EVENT, {
+      detail: {
+        message: error instanceof Error ? error.message : String(error),
+      },
+    })
+  );
+}
+
 export async function buildP2006TPerformancePdfV3(
   input: BuildP2006TPerformancePdfV3Input
 ) {
-  const bytes = await buildP2006TPerformancePdfV20(input);
-  return getP2006TDownloadMode() === "tables"
-    ? enhanceTables(bytes, input)
-    : bytes;
+  const mode = getP2006TDownloadMode();
+  const key = cacheKey(input, mode);
+  const cached = FINAL_CACHE.get(key);
+  if (cached) return Uint8Array.from(cached);
+
+  const running = IN_FLIGHT.get(key);
+  if (running) return Uint8Array.from(await running);
+
+  const task = (async () => {
+    const bytes = await buildP2006TPerformancePdfV19(input);
+    const output = mode === "tables" ? await enhanceTables(bytes, input) : bytes;
+    const copy = Uint8Array.from(output);
+    remember(key, copy);
+    return copy;
+  })();
+  IN_FLIGHT.set(key, task);
+
+  try {
+    return Uint8Array.from(await task);
+  } catch (error) {
+    dispatchFailure(error);
+    throw error;
+  } finally {
+    IN_FLIGHT.delete(key);
+  }
+}
+
+export function downloadP2006TPerformancePdfV3(
+  bytes: Uint8Array,
+  registration: BuildP2006TPerformancePdfV3Input["registration"],
+  date: string
+) {
+  downloadP2006TPerformancePdfV19(bytes, registration, date);
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent(P2006T_DOWNLOAD_FINISHED_EVENT));
+  }
 }

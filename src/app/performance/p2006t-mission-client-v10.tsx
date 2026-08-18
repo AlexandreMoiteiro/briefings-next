@@ -3,10 +3,13 @@
 import { useEffect, useRef, useState } from "react";
 import {
   clearP2006TDownloadMode,
+  P2006T_DOWNLOAD_FAILED_EVENT,
+  P2006T_DOWNLOAD_FINISHED_EVENT,
   setP2006TDownloadMode,
   type P2006TDownloadMode,
 } from "@/lib/pdf/p2006t-download-mode";
 import { P2006TMissionClientV9 } from "./p2006t-mission-client-v9";
+import { enhanceAerodromePerformance } from "./aerodrome-performance-ui";
 
 const DOWNLOADS: Array<{
   mode: P2006TDownloadMode;
@@ -28,7 +31,7 @@ const DOWNLOADS: Array<{
     mode: "tables",
     title: "Download das tabelas",
     description:
-      "Tabelas AFM com células usadas, contas completas das correções e evidência OEI por aeródromo.",
+      "Tabelas AFM com a célula conservadora usada, contas simples e evidência OEI por aeródromo.",
   },
 ];
 
@@ -42,8 +45,8 @@ function pdfSection(root: HTMLElement) {
 function exportButton(section: HTMLElement | null) {
   if (!section) return null;
   return (
-    Array.from(section.querySelectorAll("button")).find(
-      (button) => button.textContent?.trim() === "Export PDF"
+    Array.from(section.querySelectorAll("button")).find((button) =>
+      /^(Export PDF|Generating\.\.\.)$/i.test(button.textContent?.trim() ?? "")
     ) ?? null
   );
 }
@@ -55,6 +58,20 @@ function hiddenPdfStatus(section: HTMLElement | null) {
       .find((text) => /generated|failed|error|erro|não foi|could not/i.test(text)) ??
     ""
   );
+}
+
+function hideUnusableFuel(root: HTMLElement) {
+  const label = Array.from(root.querySelectorAll("p")).find(
+    (element) => element.textContent?.trim() === "Unusable"
+  );
+  const metric = label?.closest("div.rounded-2xl") as HTMLElement | null;
+  if (!metric) return;
+  if (!metric.hidden) metric.hidden = true;
+  const grid = metric.parentElement;
+  if (grid) {
+    grid.classList.remove("sm:grid-cols-3");
+    grid.classList.add("sm:grid-cols-2");
+  }
 }
 
 export function P2006TMissionClientV10() {
@@ -74,6 +91,7 @@ export function P2006TMissionClientV10() {
     if (!root) return;
 
     const finish = (message: string) => {
+      clearP2006TDownloadMode();
       busyModeRef.current = null;
       sawDisabledRef.current = false;
       setBusyMode(null);
@@ -83,10 +101,13 @@ export function P2006TMissionClientV10() {
     };
 
     const sync = () => {
+      enhanceAerodromePerformance(root);
+      hideUnusableFuel(root);
+
       const section = pdfSection(root);
       const button = exportButton(section);
       originalSectionRef.current = section;
-      originalButtonRef.current = button;
+      if (button) originalButtonRef.current = button;
 
       if (section) section.style.display = "none";
 
@@ -97,7 +118,12 @@ export function P2006TMissionClientV10() {
       }
 
       setAvailable(false);
-      if (button?.disabled) sawDisabledRef.current = true;
+      if (
+        button?.disabled ||
+        /Generating/i.test(button?.textContent?.trim() ?? "")
+      ) {
+        sawDisabledRef.current = true;
+      }
 
       const hiddenStatus = hiddenPdfStatus(section);
       const statusChanged =
@@ -112,14 +138,22 @@ export function P2006TMissionClientV10() {
         return;
       }
 
-      if (Date.now() - startedAtRef.current > 180_000) {
-        clearP2006TDownloadMode();
+      if (Date.now() - startedAtRef.current > 120_000) {
         finish("A geração demorou demasiado tempo. Pode tentar novamente.");
       }
     };
 
+    const onFinished = () => {
+      if (busyModeRef.current) finish("PDF gerado e download iniciado.");
+    };
+    const onFailed = (event: Event) => {
+      if (!busyModeRef.current) return;
+      const custom = event as CustomEvent<{ message?: string }>;
+      finish(custom.detail?.message || "Não foi possível gerar o PDF.");
+    };
+
     sync();
-    const interval = window.setInterval(sync, 200);
+    const interval = window.setInterval(sync, 250);
     const observer = new MutationObserver(sync);
     observer.observe(root, {
       subtree: true,
@@ -127,10 +161,15 @@ export function P2006TMissionClientV10() {
       attributes: true,
       characterData: true,
     });
+    window.addEventListener(P2006T_DOWNLOAD_FINISHED_EVENT, onFinished);
+    window.addEventListener(P2006T_DOWNLOAD_FAILED_EVENT, onFailed);
 
     return () => {
       window.clearInterval(interval);
       observer.disconnect();
+      window.removeEventListener(P2006T_DOWNLOAD_FINISHED_EVENT, onFinished);
+      window.removeEventListener(P2006T_DOWNLOAD_FAILED_EVENT, onFailed);
+      clearP2006TDownloadMode();
       if (originalSectionRef.current) {
         originalSectionRef.current.style.display = "";
       }
@@ -151,7 +190,6 @@ export function P2006TMissionClientV10() {
     setBusyMode(mode);
     setAvailable(false);
 
-    // Run on the next task so the selected card can paint its busy state first.
     window.setTimeout(() => {
       const current = originalButtonRef.current;
       if (!current || current.disabled) {

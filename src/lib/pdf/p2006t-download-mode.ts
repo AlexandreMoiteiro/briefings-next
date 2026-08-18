@@ -1,5 +1,9 @@
 export type P2006TDownloadMode = "form" | "kneeboard" | "tables";
 
+export const P2006T_DOWNLOAD_FINISHED_EVENT =
+  "briefings:p2006t-download-finished";
+export const P2006T_DOWNLOAD_FAILED_EVENT = "briefings:p2006t-download-failed";
+
 declare global {
   interface Window {
     __briefingsP2006TDownloadMode?: P2006TDownloadMode;
