@@ -25,16 +25,38 @@ function practical10(value: number) {
   return Math.round(Math.max(0, Number(value || 0)) / 10) * 10;
 }
 
-function down(value: number, increment = 50) {
-  return Math.floor(Math.max(0, Number(value || 0)) / increment) * increment;
+function practical50(value: number) {
+  return Math.round(Math.max(0, Number(value || 0)) / 50) * 50;
 }
 
-function tailwindKt(headwindKt: number) {
-  return headwindKt < 0 ? Math.ceil(Math.abs(headwindKt)) : 0;
+function clamp(value: number, minimum: number, maximum: number) {
+  return Math.min(maximum, Math.max(minimum, value));
 }
 
-function uphillSlope(slopePct: number) {
-  return Math.ceil(Math.max(0, Math.min(5, slopePct)) * 10) / 10;
+function applyTakeoffWind(distanceM: number, headwindKt: number) {
+  return Math.max(
+    0,
+    headwindKt >= 0
+      ? distanceM - 2.5 * headwindKt
+      : distanceM + 10 * Math.abs(headwindKt)
+  );
+}
+
+function applyLandingWind(distanceM: number, headwindKt: number) {
+  return Math.max(
+    0,
+    headwindKt >= 0
+      ? distanceM - 5 * headwindKt
+      : distanceM + 11 * Math.abs(headwindKt)
+  );
+}
+
+function applyTakeoffGroundCorrections(distanceM: number, slopePct: number) {
+  return Math.max(0, distanceM * 0.94 * (1 + 0.05 * slopePct));
+}
+
+function applyLandingGroundCorrections(distanceM: number, slopePct: number) {
+  return Math.max(0, distanceM * 0.98 * (1 - 0.025 * slopePct));
 }
 
 export async function calculateP2006TPerformance(
@@ -49,6 +71,7 @@ export async function calculateP2006TPerformance(
   } = input;
   const role = result.leg.role;
   const icao = result.leg.icao;
+
   if (!result.aerodrome || !result.bestRunway) {
     return {
       ok: false,
@@ -92,19 +115,29 @@ export async function calculateP2006TPerformance(
         }),
       ]);
 
-    const tw = tailwindKt(result.headwindKt);
-    const slope = uphillSlope(conditions.uphillSlopePct);
+    const slope = clamp(conditions.uphillSlopePct, 0, 5);
 
-    // The AFM lookup itself is deliberately conservative: next higher
-    // weight, pressure-altitude and temperature cell, with no interpolation.
-    // After applying only adverse corrections, present operational distances
-    // to the nearest 10 m instead of carrying artificial decimal precision.
+    // Keep the simple no-interpolation AFM lookup, but retain the normal
+    // published wind, paved-runway and runway-slope corrections afterwards.
     const takeoffGroundM = practical10(
-      (takeoffGround.distanceM + tw * 10) * (1 + slope * 0.05)
+      applyTakeoffGroundCorrections(
+        applyTakeoffWind(takeoffGround.distanceM, result.headwindKt),
+        slope
+      )
     );
-    const takeoff50M = practical10(takeoff50.distanceM + tw * 10);
-    const landingGroundM = practical10(landingGround.distanceM + tw * 11);
-    const landing50M = practical10(landing50.distanceM + tw * 11);
+    const takeoff50M = practical10(
+      applyTakeoffWind(takeoff50.distanceM, result.headwindKt)
+    );
+    const landingGroundM = practical10(
+      applyLandingGroundCorrections(
+        applyLandingWind(landingGround.distanceM, result.headwindKt),
+        slope
+      )
+    );
+    const landing50M = practical10(
+      applyLandingWind(landing50.distanceM, result.headwindKt)
+    );
+
     const runway = result.bestRunway;
     const climb = p2006tTakeoffClimbPerformance(
       registration,
@@ -147,10 +180,11 @@ export async function calculateP2006TPerformance(
         runway.lda > 0 ? Math.round((landing50M / runway.lda) * 100) : 0,
       takeoffOk: takeoff50M <= runway.toda,
       landingOk: landing50M <= runway.lda,
-      rocFpm: down(climb?.rateFpm ?? 850),
+      rocFpm: practical50(climb?.rateFpm ?? 850),
       takeoffTrace: takeoff50.trace,
       landingTrace: landing50.trace,
     };
+
     return row;
   } catch (error) {
     return {
