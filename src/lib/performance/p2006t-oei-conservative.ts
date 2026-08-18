@@ -9,6 +9,8 @@ import {
 const STANDARD_DENSITY_KG_M3 = 1.225;
 const FEET_PER_MINUTE_PER_KNOT = 101.268591;
 
+type P2006TOeiTemperature = (typeof P2006T_OEI_TEMPERATURES_C)[number];
+
 export type P2006TOeiCalculation = {
   sourcePage: string;
   weightKg: number;
@@ -91,7 +93,7 @@ function conservativeCell(
     (candidate) => candidate.altitudeFt === selectedAltitudeFt
   );
   const temperatureIndex = P2006T_OEI_TEMPERATURES_C.indexOf(
-    selectedTemperatureC as (typeof P2006T_OEI_TEMPERATURES_C)[number]
+    selectedTemperatureC as P2006TOeiTemperature
   );
 
   if (!table || !row || temperatureIndex < 0) {
@@ -125,7 +127,8 @@ function conservativeServiceCeiling(
 
   let selectedAltitudeFt = 0;
   let selectedRocFpm = 0;
-  let selectedTemperatureC = P2006T_OEI_TEMPERATURES_C[0];
+  let selectedTemperatureC: P2006TOeiTemperature =
+    P2006T_OEI_TEMPERATURES_C[0];
   let found = false;
   let limited = false;
 
@@ -178,7 +181,6 @@ function conservativeServiceCeiling(
   return {
     altitudeFt: selectedAltitudeFt,
     rocFpm: selectedRocFpm,
-    temperatureC: selectedTemperatureC,
     limited,
   };
 }
