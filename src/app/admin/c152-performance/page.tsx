@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { C152PdfMapperV2 } from "./c152-pdf-mapper-v2";
+import { C152PdfMapperV3 } from "./c152-pdf-mapper-v3";
 
 export default function AdminC152PerformancePage() {
   return (
@@ -14,9 +14,9 @@ export default function AdminC152PerformancePage() {
               RVP.CFI.066.02 PDF field mapper
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              The approved field map is embedded in the app. Calibrate the CG grid with consecutive
-              ticks and trace the printed envelope lines; the original Sevenair PDF is loaded directly
-              from the repository.
+              The approved text-field map and graph ticks are already embedded. Trace the CG envelope
+              with as many ordered points as needed so curved boundaries are preserved instead of being
+              forced into a single straight line.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -35,7 +35,7 @@ export default function AdminC152PerformancePage() {
           </div>
         </header>
 
-        <C152PdfMapperV2 />
+        <C152PdfMapperV3 />
       </section>
     </main>
   );
