@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 import { NavlogClientV3 } from "./navlog-client-v3";
+import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 
 const AIRCRAFT = [
   "Tecnam P2006T",
   "Tecnam P2008",
   "Piper PA-28",
+  "Cessna 152",
   "Custom aircraft",
 ] as const;
 
@@ -48,6 +50,30 @@ function changeSelect(select: HTMLSelectElement, value: Aircraft) {
   return true;
 }
 
+function refreshProfileHelp(root: HTMLElement) {
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  const nodes: Text[] = [];
+  while (walker.nextNode()) nodes.push(walker.currentNode as Text);
+
+  for (const node of nodes) {
+    const value = node.nodeValue ?? "";
+
+    if (value.includes("Tecnam/Piper profiles load generic starting values")) {
+      node.nodeValue = value.replace(
+        /Tecnam\/Piper profiles load generic starting values, including 20 min ground\/taxi time and default climb\/descent rates\. Review TAS, ROC\/ROD, fuel flow, EFOB and ground\/taxi time for the actual aircraft, mission and conditions\./,
+        "Aircraft profiles load starting values. Cessna 152 / CS-AVC uses its dedicated preset; Tecnam and Piper keep their existing presets. Review TAS, ROC/ROD, fuel flow, EFOB and ground/taxi time for the actual mission and conditions."
+      );
+    }
+
+    if (value.includes("The Tecnam/Piper default is 20 minutes")) {
+      node.nodeValue = value.replace(
+        /The Tecnam\/Piper default is 20 minutes, but this is only a starting point\./,
+        "The Cessna 152 default is 10 minutes; Tecnam and Piper remain at 20 minutes. These are starting points."
+      );
+    }
+  }
+}
+
 export function NavlogClientV5() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [aircraft, setAircraft] = useState<Aircraft>("Tecnam P2006T");
@@ -61,6 +87,7 @@ export function NavlogClientV5() {
       if (!select) return;
 
       hideOriginalAircraftControl(select);
+      refreshProfileHelp(root);
 
       const value = select.value as Aircraft;
       if (AIRCRAFT.includes(value)) {
@@ -110,6 +137,34 @@ export function NavlogClientV5() {
             ))}
           </select>
         </label>
+
+        {aircraft === "Cessna 152" ? (
+          <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+              <p className="font-semibold">CS-AVC preset loaded</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+                Taxi 10 min only for C152
+              </p>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
+              <p className="rounded-xl bg-white px-3 py-2">
+                TAS C/C/D: {C152_NAVLOG_PRESET.climbTasKt} / {C152_NAVLOG_PRESET.cruiseTasKt} / {C152_NAVLOG_PRESET.descentTasKt} kt
+              </p>
+              <p className="rounded-xl bg-white px-3 py-2">
+                Fuel flow: {C152_NAVLOG_PRESET.fuelFlowLh} L/h
+              </p>
+              <p className="rounded-xl bg-white px-3 py-2">
+                ROC / ROD: {C152_NAVLOG_PRESET.rocFpm} / {C152_NAVLOG_PRESET.rodFpm} fpm
+              </p>
+              <p className="rounded-xl bg-white px-3 py-2">
+                EFOB / altitude: {C152_NAVLOG_PRESET.startEfobL} L / {C152_NAVLOG_PRESET.defaultAltitudeFt} ft
+              </p>
+            </div>
+            <p className="mt-3 text-xs leading-5 text-sky-800">
+              The NavLog saves the latest CS-AVC route, phase times and calculated fuel locally so the C152 Performance page can reuse them. Tecnam/Piper taxi defaults remain 20 min.
+            </p>
+          </div>
+        ) : null}
       </section>
 
       <div ref={rootRef}>
