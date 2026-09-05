@@ -1,7 +1,11 @@
 {
   "compilerOptions": {
     "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
     "allowJs": true,
     "skipLibCheck": true,
     "strict": true,
@@ -31,8 +35,17 @@
       "@/lib/performance/p2006t-performance": [
         "./src/lib/performance/p2006t-performance-conditioned.ts"
       ],
+      "@/lib/performance/p2006t-oei": [
+        "./src/lib/performance/p2006t-oei-conservative.ts"
+      ],
+      "@/lib/performance/p2006t-oei-table": [
+        "./src/lib/performance/p2006t-oei-table-conservative.ts"
+      ],
+      "@/lib/performance/p2006t-additional-table-mapper": [
+        "./src/lib/performance/p2006t-additional-table-mapper-v2.ts"
+      ],
       "@/lib/pdf/p2006t-performance-pdf-v3": [
-        "./src/lib/pdf/p2006t-performance-pdf-v12.ts"
+        "./src/lib/pdf/p2006t-performance-pdf-v25-student.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf": [
         "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
@@ -40,7 +53,9 @@
       "@/lib/pdf/p2008-performance-pdf-v2": [
         "./src/lib/pdf/p2008-performance-pdf-stable.ts"
       ],
-      "@/*": ["./src/*"]
+      "@/*": [
+        "./src/*"
+      ]
     }
   },
   "include": [
@@ -51,5 +66,7 @@
     ".next/dev/types/**/*.ts",
     "**/*.mts"
   ],
-  "exclude": ["node_modules"]
+  "exclude": [
+    "node_modules"
+  ]
 }
