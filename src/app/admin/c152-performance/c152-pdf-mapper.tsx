@@ -10,6 +10,7 @@ import {
 } from "react";
 
 type PageNumber = 1 | 2;
+type CaptureMode = "rect" | "point";
 
 type MapperStep = {
   id: string;
@@ -17,6 +18,8 @@ type MapperStep = {
   group: string;
   label: string;
   sample: string;
+  mode?: CaptureMode;
+  help?: string;
 };
 
 type NormalizedRect = {
@@ -26,11 +29,24 @@ type NormalizedRect = {
   height: number;
 };
 
-type Capture = {
+type NormalizedPoint = {
+  x: number;
+  y: number;
+};
+
+type RectCapture = {
+  kind?: "rect";
   rect: NormalizedRect;
   confirmed: boolean;
 };
 
+type PointCapture = {
+  kind: "point";
+  point: NormalizedPoint;
+  confirmed: boolean;
+};
+
+type Capture = RectCapture | PointCapture;
 type CaptureStore = Record<string, Capture>;
 
 type StoredPage = {
@@ -48,6 +64,8 @@ const STORAGE_KEY = "briefings_c152_pdf_mapper_v1";
 const DB_NAME = "briefings-c152-pdf-mapper-v1";
 const DB_STORE = "form";
 const DB_KEY = "c152-form";
+const BUNDLED_TEMPLATE_URL =
+  "/templates/c152/RVP.CFI.066.02Cessna152MBandPerformanceSheet.pdf";
 
 const PAGE_ONE_ROWS = [
   ["basic-empty-weight", "Basic Empty Weight"],
@@ -102,6 +120,45 @@ const FUEL_ROWS = [
   ["total-ramp", "(11) Total Ramp Fuel"],
 ] as const;
 
+const CG_CALIBRATION_STEPS: MapperStep[] = [
+  {
+    id: "p1-cg-x-30",
+    page: 1,
+    group: "Page 1 · CG graph calibration",
+    label: "X-axis calibration · Moment/1000 = 30",
+    sample: "X 30",
+    mode: "point",
+    help: "Click the intersection of the vertical 30 grid line with the bottom inner grid line. Click the line intersection, not the printed number.",
+  },
+  {
+    id: "p1-cg-x-65",
+    page: 1,
+    group: "Page 1 · CG graph calibration",
+    label: "X-axis calibration · Moment/1000 = 65",
+    sample: "X 65",
+    mode: "point",
+    help: "Click the intersection of the vertical 65 grid line with the bottom inner grid line. Click the line intersection, not the printed number.",
+  },
+  {
+    id: "p1-cg-y-1000",
+    page: 1,
+    group: "Page 1 · CG graph calibration",
+    label: "Y-axis calibration · Weight = 1000 lb",
+    sample: "Y 1000",
+    mode: "point",
+    help: "Click the intersection of the horizontal 1000 lb grid line with the left inner grid line. Click the line intersection, not the printed number.",
+  },
+  {
+    id: "p1-cg-y-1700",
+    page: 1,
+    group: "Page 1 · CG graph calibration",
+    label: "Y-axis calibration · Weight = 1700 lb",
+    sample: "Y 1700",
+    mode: "point",
+    help: "Click the intersection of the horizontal 1700 lb grid line with the left inner grid line. Click the line intersection, not the printed number.",
+  },
+];
+
 const STEPS: MapperStep[] = [
   ...PAGE_ONE_ROWS.flatMap(([rowId, rowLabel]) =>
     PAGE_ONE_FIELDS.map(([fieldId, fieldLabel, sample]) => ({
@@ -132,7 +189,9 @@ const STEPS: MapperStep[] = [
     group: "Page 1 · CG graph",
     label: "CG graph plotting rectangle (inner grid only)",
     sample: "CG PLOT AREA",
+    help: "Drag around the complete inner graph grid. Do not include the axis numbers or titles.",
   },
+  ...CG_CALIBRATION_STEPS,
   {
     id: "p2-date",
     page: 2,
@@ -178,7 +237,7 @@ function clamp01(value: number) {
   return Math.min(1, Math.max(0, value));
 }
 
-function normalizedRect(a: { x: number; y: number }, b: { x: number; y: number }) {
+function normalizedRect(a: NormalizedPoint, b: NormalizedPoint): NormalizedRect {
   const left = Math.min(a.x, b.x);
   const top = Math.min(a.y, b.y);
   return {
@@ -198,19 +257,31 @@ function rectStyle(rect: NormalizedRect) {
   };
 }
 
+function pointStyle(point: NormalizedPoint) {
+  return {
+    left: `${point.x * 100}%`,
+    top: `${point.y * 100}%`,
+  };
+}
+
+function isPointCapture(capture: Capture | undefined): capture is PointCapture {
+  return capture?.kind === "point";
+}
+
+function isRectCapture(capture: Capture | undefined): capture is RectCapture {
+  return Boolean(capture && "rect" in capture);
+}
+
 function openDatabase() {
   return new Promise<IDBDatabase>((resolve, reject) => {
     if (!("indexedDB" in window)) {
       reject(new Error("IndexedDB is unavailable in this browser."));
       return;
     }
-
     const request = window.indexedDB.open(DB_NAME, 1);
     request.onupgradeneeded = () => {
       const database = request.result;
-      if (!database.objectStoreNames.contains(DB_STORE)) {
-        database.createObjectStore(DB_STORE);
-      }
+      if (!database.objectStoreNames.contains(DB_STORE)) database.createObjectStore(DB_STORE);
     };
     request.onsuccess = () => resolve(request.result);
     request.onerror = () => reject(request.error ?? new Error("Could not open local storage."));
@@ -277,29 +348,25 @@ function canvasToStoredPage(canvas: HTMLCanvasElement): StoredPage {
     quality -= 0.1;
     dataUrl = output.toDataURL("image/webp", quality);
   }
-
   return { dataUrl, width: output.width, height: output.height };
 }
 
-async function renderPdf(file: File): Promise<StoredForm> {
+async function renderPdfBytes(data: Uint8Array, fileName: string): Promise<StoredForm> {
   const pdfjs = await import("pdfjs-dist");
   pdfjs.GlobalWorkerOptions.workerSrc = new URL(
     "pdfjs-dist/build/pdf.worker.min.mjs",
     import.meta.url
   ).toString();
-
-  const loadingTask = pdfjs.getDocument({ data: new Uint8Array(await file.arrayBuffer()) });
+  const loadingTask = pdfjs.getDocument({ data });
   const pdf = await loadingTask.promise;
-
   try {
     if (pdf.numPages !== 2) {
       throw new Error("Use the original two-page RVP.CFI.066.02 Cessna 152 PDF.");
     }
-
     const pages = {} as Record<PageNumber, StoredPage>;
     for (const pageNumber of [1, 2] as const) {
-      const page = await pdf.getPage(pageNumber);
-      const viewport = page.getViewport({ scale: 2.2 });
+      const pdfPage = await pdf.getPage(pageNumber);
+      const viewport = pdfPage.getViewport({ scale: 2.2 });
       const canvas = document.createElement("canvas");
       canvas.width = Math.ceil(viewport.width);
       canvas.height = Math.ceil(viewport.height);
@@ -307,28 +374,37 @@ async function renderPdf(file: File): Promise<StoredForm> {
       if (!context) throw new Error("Canvas is unavailable.");
       context.fillStyle = "white";
       context.fillRect(0, 0, canvas.width, canvas.height);
-      await page.render({ canvas, canvasContext: context, viewport }).promise;
+      await pdfPage.render({ canvas, canvasContext: context, viewport }).promise;
       pages[pageNumber] = canvasToStoredPage(canvas);
     }
-
-    return { fileName: file.name, pages };
+    return { fileName, pages };
   } finally {
     await pdf.destroy();
   }
 }
 
+async function renderPdf(file: File) {
+  return renderPdfBytes(new Uint8Array(await file.arrayBuffer()), file.name);
+}
+
+function validRect(value: unknown): value is NormalizedRect {
+  if (!value || typeof value !== "object") return false;
+  const rect = value as Partial<NormalizedRect>;
+  return [rect.x, rect.y, rect.width, rect.height].every((part) => typeof part === "number");
+}
+
+function validPoint(value: unknown): value is NormalizedPoint {
+  if (!value || typeof value !== "object") return false;
+  const point = value as Partial<NormalizedPoint>;
+  return typeof point.x === "number" && typeof point.y === "number";
+}
+
 function validCapture(value: unknown): value is Capture {
   if (!value || typeof value !== "object") return false;
-  const capture = value as Partial<Capture>;
-  const rect = capture.rect as Partial<NormalizedRect> | undefined;
-  return Boolean(
-    rect &&
-      typeof rect.x === "number" &&
-      typeof rect.y === "number" &&
-      typeof rect.width === "number" &&
-      typeof rect.height === "number" &&
-      typeof capture.confirmed === "boolean"
-  );
+  const capture = value as Record<string, unknown>;
+  if (typeof capture.confirmed !== "boolean") return false;
+  if (capture.kind === "point") return validPoint(capture.point);
+  return validRect(capture.rect);
 }
 
 function cleanImportedCaptures(value: unknown): CaptureStore {
@@ -340,22 +416,19 @@ function cleanImportedCaptures(value: unknown): CaptureStore {
       : root;
   const allowed = new Set(STEPS.map((step) => step.id));
   const output: CaptureStore = {};
-
   for (const [key, candidate] of Object.entries(raw)) {
     if (allowed.has(key) && validCapture(candidate)) output[key] = candidate;
   }
-
   return output;
 }
 
 export function C152PdfMapper() {
-  const surfaceRef = useRef<HTMLDivElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
   const [form, setForm] = useState<StoredForm | null>(null);
   const [captures, setCaptures] = useState<CaptureStore>({});
   const [currentId, setCurrentId] = useState(STEPS[0].id);
   const [page, setPage] = useState<PageNumber>(1);
-  const [dragStart, setDragStart] = useState<{ x: number; y: number } | null>(null);
+  const [dragStart, setDragStart] = useState<NormalizedPoint | null>(null);
   const [draftRect, setDraftRect] = useState<NormalizedRect | null>(null);
   const [preview, setPreview] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -372,11 +445,27 @@ export function C152PdfMapper() {
     }
 
     void readForm()
-      .then((saved) => {
-        if (saved) setForm(saved);
+      .then(async (saved) => {
+        if (saved) {
+          setForm(saved);
+          return;
+        }
+        try {
+          const response = await fetch(BUNDLED_TEMPLATE_URL, { cache: "no-store" });
+          if (!response.ok) return;
+          const rendered = await renderPdfBytes(
+            new Uint8Array(await response.arrayBuffer()),
+            "RVP.CFI.066.02Cessna152MBandPerformanceSheet.pdf"
+          );
+          setForm(rendered);
+          await saveForm(rendered);
+          setMessage("Bundled original C152 form loaded automatically.");
+        } catch {
+          // A bundled template is optional while the mapper is being calibrated.
+        }
       })
       .catch(() => {
-        // The mapper can still be used after uploading the form again.
+        // The mapper can still be used after selecting the form again.
       });
   }, []);
 
@@ -396,6 +485,9 @@ export function C152PdfMapper() {
     () => STEPS.filter((step) => captures[step.id]?.confirmed).length,
     [captures]
   );
+  const graphCalibrationComplete = CG_CALIBRATION_STEPS.every(
+    (step) => captures[step.id]?.confirmed
+  );
 
   function selectStep(step: MapperStep) {
     setCurrentId(step.id);
@@ -414,7 +506,7 @@ export function C152PdfMapper() {
     selectStep(STEPS[next]);
   }
 
-  function pointerPosition(event: ReactPointerEvent<HTMLDivElement>) {
+  function pointerPosition(event: ReactPointerEvent<HTMLDivElement>): NormalizedPoint {
     const rect = event.currentTarget.getBoundingClientRect();
     return {
       x: clamp01((event.clientX - rect.left) / rect.width),
@@ -424,26 +516,33 @@ export function C152PdfMapper() {
 
   function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
     if (!form || preview || currentStep.page !== page) return;
-    event.currentTarget.setPointerCapture(event.pointerId);
     const point = pointerPosition(event);
+    if (currentStep.mode === "point") {
+      setCaptures((current) => ({
+        ...current,
+        [currentStep.id]: { kind: "point", point, confirmed: false },
+      }));
+      return;
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
     setDragStart(point);
     setDraftRect({ x: point.x, y: point.y, width: 0, height: 0 });
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragStart) return;
+    if (!dragStart || currentStep.mode === "point") return;
     setDraftRect(normalizedRect(dragStart, pointerPosition(event)));
   }
 
   function handlePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
-    if (!dragStart) return;
+    if (!dragStart || currentStep.mode === "point") return;
     const rect = normalizedRect(dragStart, pointerPosition(event));
     setDragStart(null);
     setDraftRect(null);
     if (rect.width < 0.003 || rect.height < 0.003) return;
     setCaptures((current) => ({
       ...current,
-      [currentStep.id]: { rect, confirmed: false },
+      [currentStep.id]: { kind: "rect", rect, confirmed: false },
     }));
   }
 
@@ -478,7 +577,6 @@ export function C152PdfMapper() {
       setMessage("Choose the original C152 PDF form.");
       return;
     }
-
     setBusy(true);
     setMessage("Rendering the two original PDF pages locally…");
     try {
@@ -508,10 +606,20 @@ export function C152PdfMapper() {
 
   function exportJson() {
     const payload = {
-      version: 1,
+      version: 2,
       template: "RVP.CFI.066.02 Cessna C152 M&B and Performance Data Sheet",
       coordinateSystem: "normalized-top-left",
       exportedAt: new Date().toISOString(),
+      graphCalibration: {
+        xAxis: { unit: "moment-lb-in/1000", lowValue: 30, highValue: 65 },
+        yAxis: { unit: "weight-lb", lowValue: 1000, highValue: 1700 },
+        captureIds: {
+          xLow: "p1-cg-x-30",
+          xHigh: "p1-cg-x-65",
+          yLow: "p1-cg-y-1000",
+          yHigh: "p1-cg-y-1700",
+        },
+      },
       captures,
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
@@ -528,7 +636,9 @@ export function C152PdfMapper() {
       const parsed = JSON.parse(await file.text()) as unknown;
       const cleaned = cleanImportedCaptures(parsed);
       setCaptures(cleaned);
-      setMessage(`Imported ${Object.keys(cleaned).length} mapped fields.`);
+      setMessage(
+        `Imported ${Object.keys(cleaned).length} mapped fields. Existing v1 maps are preserved; add the four CG calibration points and export again.`
+      );
     } catch {
       setMessage("Invalid coordinate JSON.");
     } finally {
@@ -536,7 +646,8 @@ export function C152PdfMapper() {
     }
   }
 
-  const visibleRect = draftRect ?? currentCapture?.rect ?? null;
+  const visibleRect =
+    draftRect ?? (isRectCapture(currentCapture) ? currentCapture.rect : null);
   const pageImage = form?.pages[page];
 
   return (
@@ -545,14 +656,15 @@ export function C152PdfMapper() {
         <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-              Original Sevenair form · local only
+              Original Sevenair form · mapper
             </p>
             <h2 className="mt-1 text-xl font-semibold text-zinc-950">
-              Load RVP.CFI.066.02 once, then map its blank cells
+              Map the writable cells and calibrate the original CG graph
             </h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-600">
-              The PDF is rendered in your browser and stored locally. The mapper never redraws the
-              Sevenair sheet; it only records normalized rectangles for later PDF stamping.
+              Rectangular fields are mapped by dragging. The four CG calibration references are
+              mapped with a single click on the actual grid-line intersection. Existing v1 JSON maps
+              can be imported without losing the fields you already confirmed.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -585,14 +697,20 @@ export function C152PdfMapper() {
           <span className="rounded-full bg-white px-3 py-1 text-zinc-700">
             {confirmedCount}/{STEPS.length} confirmed
           </span>
-          <span className="rounded-full bg-white px-3 py-1 text-zinc-700">
-            Coordinates: normalized top-left
+          <span
+            className={`rounded-full px-3 py-1 ${
+              graphCalibrationComplete
+                ? "bg-emerald-100 text-emerald-800"
+                : "bg-amber-100 text-amber-900"
+            }`}
+          >
+            CG axes: {graphCalibrationComplete ? "calibrated" : "4 points required"}
           </span>
         </div>
         {message ? <p className="mt-3 text-sm font-medium text-sky-900">{message}</p> : null}
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-[340px_minmax(0,1fr)]">
+      <section className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="space-y-4 rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm xl:sticky xl:top-5 xl:self-start">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-400">
@@ -642,10 +760,19 @@ export function C152PdfMapper() {
 
           <div className="rounded-2xl bg-zinc-50 p-3 text-xs leading-5 text-zinc-600">
             <p className="font-semibold text-zinc-800">How to capture</p>
-            <p>Drag tightly inside the blank cell. For the CG plot step, drag only the inner plotting grid.</p>
+            <p>
+              {currentStep.help ??
+                (currentStep.mode === "point"
+                  ? "Click once on the exact reference point."
+                  : "Drag tightly inside the blank cell.")}
+            </p>
             {currentCapture ? (
               <pre className="mt-2 overflow-auto rounded-xl bg-white p-2 text-[11px]">
-                {JSON.stringify(currentCapture.rect, null, 2)}
+                {JSON.stringify(
+                  isPointCapture(currentCapture) ? currentCapture.point : currentCapture.rect,
+                  null,
+                  2
+                )}
               </pre>
             ) : null}
           </div>
@@ -670,7 +797,7 @@ export function C152PdfMapper() {
                           className={`flex w-full items-center justify-between rounded-lg px-2.5 py-2 text-left text-xs transition ${
                             active
                               ? "bg-sky-100 font-semibold text-sky-900"
-                              : "hover:bg-zinc-50 text-zinc-700"
+                              : "text-zinc-700 hover:bg-zinc-50"
                           }`}
                         >
                           <span className="pr-2">{step.label}</span>
@@ -713,7 +840,9 @@ export function C152PdfMapper() {
                 type="button"
                 onClick={() => setPreview((value) => !value)}
                 className={`rounded-xl px-3 py-2 text-sm font-semibold ${
-                  preview ? "bg-amber-500 text-zinc-950" : "border border-zinc-200 bg-white text-zinc-700"
+                  preview
+                    ? "bg-amber-500 text-zinc-950"
+                    : "border border-zinc-200 bg-white text-zinc-700"
                 }`}
               >
                 {preview ? "Exit preview" : "Preview samples"}
@@ -755,7 +884,6 @@ export function C152PdfMapper() {
           <div className="overflow-auto rounded-3xl border border-zinc-200 bg-zinc-200 p-3 shadow-sm">
             {pageImage ? (
               <div
-                ref={surfaceRef}
                 className={`relative mx-auto max-w-[1100px] select-none overflow-hidden bg-white shadow-lg ${
                   preview ? "cursor-default" : "cursor-crosshair touch-none"
                 }`}
@@ -773,13 +901,42 @@ export function C152PdfMapper() {
                   src={pageImage.dataUrl}
                   alt={`C152 original form page ${page}`}
                   draggable={false}
-                  className="block h-auto w-full pointer-events-none"
+                  className="pointer-events-none block h-auto w-full"
                 />
 
                 {STEPS.filter((step) => step.page === page).map((step) => {
                   const capture = captures[step.id];
                   if (!capture) return null;
                   const active = step.id === currentStep.id;
+
+                  if (isPointCapture(capture)) {
+                    return (
+                      <div
+                        key={step.id}
+                        className="pointer-events-none absolute -translate-x-1/2 -translate-y-1/2"
+                        style={pointStyle(capture.point)}
+                      >
+                        <div
+                          className={`h-5 w-5 rounded-full border-2 bg-white/80 ${
+                            active
+                              ? "border-sky-700"
+                              : capture.confirmed
+                                ? "border-emerald-600"
+                                : "border-amber-500"
+                          }`}
+                        >
+                          <span className="absolute left-1/2 top-[-5px] h-7 w-px -translate-x-1/2 bg-current" />
+                          <span className="absolute left-[-5px] top-1/2 h-px w-7 -translate-y-1/2 bg-current" />
+                        </div>
+                        {preview ? (
+                          <span className="absolute left-4 top-[-10px] whitespace-nowrap rounded bg-white/95 px-1.5 py-0.5 text-[10px] font-bold text-zinc-900 shadow">
+                            {step.sample}
+                          </span>
+                        ) : null}
+                      </div>
+                    );
+                  }
+
                   return (
                     <div
                       key={step.id}
@@ -818,7 +975,8 @@ export function C152PdfMapper() {
                 <div>
                   <p className="text-xl font-semibold text-zinc-950">Load the original C152 PDF first</p>
                   <p className="mt-2 max-w-lg text-sm leading-6 text-zinc-500">
-                    Choose RVP.CFI.066.02 above. Both pages are rendered locally and the mapping surface appears here.
+                    Choose RVP.CFI.066.02 above. If the canonical template is later bundled under
+                    public/templates/c152, this mapper will load it automatically.
                   </p>
                 </div>
               </div>
