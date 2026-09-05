@@ -1,7 +1,7 @@
 export const C152_NAVLOG_SYNC_STORAGE_KEY = "briefings_c152_navlog_plan_v1";
 
 export const C152_NAVLOG_PRESET = {
-  registration: "CS-AVC",
+  registration: "CS-AVC" as string,
   climbTasKt: 68,
   cruiseTasKt: 101,
   descentTasKt: 90,
