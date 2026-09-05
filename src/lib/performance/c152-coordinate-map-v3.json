@@ -1,0 +1,69 @@
+{
+  "version": 3,
+  "template": "RVP.CFI.066.02 Cessna C152 M&B and Performance Data Sheet",
+  "coordinateSystem": "normalized-top-left",
+  "calibration": {
+    "xTicks": [
+      {
+        "id": "p1-cg-x-tick-45",
+        "value": 45
+      },
+      {
+        "id": "p1-cg-x-tick-50",
+        "value": 50
+      }
+    ],
+    "yTicks": [
+      {
+        "id": "p1-cg-y-tick-1300",
+        "value": 1300
+      },
+      {
+        "id": "p1-cg-y-tick-1400",
+        "value": 1400
+      }
+    ],
+    "envelopeLines": [
+      "p1-cg-envelope-forward",
+      "p1-cg-envelope-upper",
+      "p1-cg-envelope-aft"
+    ]
+  },
+  "exportedAt": "2026-09-05T18:33:45.929Z",
+  "captures": {
+    "p1-basic-empty-weight-weight": {"rect":{"x":0.4130434782608696,"y":0.1580872850008513,"width":0.17263427109974422,"height":0.037037592485913734},"confirmed":true},
+    "p1-basic-empty-weight-arm": {"rect":{"x":0.5869565217391305,"y":0.15718392908656073,"width":0.17519181585677746,"height":0.0388443043144949},"confirmed":true},
+    "p1-basic-empty-weight-moment": {"rect":{"x":0.7608695652173914,"y":0.1598939968294325,"width":0.17263427109974416,"height":0.03613423657162315},"confirmed":true},
+    "p1-usable-fuel-weight": {"rect":{"x":0.4130434782608696,"y":0.19602823340105563,"width":0.17391304347826092,"height":0.0424577279716572},"confirmed":true},
+    "p1-usable-fuel-arm": {"rect":{"x":0.5869565217391305,"y":0.19602823340105563,"width":0.17391304347826086,"height":0.04155437205736662},"confirmed":true},
+    "p1-usable-fuel-moment": {"rect":{"x":0.7595907928388747,"y":0.1942215215724745,"width":0.17519181585677757,"height":0.04336108388594778},"confirmed":true},
+    "p1-pilot-passenger-weight": {"rect":{"x":0.41048593350383633,"y":0.23848596137271283,"width":0.17902813299232734,"height":0.03613423657162318},"confirmed":true},
+    "p1-pilot-passenger-arm": {"rect":{"x":0.5882352941176471,"y":0.23758260545842225,"width":0.17391304347826086,"height":0.03703759248591376},"confirmed":true},
+    "p1-pilot-passenger-moment": {"rect":{"x":0.7595907928388747,"y":0.2366792495441317,"width":0.17519181585677757,"height":0.038844304314494926},"confirmed":true},
+    "p1-baggage-area-1-weight": {"rect":{"x":0.4117647058823529,"y":0.27191013020146426,"width":0.17647058823529416,"height":0.03794094840020429},"confirmed":true},
+    "p1-baggage-area-1-arm": {"rect":{"x":0.5856777493606138,"y":0.27281348611575484,"width":0.17519181585677757,"height":0.03794094840020429},"confirmed":true},
+    "p1-baggage-area-1-moment": {"rect":{"x":0.7595907928388747,"y":0.27191013020146426,"width":0.17647058823529416,"height":0.03974766022878545},"confirmed":true},
+    "p1-baggage-area-2-weight": {"rect":{"x":0.4117647058823529,"y":0.30985107860166855,"width":0.17647058823529416,"height":0.037940948400204344},"confirmed":true},
+    "p1-baggage-area-2-arm": {"rect":{"x":0.5869565217391305,"y":0.3080443667730874,"width":0.17519181585677746,"height":0.038844304314494926},"confirmed":true},
+    "p1-baggage-area-2-moment": {"rect":{"x":0.7583120204603581,"y":0.30894772268737797,"width":0.17647058823529416,"height":0.03703759248591376},"confirmed":true},
+    "p1-ramp-weight": {"rect":{"x":0.4117647058823529,"y":0.34598531517329173,"width":0.17774936061381075,"height":0.03613423657162312},"confirmed":true},
+    "p1-ramp-arm": {"rect":{"x":0.5882352941176471,"y":0.34598531517329173,"width":0.17135549872122757,"height":0.037037592485913706},"confirmed":true},
+    "p1-ramp-moment": {"rect":{"x":0.7583120204603581,"y":0.3468886710875823,"width":0.17391304347826086,"height":0.03523088065733254},"confirmed":true},
+    "p1-start-taxi-runup-weight": {"rect":{"x":0.41048593350383633,"y":0.3803128399163337,"width":0.17774936061381075,"height":0.04426443980023842},"confirmed":true},
+    "p1-start-taxi-runup-arm": {"rect":{"x":0.5869565217391305,"y":0.38302290765920544,"width":0.17391304347826086,"height":0.0424577279716572},"confirmed":true},
+    "p1-start-taxi-runup-moment": {"rect":{"x":0.7595907928388747,"y":0.38211955174491485,"width":0.17647058823529416,"height":0.04426443980023837},"confirmed":true},
+    "p1-takeoff-weight": {"rect":{"x":0.4130434782608696,"y":0.4245772797165721,"width":0.17263427109974422,"height":0.0424577279716572},"confirmed":true},
+    "p1-takeoff-arm": {"rect":{"x":0.5843989769820972,"y":0.4236739238022815,"width":0.17519181585677746,"height":0.04426443980023837},"confirmed":true},
+    "p1-takeoff-moment": {"rect":{"x":0.7583120204603581,"y":0.4236739238022815,"width":0.17774936061381075,"height":0.04336108388594778},"confirmed":true},
+    "p1-mtow": {"rect":{"x":0.7595907928388747,"y":0.4643249399453576,"width":0.17263427109974427,"height":0.03974766022878545},"confirmed":true},
+    "p1-mlw": {"rect":{"x":0.7595907928388747,"y":0.5022658883455619,"width":0.17391304347826086,"height":0.03613423657162318},"confirmed":true},
+    "p1-cg-plot-area": {"rect":{"x":0.17647058823529413,"y":0.5817612088031328,"width":0.6547314578005115,"height":0.3215947054874462},"confirmed":true},
+    "p1-cg-x-tick-45": {"kind":"point","point":{"x":0.4553805774278215,"y":0.9048067723984431},"confirmed":true},
+    "p1-cg-x-tick-50": {"kind":"point","point":{"x":0.5485564304461942,"y":0.9038797162791824},"confirmed":true},
+    "p1-cg-y-tick-1300": {"kind":"point","point":{"x":0.17716535433070865,"y":0.7833624207752914},"confirmed":true},
+    "p1-cg-y-tick-1400": {"kind":"point","point":{"x":0.17716535433070865,"y":0.7434990076470813},"confirmed":true},
+    "p1-cg-envelope-forward": {"kind":"line","start":{"x":0.631233595800525,"y":0.6322522733357974},"end":{"x":0.1889763779527559,"y":0.9048067723984431},"confirmed":true},
+    "p1-cg-envelope-upper": {"kind":"line","start":{"x":0.631233595800525,"y":0.6341063855743188},"end":{"x":0.7572178477690289,"y":0.6350334416935794},"confirmed":true},
+    "p1-cg-envelope-aft": {"kind":"line","start":{"x":0.7519685039370079,"y":0.6331793294550581},"end":{"x":0.29396325459317585,"y":0.9075879407562252},"confirmed":true}
+  }
+}
