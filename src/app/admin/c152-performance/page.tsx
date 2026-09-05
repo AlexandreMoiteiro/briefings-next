@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { C152PdfMapper } from "./c152-pdf-mapper";
+import { C152PdfMapperV2 } from "./c152-pdf-mapper-v2";
 
 export default function AdminC152PerformancePage() {
   return (
@@ -14,8 +14,9 @@ export default function AdminC152PerformancePage() {
               RVP.CFI.066.02 PDF field mapper
             </h1>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-500">
-              Identify the writable cells directly on the original Sevenair C152 form. The exported
-              coordinate JSON will be used by Briefings to stamp calculated values onto that exact PDF.
+              The approved field map is embedded in the app. Calibrate the CG grid with consecutive
+              ticks and trace the printed envelope lines; the original Sevenair PDF is loaded directly
+              from the repository.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -34,7 +35,7 @@ export default function AdminC152PerformancePage() {
           </div>
         </header>
 
-        <C152PdfMapper />
+        <C152PdfMapperV2 />
       </section>
     </main>
   );
