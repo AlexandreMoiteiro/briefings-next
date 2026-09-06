@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { C152ClientV3 } from "./c152-client-v3";
+import { prepareC152OfficialPerformanceSheetPdfDownload } from "@/lib/pdf/c152-official-performance-sheet-pdf";
 
 const LITERS_PER_US_GALLON = 3.785411784;
 const KG_TO_LB = 2.2046226218;
@@ -174,9 +175,22 @@ export function C152ClientV4() {
     if (!root) return;
 
     const sync = () => queueMicrotask(() => enhance(root));
+    const handleClick = (event: Event) => {
+      const target = event.target;
+      if (!(target instanceof Element)) return;
+      const button = target.closest("button");
+      if (
+        button?.textContent?.includes("Export RVP.CFI.066.02") ||
+        button?.textContent?.includes("Generating")
+      ) {
+        prepareC152OfficialPerformanceSheetPdfDownload();
+      }
+    };
+
     enhance(root);
     root.addEventListener("input", sync, true);
     root.addEventListener("change", sync, true);
+    root.addEventListener("click", handleClick, true);
 
     const observer = new MutationObserver(sync);
     observer.observe(root, {
@@ -189,6 +203,7 @@ export function C152ClientV4() {
       observer.disconnect();
       root.removeEventListener("input", sync, true);
       root.removeEventListener("change", sync, true);
+      root.removeEventListener("click", handleClick, true);
     };
   }, []);
 
