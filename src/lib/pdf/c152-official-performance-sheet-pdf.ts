@@ -36,6 +36,9 @@ const GITHUB_TEMPLATE_URL =
 const BLACK = rgb(0.04, 0.04, 0.04);
 const WHITE = rgb(1, 1, 1);
 
+let pendingExportWindow: Window | null = null;
+let pendingExportWindowTimer: number | null = null;
+
 type NormalizedRect = {
   x: number;
   y: number;
@@ -62,6 +65,38 @@ export type BuildC152OfficialPerformanceSheetPdfInput = {
   performanceRows: Array<C152PerformanceRow | null>;
   fuelPlan: FuelPlanningInput;
 };
+
+function clearPendingExportTimer() {
+  if (pendingExportWindowTimer !== null) {
+    window.clearTimeout(pendingExportWindowTimer);
+    pendingExportWindowTimer = null;
+  }
+}
+
+export function prepareC152OfficialPerformanceSheetPdfDownload() {
+  clearPendingExportTimer();
+
+  if (pendingExportWindow && !pendingExportWindow.closed) {
+    pendingExportWindow.close();
+  }
+
+  const exportWindow = window.open("about:blank", "_blank");
+  pendingExportWindow = exportWindow;
+
+  if (!exportWindow) return;
+
+  exportWindow.document.title = "RVP.CFI.066.02";
+  exportWindow.document.body.style.margin = "0";
+  exportWindow.document.body.style.background = "#fff";
+
+  pendingExportWindowTimer = window.setTimeout(() => {
+    if (pendingExportWindow === exportWindow) {
+      pendingExportWindow = null;
+      if (!exportWindow.closed) exportWindow.close();
+    }
+    pendingExportWindowTimer = null;
+  }, 30000);
+}
 
 function getRect(id: string) {
   const value = coordinateMap.captures[id] as Partial<RectCapture> | undefined;
@@ -277,17 +312,39 @@ function drawFuelRow(
   drawMappedText(page, font, `p2-fuel-${row}-fuel`, fuelValue(fuelL), 8.6);
 }
 
+function isPdf(bytes: Uint8Array) {
+  const sample = String.fromCharCode(...bytes.slice(0, 32));
+  return sample.includes("%PDF-");
+}
+
+function localTemplateUrl() {
+  if (typeof window === "undefined") return LOCAL_TEMPLATE_URL;
+
+  const url = new URL(LOCAL_TEMPLATE_URL, window.location.origin);
+  const shareToken = new URLSearchParams(window.location.search).get("_vercel_share");
+  if (shareToken) url.searchParams.set("_vercel_share", shareToken);
+  return url.toString();
+}
+
 async function fetchOfficialTemplate() {
   let lastError: unknown = null;
-  for (const url of [LOCAL_TEMPLATE_URL, GITHUB_TEMPLATE_URL]) {
+  const candidates = [
+    { url: localTemplateUrl(), credentials: "include" as RequestCredentials },
+    { url: GITHUB_TEMPLATE_URL, credentials: "omit" as RequestCredentials },
+  ];
+
+  for (const candidate of candidates) {
     try {
-      const response = await fetch(url, { cache: "no-store" });
+      const response = await fetch(candidate.url, {
+        cache: "no-store",
+        credentials: candidate.credentials,
+      });
       if (!response.ok) {
         throw new Error(`C152 template fetch failed (${response.status}).`);
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
-      if (bytes.length < 1000) {
-        throw new Error("C152 template response is not a valid PDF.");
+      if (bytes.length < 1000 || !isPdf(bytes)) {
+        throw new Error("C152 template response is not a PDF.");
       }
       return bytes;
     } catch (error) {
@@ -413,11 +470,21 @@ export function downloadC152OfficialPerformanceSheetPdf(
 ) {
   const blob = new Blob([Uint8Array.from(bytes)], { type: "application/pdf" });
   const url = URL.createObjectURL(blob);
+  const exportWindow = pendingExportWindow;
+  pendingExportWindow = null;
+  clearPendingExportTimer();
+
+  if (exportWindow && !exportWindow.closed) {
+    exportWindow.location.replace(url);
+    window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+    return;
+  }
+
   const link = document.createElement("a");
   link.href = url;
   link.download = `RVP.CFI.066.02_${registration}_${date || "flight"}.pdf`;
   document.body.appendChild(link);
   link.click();
   link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
+  window.setTimeout(() => URL.revokeObjectURL(url), 5000);
 }
