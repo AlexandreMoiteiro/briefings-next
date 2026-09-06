@@ -26,7 +26,7 @@ export const C152_PERFORMANCE_PRESET = {
   reserve45MinFuelGal: 4.4,
   cruiseReferenceRpm: 2400,
   cruiseReferenceFuelGph: 5.9,
-} as const;
+};
 
 export type C152NavlogSyncPlan = {
   version: 1;
