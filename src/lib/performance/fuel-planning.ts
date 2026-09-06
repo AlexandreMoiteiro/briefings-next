@@ -37,7 +37,7 @@ export type FuelPlanningInput = {
   fuelSufficient: boolean;
 };
 
-// Keep Performance aligned with the established operational approximation rules:
+// Established operational approximation rules shared with NavLog:
 // time to the nearest minute and fuel to the nearest litre.
 function roundMinutes(value: number) {
   return Math.max(0, Math.round(Number(value || 0)));
@@ -75,24 +75,17 @@ export function recalculateFuelPlan(
   const descentFuelL = fuelForMinutes(descentMin, rateLh);
 
   const tripMin = climbMin + enrouteMin + descentMin;
-  const tripFuelL = roundFuel(climbFuelL + enrouteFuelL + descentFuelL);
+  const tripFuelL = fuelForMinutes(tripMin, rateLh);
 
   const contingencyMin = roundMinutes(tripMin * 0.05);
-  const contingencyFuelL = roundFuel(tripFuelL * 0.05);
+  const contingencyFuelL = fuelForMinutes(contingencyMin, rateLh);
 
   const alternateFuelL = fuelForMinutes(alternateMin, rateLh);
   const reserveFuelL = fuelForMinutes(reserveMin, rateLh);
 
   const requiredRampMin =
     taxiMin + tripMin + contingencyMin + alternateMin + reserveMin;
-
-  const requiredRampFuelL = roundFuel(
-    taxiFuelL +
-      tripFuelL +
-      contingencyFuelL +
-      alternateFuelL +
-      reserveFuelL
-  );
+  const requiredRampFuelL = fuelForMinutes(requiredRampMin, rateLh);
 
   const extraFuelL = Math.max(0, roundFuel(fuelLoadedL - requiredRampFuelL));
   const extraMin = minutesForFuel(extraFuelL, rateLh);
@@ -129,7 +122,7 @@ export function recalculateFuelPlan(
     extraFuelL,
 
     totalRampMin: requiredRampMin + extraMin,
-    totalRampFuelL: roundFuel(requiredRampFuelL + extraFuelL),
+    totalRampFuelL: roundFuel(fuelLoadedL),
 
     fuelSufficient: fuelLoadedL >= requiredRampFuelL,
   };
