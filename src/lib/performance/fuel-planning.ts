@@ -37,31 +37,37 @@ export type FuelPlanningInput = {
   fuelSufficient: boolean;
 };
 
+// Keep Performance aligned with the established operational approximation rules:
+// time to the nearest minute and fuel to the nearest litre.
+function roundMinutes(value: number) {
+  return Math.max(0, Math.round(Number(value || 0)));
+}
+
 function roundFuel(value: number) {
-  return Math.round(Number(value || 0) * 10) / 10;
+  return Math.max(0, Math.round(Number(value || 0)));
 }
 
 function fuelForMinutes(minutes: number, rateLh: number) {
-  return roundFuel(Number(rateLh || 0) * (Number(minutes || 0) / 60));
+  return roundFuel(Number(rateLh || 0) * (roundMinutes(minutes) / 60));
 }
 
 function minutesForFuel(fuelL: number, rateLh: number) {
   if (!rateLh || rateLh <= 0) return 0;
-  return Math.max(0, Math.round((fuelL / rateLh) * 60));
+  return roundMinutes((fuelL / rateLh) * 60);
 }
 
 export function recalculateFuelPlan(
   input: Partial<FuelPlanningInput>
 ): FuelPlanningInput {
-  const rateLh = Number(input.rateLh ?? 0);
-  const fuelLoadedL = Number(input.fuelLoadedL ?? 0);
+  const rateLh = Math.max(0, Number(input.rateLh ?? 0));
+  const fuelLoadedL = Math.max(0, Number(input.fuelLoadedL ?? 0));
 
-  const taxiMin = Number(input.taxiMin ?? 0);
-  const climbMin = Number(input.climbMin ?? 0);
-  const enrouteMin = Number(input.enrouteMin ?? 0);
-  const descentMin = Number(input.descentMin ?? 0);
-  const alternateMin = Number(input.alternateMin ?? 0);
-  const reserveMin = Number(input.reserveMin ?? 45);
+  const taxiMin = roundMinutes(Number(input.taxiMin ?? 0));
+  const climbMin = roundMinutes(Number(input.climbMin ?? 0));
+  const enrouteMin = roundMinutes(Number(input.enrouteMin ?? 0));
+  const descentMin = roundMinutes(Number(input.descentMin ?? 0));
+  const alternateMin = roundMinutes(Number(input.alternateMin ?? 0));
+  const reserveMin = roundMinutes(Number(input.reserveMin ?? 45));
 
   const taxiFuelL = fuelForMinutes(taxiMin, rateLh);
   const climbFuelL = fuelForMinutes(climbMin, rateLh);
@@ -71,7 +77,7 @@ export function recalculateFuelPlan(
   const tripMin = climbMin + enrouteMin + descentMin;
   const tripFuelL = roundFuel(climbFuelL + enrouteFuelL + descentFuelL);
 
-  const contingencyMin = Math.round(tripMin * 0.05);
+  const contingencyMin = roundMinutes(tripMin * 0.05);
   const contingencyFuelL = roundFuel(tripFuelL * 0.05);
 
   const alternateFuelL = fuelForMinutes(alternateMin, rateLh);
@@ -159,7 +165,7 @@ export function defaultFuelPlanForAircraft(
 }
 
 export function formatFuelTime(minutes: number) {
-  const rounded = Math.max(0, Math.round(minutes || 0));
+  const rounded = roundMinutes(minutes);
 
   if (rounded === 0) return "";
 
@@ -172,11 +178,6 @@ export function formatFuelTime(minutes: number) {
 }
 
 export function formatFuelLiters(liters: number) {
-  const value = Number(liters || 0);
-
-  if (value <= 0) return "";
-
-  return Math.abs(value - Math.round(value)) < 0.05
-    ? String(Math.round(value))
-    : value.toFixed(1);
+  const value = roundFuel(liters);
+  return value > 0 ? String(value) : "";
 }
