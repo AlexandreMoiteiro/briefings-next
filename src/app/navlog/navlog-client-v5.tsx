@@ -12,7 +12,17 @@ const AIRCRAFT = [
   "Custom aircraft",
 ] as const;
 
+const LITERS_PER_US_GALLON = 3.785411784;
+
 type Aircraft = (typeof AIRCRAFT)[number];
+
+function fuelDual(liters: number) {
+  return `${liters.toFixed(1)} L (${(liters / LITERS_PER_US_GALLON).toFixed(1)} US gal)`;
+}
+
+function fuelRateDual(litersPerHour: number) {
+  return `${litersPerHour.toFixed(1)} L/h (${(litersPerHour / LITERS_PER_US_GALLON).toFixed(1)} US gal/h)`;
+}
 
 function findAircraftSelect(root: HTMLElement) {
   return Array.from(root.querySelectorAll("select")).find((select) => {
@@ -141,9 +151,9 @@ export function NavlogClientV5() {
         {aircraft === "Cessna 152" ? (
           <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-semibold">CS-AVC preset loaded</p>
+              <p className="font-semibold">CS-AVC preset</p>
               <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                Taxi 10 min only for C152
+                Taxi {C152_NAVLOG_PRESET.taxiMin} min
               </p>
             </div>
             <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -151,18 +161,15 @@ export function NavlogClientV5() {
                 TAS C/C/D: {C152_NAVLOG_PRESET.climbTasKt} / {C152_NAVLOG_PRESET.cruiseTasKt} / {C152_NAVLOG_PRESET.descentTasKt} kt
               </p>
               <p className="rounded-xl bg-white px-3 py-2">
-                Fuel flow: {C152_NAVLOG_PRESET.fuelFlowLh} L/h
+                Fuel flow: {fuelRateDual(C152_NAVLOG_PRESET.fuelFlowLh)}
               </p>
               <p className="rounded-xl bg-white px-3 py-2">
                 ROC / ROD: {C152_NAVLOG_PRESET.rocFpm} / {C152_NAVLOG_PRESET.rodFpm} fpm
               </p>
               <p className="rounded-xl bg-white px-3 py-2">
-                EFOB / altitude: {C152_NAVLOG_PRESET.startEfobL} L / {C152_NAVLOG_PRESET.defaultAltitudeFt} ft
+                EFOB: {fuelDual(C152_NAVLOG_PRESET.startEfobL)} · {C152_NAVLOG_PRESET.defaultAltitudeFt} ft
               </p>
             </div>
-            <p className="mt-3 text-xs leading-5 text-sky-800">
-              CS-AVC uses its dedicated NavLog profile. Tecnam and Piper keep their existing presets, including the 20 min taxi default. All values remain editable for the actual mission.
-            </p>
           </div>
         ) : null}
       </section>
