@@ -13,6 +13,10 @@ import {
   c152MomentToNormalizedX,
   c152WeightToNormalizedY,
 } from "@/lib/performance/c152-cg-calibration-v4";
+import {
+  buildC152FlightCgTrack,
+  type C152FlightCgPoint,
+} from "@/lib/performance/c152-flight-cg";
 import type { PerformanceLegResult } from "@/lib/performance/aerodrome-performance";
 import {
   C152_CS_AVC,
@@ -30,6 +34,7 @@ const LOCAL_TEMPLATE_URL = `/c152/${TEMPLATE_FILE_NAME}`;
 const GITHUB_TEMPLATE_URL =
   `https://raw.githubusercontent.com/AlexandreMoiteiro/briefings-next/main/public/c152/${TEMPLATE_FILE_NAME}`;
 const BLACK = rgb(0.04, 0.04, 0.04);
+const WHITE = rgb(1, 1, 1);
 
 type NormalizedRect = {
   x: number;
@@ -152,50 +157,60 @@ function drawLoadingRow(
   );
 }
 
-function drawCgPoint(
+function cgCoordinates(page: PDFPage, point: C152FlightCgPoint) {
+  const { width, height } = page.getSize();
+  return {
+    x: c152MomentToNormalizedX(point.momentLbIn / 1000) * width,
+    y: height - c152WeightToNormalizedY(point.weightLb) * height,
+  };
+}
+
+function drawCgTrack(
   page: PDFPage,
   font: PDFFont,
-  label: "R" | "TO",
-  momentLbIn: number,
-  weightLb: number
+  points: C152FlightCgPoint[]
 ) {
-  const { width, height } = page.getSize();
-  const x = c152MomentToNormalizedX(momentLbIn / 1000) * width;
-  const y = height - c152WeightToNormalizedY(weightLb) * height;
-  const radius = label === "R" ? 3.2 : 3.1;
+  const plotted = points.map((point) => ({
+    point,
+    ...cgCoordinates(page, point),
+  }));
 
-  if (label === "R") {
-    page.drawCircle({
-      x,
-      y,
-      size: radius,
-      borderColor: BLACK,
-      borderWidth: 1.15,
-    });
-    page.drawText("R", {
-      x: x - font.widthOfTextAtSize("R", 5.5) / 2,
-      y: y + radius + 1.2,
-      size: 5.5,
-      font,
-      color: BLACK,
-    });
-  } else {
-    page.drawCircle({
-      x,
-      y,
-      size: radius,
-      color: BLACK,
-      borderColor: BLACK,
-      borderWidth: 0.8,
-    });
-    page.drawText("TO", {
-      x: x + radius + 1.4,
-      y: y - 2,
-      size: 5.5,
-      font,
+  for (let index = 0; index < plotted.length - 1; index += 1) {
+    const from = plotted[index];
+    const to = plotted[index + 1];
+    page.drawLine({
+      start: { x: from.x, y: from.y },
+      end: { x: to.x, y: to.y },
+      thickness: 1.15,
       color: BLACK,
     });
   }
+
+  const labelOffsets: Record<C152FlightCgPoint["label"], { x: number; y: number }> = {
+    TO: { x: 4.2, y: 3.8 },
+    LDG: { x: 4.2, y: -1.5 },
+    ALT: { x: 4.2, y: -6.8 },
+  };
+
+  plotted.forEach(({ point, x, y }) => {
+    page.drawCircle({
+      x,
+      y,
+      size: 3,
+      color: WHITE,
+      borderColor: BLACK,
+      borderWidth: 1.1,
+    });
+
+    const offset = labelOffsets[point.label];
+    page.drawText(point.label, {
+      x: x + offset.x,
+      y: y + offset.y,
+      size: 5.5,
+      font,
+      color: BLACK,
+    });
+  });
 }
 
 function rolePrefix(role: string) {
@@ -256,10 +271,10 @@ function drawFuelRow(
   font: PDFFont,
   row: string,
   minutes: number,
-  liters: number
+  fuelL: number
 ) {
   drawMappedText(page, font, `p2-fuel-${row}-time`, formatFuelTime(minutes), 8.6);
-  drawMappedText(page, font, `p2-fuel-${row}-fuel`, fuelValue(liters), 8.6);
+  drawMappedText(page, font, `p2-fuel-${row}-fuel`, fuelValue(fuelL), 8.6);
 }
 
 async function fetchOfficialTemplate() {
@@ -299,6 +314,7 @@ export async function buildC152OfficialPerformanceSheetPdf(
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   const [page1, page2] = pages;
   const wb = input.weightBalance;
+  const fuel = input.fuelPlan;
 
   const loadingPrefixes = [
     "p1-basic-empty-weight",
@@ -362,8 +378,11 @@ export async function buildC152OfficialPerformanceSheetPdf(
     9.2
   );
 
-  drawCgPoint(page1, font, "R", wb.ramp.momentLbIn, wb.ramp.weightLb);
-  drawCgPoint(page1, font, "TO", wb.takeoff.momentLbIn, wb.takeoff.weightLb);
+  drawCgTrack(
+    page1,
+    font,
+    buildC152FlightCgTrack(wb, fuel.tripFuelL, fuel.alternateFuelL)
+  );
 
   drawMappedText(page2, bold, "p2-date", formatDate(input.date), 8.8);
   drawMappedText(page2, bold, "p2-registration", input.registration, 8.8);
@@ -372,7 +391,6 @@ export async function buildC152OfficialPerformanceSheetPdf(
     drawAirfieldColumn(page2, font, result, input.performanceRows[index] ?? null);
   });
 
-  const fuel = input.fuelPlan;
   drawFuelRow(page2, font, "startup-taxi", fuel.taxiMin, fuel.taxiFuelL);
   drawFuelRow(page2, font, "climb", fuel.climbMin, fuel.climbFuelL);
   drawFuelRow(page2, font, "enroute", fuel.enrouteMin, fuel.enrouteFuelL);
