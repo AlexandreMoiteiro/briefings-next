@@ -1,7 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { formatOperationalMinutes } from "@/lib/operational-duration";
 import { C152_NAVLOG_PRESET, C152_PERFORMANCE_PRESET } from "@/lib/c152-operational-presets";
 import {
   PERFORMANCE_AERODROMES,
@@ -11,6 +12,7 @@ import {
   evaluatePerformanceLeg,
   type PerformanceLegInput,
 } from "@/lib/performance/aerodrome-performance";
+import { buildC152FlightCgTrack } from "@/lib/performance/c152-flight-cg";
 import { fetchOpenMeteoForLeg } from "@/lib/performance/open-meteo";
 import {
   C152_CS_AVC,
@@ -21,8 +23,6 @@ import {
   c152LitersToGallons,
 } from "@/lib/performance/c152-performance";
 import {
-  formatFuelLiters,
-  formatFuelTime,
   recalculateFuelPlan,
   type FuelPlanningInput,
 } from "@/lib/performance/fuel-planning";
@@ -72,18 +72,46 @@ const START_TAXI_RUNUP_L =
     c152GallonsToLiters(C152_PERFORMANCE_PRESET.startTaxiTakeoffAllowanceGal) * 10
   ) / 10;
 
+type LoadingState = {
+  pilotKg: number;
+  passengerKg: number;
+  fuelL: number;
+  baggageArea1Kg: number;
+  baggageArea2Kg: number;
+  startTaxiRunupL: number;
+};
+
 function whole(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
   return String(Math.round(value));
 }
 
 function fixed(value: number | null | undefined, digits = 1) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "—";
+  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
   return value.toFixed(digits);
+}
+
+function liters(value: number) {
+  return `${Math.max(0, Math.round(Number(value || 0)))} L`;
 }
 
 function roleLabel(role: string) {
   return role === "Alternate" ? "Alternate" : role;
+}
+
+function parsePlanningMinutes(value: string) {
+  const text = value.trim().toLowerCase().replace(/\s+/g, " ");
+  if (/^\d+(?:\.\d+)?$/.test(text)) return Math.max(0, Math.round(Number(text)));
+
+  const clock = text.match(/^(\d+)\s*:\s*(\d{1,2})$/);
+  if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
+
+  const duration = text.match(/^(?:(\d+)\s*h)?(?:\s*(\d+)\s*min)?$/);
+  if (duration && (duration[1] || duration[2])) {
+    return Number(duration[1] ?? 0) * 60 + Number(duration[2] ?? 0);
+  }
+
+  return null;
 }
 
 function NumberField({
@@ -116,6 +144,55 @@ function NumberField({
         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition focus:border-zinc-500"
       />
     </label>
+  );
+}
+
+function DurationInput({
+  value,
+  onChange,
+}: {
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [draft, setDraft] = useState(() => formatOperationalMinutes(value));
+  const focused = useRef(false);
+
+  useEffect(() => {
+    if (!focused.current) setDraft(formatOperationalMinutes(value));
+  }, [value]);
+
+  function commit() {
+    const parsed = parsePlanningMinutes(draft);
+    if (parsed === null) {
+      setDraft(formatOperationalMinutes(value));
+      return;
+    }
+    onChange(parsed);
+    setDraft(formatOperationalMinutes(parsed));
+  }
+
+  return (
+    <input
+      type="text"
+      inputMode="text"
+      value={draft}
+      onFocus={() => {
+        focused.current = true;
+      }}
+      onBlur={() => {
+        focused.current = false;
+        commit();
+      }}
+      onChange={(event) => setDraft(event.target.value)}
+      onKeyDown={(event) => {
+        if (event.key === "Enter") {
+          event.preventDefault();
+          commit();
+          event.currentTarget.blur();
+        }
+      }}
+      className="w-full min-w-28 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-zinc-500"
+    />
   );
 }
 
@@ -173,20 +250,173 @@ function ComplianceBadge({
   );
 }
 
+function CgStateCard({
+  label,
+  point,
+}: {
+  label: "TO" | "LDG" | "ALT";
+  point:
+    | {
+        weightLb: number;
+        cgIn: number;
+        forwardLimitIn: number;
+        aftLimitIn: number;
+        withinEnvelope: boolean;
+      }
+    | undefined;
+}) {
+  const ok = Boolean(point?.withinEnvelope);
+
+  return (
+    <div
+      className={[
+        "rounded-2xl border p-4",
+        point
+          ? ok
+            ? "border-emerald-200 bg-emerald-50"
+            : "border-red-200 bg-red-50"
+          : "border-amber-200 bg-amber-50",
+      ].join(" ")}
+    >
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-700">{label}</p>
+        <span className="text-[11px] font-semibold text-zinc-500">
+          {point ? (ok ? "IN ENVELOPE" : "CHECK") : "UNAVAILABLE"}
+        </span>
+      </div>
+      {point ? (
+        <>
+          <p className="mt-2 text-lg font-bold text-zinc-950">
+            {fixed(point.weightLb, 1)} lb · CG {fixed(point.cgIn, 2)} in
+          </p>
+          <p className="mt-1 text-xs text-zinc-500">
+            Limits {fixed(point.forwardLimitIn, 2)}-{fixed(point.aftLimitIn, 2)} in
+          </p>
+        </>
+      ) : null}
+    </div>
+  );
+}
+
+function FuelRow({
+  label,
+  minutes,
+  fuelL,
+  onMinutesChange,
+  strong = false,
+  total = false,
+}: {
+  label: string;
+  minutes: number;
+  fuelL: number;
+  onMinutesChange?: (value: number) => void;
+  strong?: boolean;
+  total?: boolean;
+}) {
+  return (
+    <tr className={total ? "bg-emerald-50" : strong ? "bg-zinc-50" : "bg-white"}>
+      <td className={[
+        "border-b border-r border-zinc-200 px-4 py-3",
+        strong || total ? "font-semibold" : "",
+      ].join(" ")}>
+        {label}
+      </td>
+      <td className="border-b border-r border-zinc-200 px-3 py-2 text-center">
+        {onMinutesChange ? (
+          <DurationInput value={minutes} onChange={onMinutesChange} />
+        ) : (
+          <span className="font-medium">{formatOperationalMinutes(minutes)}</span>
+        )}
+      </td>
+      <td className="border-b border-zinc-200 px-4 py-3 text-center font-semibold">
+        {liters(fuelL)}
+      </td>
+    </tr>
+  );
+}
+
+function englishWarning(message: string) {
+  let match = message.match(
+    /^Fora da tabela do POH: PA (.+) ft \/ OAT (.+) °C \(máx\. (.+) ft \/ (.+) °C\)\.$/
+  );
+  if (match) {
+    return `Outside POH table: PA ${match[1]} ft / OAT ${match[2]} °C (max ${match[3]} ft / ${match[4]} °C).`;
+  }
+
+  if (message === "PA abaixo de sea level: usada a linha SL (0 ft), sem extrapolação.") {
+    return "PA below sea level: the SL (0 ft) row is used without extrapolation.";
+  }
+  if (message === "OAT abaixo de 0 °C: usada a coluna 0 °C, de forma conservadora e sem extrapolação.") {
+    return "OAT below 0 °C: the 0 °C column is used conservatively without extrapolation.";
+  }
+
+  match = message.match(
+    /^Componente de cauda (.+) kt excede os 10 kt cobertos pela nota do POH; distância não calculada por extrapolação\.$/
+  );
+  if (match) {
+    return `Tailwind component ${match[1]} kt exceeds the 10 kt covered by the POH note; distance is not extrapolated.`;
+  }
+
+  match = message.match(
+    /^ROC fora da tabela do POH: PA (.+) ft \/ OAT (.+) °C \(máx\. (.+) ft \/ (.+) °C\)\.$/
+  );
+  if (match) {
+    return `ROC outside POH table: PA ${match[1]} ft / OAT ${match[2]} °C (max ${match[3]} ft / ${match[4]} °C).`;
+  }
+
+  if (message === "ROC: usada a linha SL para PA abaixo de 0 ft.") {
+    return "ROC: the SL row is used for PA below 0 ft.";
+  }
+  if (message === "ROC: usada a coluna -20 °C, sem extrapolação.") {
+    return "ROC: the -20 °C column is used without extrapolation.";
+  }
+
+  match = message.match(/^Fuel utilizável excede (.+) US gal \(standard tanks\)\.$/);
+  if (match) return `Usable fuel exceeds ${match[1]} US gal (standard tanks).`;
+
+  if (message === "Limite de bagagem excedido: Area 1 120 lb, Area 2 40 lb, combinado 120 lb.") {
+    return "Baggage limit exceeded: Area 1 120 lb, Area 2 40 lb, combined 120 lb.";
+  }
+
+  match = message.match(/^Takeoff weight (.+) lb excede MTOW (.+) lb\.$/);
+  if (match) return `Takeoff weight ${match[1]} lb exceeds MTOW ${match[2]} lb.`;
+
+  match = message.match(/^CG de descolagem (.+) in fora de (.+)–(.+) in\.$/);
+  if (match) return `Takeoff CG ${match[1]} in is outside ${match[2]}-${match[3]} in.`;
+
+  if (message === "Fuel de start/taxi/run-up superior ao fuel carregado; limitado ao fuel disponível.") {
+    return "Start/taxi/run-up fuel exceeds loaded fuel and is limited to the available fuel.";
+  }
+  if (message === "Ramp weight acima de 1670 lb: confirmar que o combustível previsto para start/taxi/run-up reduz o peso para MTOW antes da descolagem.") {
+    return "Ramp weight is above 1670 lb; confirm start/taxi/run-up burn reduces takeoff weight to MTOW.";
+  }
+  if (message === "A tabela base assume pista pavimentada, nivelada e seca. A pista está marcada como não pavimentada; nenhuma correção de superfície foi aplicada automaticamente.") {
+    return "The base table assumes a paved, level, dry runway. This runway is marked non-paved; no surface correction is applied automatically.";
+  }
+
+  match = message.match(/^A tabela base assume pista nivelada\. Slope (.+)% não foi corrigido automaticamente\.$/);
+  if (match) return `The base table assumes a level runway. Slope ${match[1]}% is not corrected automatically.`;
+
+  match = message.match(/^Componente de vento cruzado (.+) kt excede o máximo demonstrado de (.+) kt\.$/);
+  if (match) return `Crosswind component ${match[1]} kt exceeds the demonstrated value of ${match[2]} kt.`;
+
+  return message;
+}
+
 export function C152ClientV3() {
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [legs, setLegs] = useState<PerformanceLegInput[]>(INITIAL_LEGS);
   const [weatherBusy, setWeatherBusy] = useState(false);
   const [weatherStatus, setWeatherStatus] = useState("");
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [pdfStatus, setPdfStatus] = useState("");
+  const [pdfError, setPdfError] = useState("");
 
-  const [loading, setLoading] = useState({
-    pilotKg: C152_PERFORMANCE_PRESET.pilotKg,
-    passengerKg: C152_PERFORMANCE_PRESET.passengerKg,
+  const [loading, setLoading] = useState<LoadingState>({
+    pilotKg: Number(C152_PERFORMANCE_PRESET.pilotKg),
+    passengerKg: Number(C152_PERFORMANCE_PRESET.passengerKg),
     fuelL: FULL_USABLE_FUEL_L,
-    baggageArea1Kg: C152_PERFORMANCE_PRESET.baggageArea1Kg,
-    baggageArea2Kg: C152_PERFORMANCE_PRESET.baggageArea2Kg,
+    baggageArea1Kg: Number(C152_PERFORMANCE_PRESET.baggageArea1Kg),
+    baggageArea2Kg: Number(C152_PERFORMANCE_PRESET.baggageArea2Kg),
     startTaxiRunupL: START_TAXI_RUNUP_L,
   });
 
@@ -225,6 +455,16 @@ export function C152ClientV3() {
     () => performanceResults.map((result) => calculateC152Performance(result)),
     [performanceResults]
   );
+
+  const cgTrack = useMemo(
+    () => buildC152FlightCgTrack(wb, fuelPlan.tripFuelL, fuelPlan.alternateFuelL),
+    [wb, fuelPlan.tripFuelL, fuelPlan.alternateFuelL]
+  );
+
+  const cgByLabel = useMemo(
+    () => Object.fromEntries(cgTrack.map((point) => [point.label, point])),
+    [cgTrack]
+  ) as Partial<Record<"TO" | "LDG" | "ALT", (typeof cgTrack)[number]>>;
 
   function updateLeg(index: number, patch: Partial<PerformanceLegInput>) {
     setLegs((current) =>
@@ -277,11 +517,9 @@ export function C152ClientV3() {
             : leg;
         })
       );
-      setWeatherStatus(`${updatedCount}/${legs.length} aeródromos atualizados.`);
+      setWeatherStatus(`${updatedCount}/${legs.length} airfields updated.`);
     } catch (error) {
-      setWeatherStatus(
-        error instanceof Error ? error.message : "Falha ao obter meteorologia."
-      );
+      setWeatherStatus(error instanceof Error ? error.message : "Weather update failed.");
     } finally {
       setWeatherBusy(false);
     }
@@ -289,7 +527,7 @@ export function C152ClientV3() {
 
   async function exportOfficialPdf() {
     setPdfBusy(true);
-    setPdfStatus("");
+    setPdfError("");
     try {
       const bytes = await buildC152OfficialPerformanceSheetPdf({
         registration: C152_CS_AVC.registration,
@@ -304,20 +542,21 @@ export function C152ClientV3() {
         C152_CS_AVC.registration,
         date
       );
-      setPdfStatus("PDF oficial RVP.CFI.066.02 preenchido.");
     } catch (error) {
-      setPdfStatus(
-        error instanceof Error ? error.message : "Falha ao gerar o PDF oficial."
-      );
+      setPdfError(error instanceof Error ? error.message : "PDF export failed.");
     } finally {
       setPdfBusy(false);
     }
   }
 
-  const allWarnings = [
-    ...wb.warnings,
-    ...performanceRows.flatMap((row) => row?.warnings ?? []),
-  ];
+  const allWarnings = Array.from(
+    new Set(
+      [
+        ...wb.warnings,
+        ...performanceRows.flatMap((row) => row?.warnings ?? []),
+      ].map(englishWarning)
+    )
+  );
 
   return (
     <div className="space-y-6">
@@ -330,10 +569,6 @@ export function C152ClientV3() {
             <h1 className="mt-1 text-2xl font-bold text-zinc-950">
               M&amp;B + Performance
             </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-700">
-              Presets próprios do CS-AVC, fuel planning igual ao dos restantes aircraft e export
-              por stamping sobre o RVP.CFI.066.02 original.
-            </p>
           </div>
           <div className="grid min-w-64 grid-cols-2 gap-2 text-xs">
             <div className="rounded-xl border border-sky-200 bg-white p-3">
@@ -351,8 +586,8 @@ export function C152ClientV3() {
               <p className="mt-1 font-semibold">24.5 US gal · {FULL_USABLE_FUEL_L} L</p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
-              <p className="text-zinc-500">NavLog taxi preset</p>
-              <p className="mt-1 font-semibold">{C152_NAVLOG_PRESET.taxiMin} min</p>
+              <p className="text-zinc-500">Demonstrated crosswind</p>
+              <p className="mt-1 font-semibold">{C152_CS_AVC.maxDemonstratedCrosswindKt} kt</p>
             </div>
           </div>
         </div>
@@ -360,12 +595,7 @@ export function C152ClientV3() {
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-zinc-950">1. Mass &amp; Balance</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Inputs em kg/L; a folha oficial recebe lb, in e moment/1000.
-            </p>
-          </div>
+          <h2 className="text-lg font-bold text-zinc-950">1. Mass &amp; Balance</h2>
           <div className="flex flex-wrap gap-2">
             <StatusBadge ok={wb.weightOk} label="Weight" />
             <StatusBadge ok={wb.cgOk} label="CG" />
@@ -452,43 +682,16 @@ export function C152ClientV3() {
           </table>
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2">
-          <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Ramp</p>
-            <p className="mt-2 text-lg font-bold">
-              {fixed(wb.ramp.weightLb, 1)} lb · CG {fixed(wb.ramp.cgIn, 2)} in
-            </p>
-            <p className="mt-1 text-xs text-zinc-500">
-              Moment {fixed(wb.ramp.momentLbIn / 1000, 2)} ×1000 lb·in
-            </p>
-          </div>
-          <div
-            className={[
-              "rounded-2xl border p-4",
-              wb.overallOk
-                ? "border-emerald-200 bg-emerald-50"
-                : "border-red-200 bg-red-50",
-            ].join(" ")}
-          >
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Takeoff</p>
-            <p className="mt-2 text-lg font-bold">
-              {fixed(wb.takeoff.weightLb, 1)} lb · CG {fixed(wb.takeoff.cgIn, 2)} in
-            </p>
-            <p className="mt-1 text-xs text-zinc-600">
-              Limits {fixed(wb.takeoff.forwardLimitIn, 2)}–{fixed(wb.takeoff.aftLimitIn, 2)} in
-            </p>
-          </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-3">
+          <CgStateCard label="TO" point={cgByLabel.TO} />
+          <CgStateCard label="LDG" point={cgByLabel.LDG} />
+          <CgStateCard label="ALT" point={cgByLabel.ALT} />
         </div>
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-zinc-950">2. Aerodromes &amp; weather</h2>
-            <p className="mt-1 text-sm text-zinc-600">
-              Departure, Arrival e Alternate alimentam diretamente a página 2 do formulário.
-            </p>
-          </div>
+          <h2 className="text-lg font-bold text-zinc-950">2. Aerodromes &amp; Weather</h2>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -507,7 +710,7 @@ export function C152ClientV3() {
               disabled={weatherBusy || !date}
               className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
             >
-              {weatherBusy ? "Updating…" : "Update weather"}
+              {weatherBusy ? "Updating..." : "Update weather"}
             </button>
           </div>
         </div>
@@ -572,8 +775,7 @@ export function C152ClientV3() {
                 </div>
                 {result?.aerodrome ? (
                   <p className="mt-3 text-xs leading-5 text-zinc-600">
-                    RWY {result.bestRunway?.id ?? "—"} · PA {whole(result.pressureAltitudeFt)} ft ·
-                    DA {whole(result.densityAltitudeFt)} ft · XW {fixed(result.crosswindKt, 1)} kt
+                    RWY {result.bestRunway?.id ?? "-"} · PA {whole(result.pressureAltitudeFt)} ft · DA {whole(result.densityAltitudeFt)} ft · XW {fixed(result.crosswindKt, 1)} kt
                   </p>
                 ) : null}
               </div>
@@ -583,10 +785,7 @@ export function C152ClientV3() {
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-zinc-950">3. Aerodrome performance</h2>
-        <p className="mt-1 text-sm text-zinc-600">
-          POH raw values remain separate from the existing Briefings 125% planning check.
-        </p>
+        <h2 className="text-lg font-bold text-zinc-950">3. Aerodrome Performance</h2>
 
         <div className="mt-5 space-y-4">
           {performanceRows.map((row, index) => {
@@ -631,7 +830,7 @@ export function C152ClientV3() {
                 </div>
                 {row.warnings.length ? (
                   <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs leading-5 text-amber-900">
-                    {row.warnings.join(" · ")}
+                    {row.warnings.map(englishWarning).join(" · ")}
                   </div>
                 ) : null}
               </div>
@@ -641,117 +840,122 @@ export function C152ClientV3() {
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-zinc-950">4. Fuel planning</h2>
-        <p className="mt-1 max-w-3xl text-sm text-zinc-600">
-          Mesmo formato e lógica dos restantes aircraft. O C152 usa 10 min de taxi por defeito;
-          os restantes presets de NavLog continuam inalterados.
-        </p>
+        <h2 className="text-lg font-bold text-zinc-950">4. Fuel Planning</h2>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <NumberField
-            label="Consumption L/h"
-            value={fuelPlan.rateLh}
-            min={0}
-            step={0.5}
-            onChange={(value) => updateFuelPlan("rateLh", value)}
-          />
-          <NumberField
-            label="Taxi min"
-            value={fuelPlan.taxiMin}
-            min={0}
-            onChange={(value) => updateFuelPlan("taxiMin", value)}
-          />
-          <NumberField
-            label="Climb min"
-            value={fuelPlan.climbMin}
-            min={0}
-            onChange={(value) => updateFuelPlan("climbMin", value)}
-          />
-          <NumberField
-            label="Enroute min"
-            value={fuelPlan.enrouteMin}
-            min={0}
-            step={5}
-            onChange={(value) => updateFuelPlan("enrouteMin", value)}
-          />
-          <NumberField
-            label="Descent min"
-            value={fuelPlan.descentMin}
-            min={0}
-            onChange={(value) => updateFuelPlan("descentMin", value)}
-          />
-          <NumberField
-            label="Alternate min"
-            value={fuelPlan.alternateMin}
-            min={0}
-            step={5}
-            onChange={(value) => updateFuelPlan("alternateMin", value)}
-          />
-          <NumberField
-            label="Reserve min"
-            value={fuelPlan.reserveMin}
-            min={0}
-            step={5}
-            onChange={(value) => updateFuelPlan("reserveMin", value)}
-          />
-          <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3 text-sm">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-              Fuel loaded
-            </p>
-            <p className="mt-2 font-bold">{formatFuelLiters(fuelPlan.fuelLoadedL)} L</p>
+        <div className="mt-4 space-y-3">
+          <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-zinc-950">Planning consumption</p>
+              <p className="mt-0.5 text-xs text-zinc-500">Fuel loaded: {liters(fuelPlan.fuelLoadedL)}</p>
+            </div>
+            <label className="flex items-center gap-2">
+              <input
+                type="number"
+                min={0}
+                step={0.5}
+                value={fuelPlan.rateLh}
+                onChange={(event) => updateFuelPlan("rateLh", Number(event.target.value))}
+                className="w-28 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-zinc-500"
+              />
+              <span className="text-sm font-medium text-zinc-600">L/h</span>
+            </label>
+          </div>
+
+          <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[620px] border-collapse text-sm">
+                <thead className="bg-zinc-100 text-zinc-700">
+                  <tr>
+                    <th className="border-b border-r border-zinc-200 px-4 py-3 text-left font-semibold">Fuel planning</th>
+                    <th className="w-48 border-b border-r border-zinc-200 px-4 py-3 text-center font-semibold">Time</th>
+                    <th className="w-40 border-b border-zinc-200 px-4 py-3 text-center font-semibold">Fuel</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <FuelRow
+                    label="Start-up and Taxi"
+                    minutes={fuelPlan.taxiMin}
+                    fuelL={fuelPlan.taxiFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("taxiMin", value)}
+                  />
+                  <FuelRow
+                    label="Climb"
+                    minutes={fuelPlan.climbMin}
+                    fuelL={fuelPlan.climbFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("climbMin", value)}
+                  />
+                  <FuelRow
+                    label="Enroute"
+                    minutes={fuelPlan.enrouteMin}
+                    fuelL={fuelPlan.enrouteFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("enrouteMin", value)}
+                  />
+                  <FuelRow
+                    label="Descent"
+                    minutes={fuelPlan.descentMin}
+                    fuelL={fuelPlan.descentFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("descentMin", value)}
+                  />
+                  <FuelRow
+                    label="Trip Fuel"
+                    minutes={fuelPlan.tripMin}
+                    fuelL={fuelPlan.tripFuelL}
+                    strong
+                  />
+                  <FuelRow
+                    label="Contingency 5%"
+                    minutes={fuelPlan.contingencyMin}
+                    fuelL={fuelPlan.contingencyFuelL}
+                  />
+                  <FuelRow
+                    label="Alternate"
+                    minutes={fuelPlan.alternateMin}
+                    fuelL={fuelPlan.alternateFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("alternateMin", value)}
+                  />
+                  <FuelRow
+                    label="Reserve"
+                    minutes={fuelPlan.reserveMin}
+                    fuelL={fuelPlan.reserveFuelL}
+                    onMinutesChange={(value) => updateFuelPlan("reserveMin", value)}
+                  />
+                  <FuelRow
+                    label="Required Ramp Fuel"
+                    minutes={fuelPlan.requiredRampMin}
+                    fuelL={fuelPlan.requiredRampFuelL}
+                    strong
+                  />
+                  <FuelRow
+                    label="Extra"
+                    minutes={fuelPlan.extraMin}
+                    fuelL={fuelPlan.extraFuelL}
+                  />
+                  <FuelRow
+                    label="Total Ramp Fuel"
+                    minutes={fuelPlan.totalRampMin}
+                    fuelL={fuelPlan.totalRampFuelL}
+                    total
+                  />
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Taxi", fuelPlan.taxiMin, fuelPlan.taxiFuelL],
-            ["Trip", fuelPlan.tripMin, fuelPlan.tripFuelL],
-            ["Contingency", fuelPlan.contingencyMin, fuelPlan.contingencyFuelL],
-            ["Alternate", fuelPlan.alternateMin, fuelPlan.alternateFuelL],
-            ["Reserve", fuelPlan.reserveMin, fuelPlan.reserveFuelL],
-            ["Required", fuelPlan.requiredRampMin, fuelPlan.requiredRampFuelL],
-            ["Extra", fuelPlan.extraMin, fuelPlan.extraFuelL],
-            ["Total", fuelPlan.totalRampMin, fuelPlan.totalRampFuelL],
-          ].map(([label, minutes, liters]) => (
-            <div
-              key={String(label)}
-              className="rounded-xl border border-zinc-200 bg-zinc-50 p-3"
-            >
-              <p className="text-xs text-zinc-500">{label}</p>
-              <p className="mt-1 font-semibold text-zinc-950">
-                {formatFuelTime(Number(minutes)) || "0"} · {formatFuelLiters(Number(liters)) || "0"} L
-              </p>
-            </div>
-          ))}
-        </div>
-
-        <p
-          className={[
-            "mt-4 rounded-xl border p-3 text-sm font-semibold",
-            fuelPlan.fuelSufficient
-              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-              : "border-red-200 bg-red-50 text-red-800",
-          ].join(" ")}
-        >
-          {fuelPlan.fuelSufficient
-            ? "Loaded fuel covers Required Ramp Fuel."
-            : `Loaded fuel is ${fixed(fuelPlan.requiredRampFuelL - fuelPlan.fuelLoadedL, 1)} L below Required Ramp Fuel.`}
-        </p>
+        {!fuelPlan.fuelSufficient ? (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
+            Shortfall: {fixed(fuelPlan.requiredRampFuelL - fuelPlan.fuelLoadedL, 1)} L
+          </p>
+        ) : null}
       </section>
 
       <section className="rounded-3xl border border-orange-200 bg-orange-50 p-5 shadow-sm">
         <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">
-              RVP.CFI.066.02 · original
+              RVP.CFI.066.02
             </p>
-            <h2 className="mt-1 text-lg font-bold text-zinc-950">
-              5. Export official C152 PDF
-            </h2>
-            <p className="mt-1 max-w-3xl text-sm text-zinc-700">
-              Abre o PDF Sevenair original e escreve apenas nos campos mapeados. Ramp e Takeoff são
-              plotados sobre a grelha original usando a calibração v4.
-            </p>
+            <h2 className="mt-1 text-lg font-bold text-zinc-950">5. Export PDF</h2>
           </div>
           <button
             type="button"
@@ -759,15 +963,15 @@ export function C152ClientV3() {
             disabled={pdfBusy}
             className="rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:bg-zinc-300"
           >
-            {pdfBusy ? "Generating PDF…" : "Export official RVP.CFI.066.02"}
+            {pdfBusy ? "Generating..." : "Export RVP.CFI.066.02"}
           </button>
         </div>
-        {pdfStatus ? <p className="mt-3 text-sm text-zinc-700">{pdfStatus}</p> : null}
+        {pdfError ? <p className="mt-3 text-sm font-medium text-red-700">{pdfError}</p> : null}
       </section>
 
       {allWarnings.length ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-xs leading-5 text-amber-900">
-          {Array.from(new Set(allWarnings)).join(" · ")}
+          {allWarnings.join(" · ")}
         </div>
       ) : null}
     </div>
