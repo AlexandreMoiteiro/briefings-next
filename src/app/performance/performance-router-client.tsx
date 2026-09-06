@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { C152ClientV3 } from "./c152-client-v3";
+import { C152ClientV4 } from "./c152-client-v4";
 import { P2006TMissionClient } from "./p2006t-mission-client";
 import { StandardAircraftClientV3 } from "./standard-aircraft-client-v3";
 
@@ -46,7 +46,7 @@ export function PerformanceRouterClient() {
       {mode === "PA28" ? (
         <StandardAircraftClientV3 aircraft="Piper PA-28" />
       ) : null}
-      {mode === "C152" ? <C152ClientV3 /> : null}
+      {mode === "C152" ? <C152ClientV4 /> : null}
     </div>
   );
 }
