@@ -161,7 +161,7 @@ export function NavlogClientV5() {
               </p>
             </div>
             <p className="mt-3 text-xs leading-5 text-sky-800">
-              The NavLog saves the latest CS-AVC route, phase times and calculated fuel locally so the C152 Performance page can reuse them. Tecnam/Piper taxi defaults remain 20 min.
+              CS-AVC uses its dedicated NavLog profile. Tecnam and Piper keep their existing presets, including the 20 min taxi default. All values remain editable for the actual mission.
             </p>
           </div>
         ) : null}
