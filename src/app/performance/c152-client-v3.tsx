@@ -3,7 +3,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { formatOperationalMinutes } from "@/lib/operational-duration";
-import { C152_NAVLOG_PRESET, C152_PERFORMANCE_PRESET } from "@/lib/c152-operational-presets";
+import {
+  C152_NAVLOG_PRESET,
+  C152_PERFORMANCE_PRESET,
+} from "@/lib/c152-operational-presets";
 import {
   PERFORMANCE_AERODROMES,
   PERFORMANCE_ICAOS,
@@ -66,10 +69,17 @@ const AERODROMES = PERFORMANCE_AERODROMES as Record<
   { name: string; elev_ft: number }
 >;
 
-const FULL_USABLE_FUEL_L = Math.round(C152_CS_AVC.standardFuelUsableL * 10) / 10;
+const LITERS_PER_US_GALLON = 3.785411784;
+const KG_PER_LB = 0.45359237;
+const FT_PER_M = 3.280839895;
+const M_PER_FT = 0.3048;
+
+const FULL_USABLE_FUEL_L =
+  Math.round(C152_CS_AVC.standardFuelUsableL * 10) / 10;
 const START_TAXI_RUNUP_L =
   Math.round(
-    c152GallonsToLiters(C152_PERFORMANCE_PRESET.startTaxiTakeoffAllowanceGal) * 10
+    c152GallonsToLiters(C152_PERFORMANCE_PRESET.startTaxiTakeoffAllowanceGal) *
+      10
   ) / 10;
 
 type LoadingState = {
@@ -82,17 +92,70 @@ type LoadingState = {
 };
 
 function whole(value: number | null | undefined) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
   return String(Math.round(value));
 }
 
 function fixed(value: number | null | undefined, digits = 1) {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "-";
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return "-";
+  }
   return value.toFixed(digits);
 }
 
-function liters(value: number) {
-  return `${Math.max(0, Math.round(Number(value || 0)))} L`;
+function operationalFuel(valueL: number) {
+  const liters = Math.max(0, Math.round(Number(valueL || 0)));
+  const gallons = Math.max(0, Math.round(liters / LITERS_PER_US_GALLON));
+  return `${liters} L (${gallons} US gal)`;
+}
+
+function exactFuel(valueL: number) {
+  const liters = Math.max(0, Number(valueL || 0));
+  return `${liters.toFixed(1)} L (${(liters / LITERS_PER_US_GALLON).toFixed(
+    1
+  )} US gal)`;
+}
+
+function fuelRate(valueLh: number) {
+  const litersPerHour = Math.max(0, Number(valueLh || 0));
+  return `${litersPerHour.toFixed(1)} L/h (${(
+    litersPerHour / LITERS_PER_US_GALLON
+  ).toFixed(1)} US gal/h)`;
+}
+
+function weightDual(valueLb: number, digits = 1) {
+  const pounds = Math.max(0, Number(valueLb || 0));
+  return `${pounds.toFixed(digits)} lb (${(pounds * KG_PER_LB).toFixed(
+    digits
+  )} kg)`;
+}
+
+function distanceDual(valueM: number | null | undefined) {
+  if (valueM === null || valueM === undefined || !Number.isFinite(valueM)) {
+    return "-";
+  }
+  const meters = Math.round(valueM);
+  return `${meters} m (${Math.round(meters * FT_PER_M)} ft)`;
+}
+
+function altitudeDual(valueFt: number | null | undefined) {
+  if (valueFt === null || valueFt === undefined || !Number.isFinite(valueFt)) {
+    return "-";
+  }
+  const feet = Math.round(valueFt);
+  return `${feet} ft (${Math.round(feet * M_PER_FT)} m)`;
+}
+
+function rocDual(valueFpm: number | null | undefined) {
+  if (valueFpm === null || valueFpm === undefined || !Number.isFinite(valueFpm)) {
+    return "-";
+  }
+  const feetPerMinute = Math.round(valueFpm);
+  return `${feetPerMinute} ft/min (${Math.round(
+    feetPerMinute * M_PER_FT
+  )} m/min)`;
 }
 
 function roleLabel(role: string) {
@@ -101,7 +164,9 @@ function roleLabel(role: string) {
 
 function parsePlanningMinutes(value: string) {
   const text = value.trim().toLowerCase().replace(/\s+/g, " ");
-  if (/^\d+(?:\.\d+)?$/.test(text)) return Math.max(0, Math.round(Number(text)));
+  if (/^\d+(?:\.\d+)?$/.test(text)) {
+    return Math.max(0, Math.round(Number(text)));
+  }
 
   const clock = text.match(/^(\d+)\s*:\s*(\d{1,2})$/);
   if (clock) return Number(clock[1]) * 60 + Number(clock[2]);
@@ -121,6 +186,7 @@ function NumberField({
   min,
   max,
   step = 1,
+  hint,
 }: {
   label: string;
   value: number;
@@ -128,6 +194,7 @@ function NumberField({
   min?: number;
   max?: number;
   step?: number;
+  hint?: string;
 }) {
   return (
     <label className="space-y-1">
@@ -143,6 +210,11 @@ function NumberField({
         onChange={(event) => onChange(Number(event.target.value))}
         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-950 outline-none transition focus:border-zinc-500"
       />
+      {hint ? (
+        <span className="block text-[11px] font-medium text-zinc-500">
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -243,8 +315,9 @@ function ComplianceBadge({
       <p className="font-semibold">
         {label}: {compliant ? "COMPLIANT" : "NOT COMPLIANT"}
       </p>
-      <p className="mt-1">
-        POH {whole(requiredM)} m · 125% {whole(marginRequired)} m · available {whole(availableM)} m
+      <p className="mt-1 leading-5">
+        POH {distanceDual(requiredM)} · 125% {distanceDual(marginRequired)} ·
+        available {distanceDual(availableM)}
       </p>
     </div>
   );
@@ -279,7 +352,9 @@ function CgStateCard({
       ].join(" ")}
     >
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-700">{label}</p>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-700">
+          {label}
+        </p>
         <span className="text-[11px] font-semibold text-zinc-500">
           {point ? (ok ? "IN ENVELOPE" : "CHECK") : "UNAVAILABLE"}
         </span>
@@ -287,7 +362,7 @@ function CgStateCard({
       {point ? (
         <>
           <p className="mt-2 text-lg font-bold text-zinc-950">
-            {fixed(point.weightLb, 1)} lb · CG {fixed(point.cgIn, 2)} in
+            {weightDual(point.weightLb)} · CG {fixed(point.cgIn, 2)} in
           </p>
           <p className="mt-1 text-xs text-zinc-500">
             Limits {fixed(point.forwardLimitIn, 2)}-{fixed(point.aftLimitIn, 2)} in
@@ -314,11 +389,15 @@ function FuelRow({
   total?: boolean;
 }) {
   return (
-    <tr className={total ? "bg-emerald-50" : strong ? "bg-zinc-50" : "bg-white"}>
-      <td className={[
-        "border-b border-r border-zinc-200 px-4 py-3",
-        strong || total ? "font-semibold" : "",
-      ].join(" ")}>
+    <tr
+      className={total ? "bg-emerald-50" : strong ? "bg-zinc-50" : "bg-white"}
+    >
+      <td
+        className={[
+          "border-b border-r border-zinc-200 px-4 py-3",
+          strong || total ? "font-semibold" : "",
+        ].join(" ")}
+      >
         {label}
       </td>
       <td className="border-b border-r border-zinc-200 px-3 py-2 text-center">
@@ -329,7 +408,7 @@ function FuelRow({
         )}
       </td>
       <td className="border-b border-zinc-200 px-4 py-3 text-center font-semibold">
-        {liters(fuelL)}
+        {operationalFuel(fuelL)}
       </td>
     </tr>
   );
@@ -343,10 +422,16 @@ function englishWarning(message: string) {
     return `Outside POH table: PA ${match[1]} ft / OAT ${match[2]} °C (max ${match[3]} ft / ${match[4]} °C).`;
   }
 
-  if (message === "PA abaixo de sea level: usada a linha SL (0 ft), sem extrapolação.") {
+  if (
+    message ===
+    "PA abaixo de sea level: usada a linha SL (0 ft), sem extrapolação."
+  ) {
     return "PA below sea level: the SL (0 ft) row is used without extrapolation.";
   }
-  if (message === "OAT abaixo de 0 °C: usada a coluna 0 °C, de forma conservadora e sem extrapolação.") {
+  if (
+    message ===
+    "OAT abaixo de 0 °C: usada a coluna 0 °C, de forma conservadora e sem extrapolação."
+  ) {
     return "OAT below 0 °C: the 0 °C column is used conservatively without extrapolation.";
   }
 
@@ -374,31 +459,55 @@ function englishWarning(message: string) {
   match = message.match(/^Fuel utilizável excede (.+) US gal \(standard tanks\)\.$/);
   if (match) return `Usable fuel exceeds ${match[1]} US gal (standard tanks).`;
 
-  if (message === "Limite de bagagem excedido: Area 1 120 lb, Area 2 40 lb, combinado 120 lb.") {
+  if (
+    message ===
+    "Limite de bagagem excedido: Area 1 120 lb, Area 2 40 lb, combinado 120 lb."
+  ) {
     return "Baggage limit exceeded: Area 1 120 lb, Area 2 40 lb, combined 120 lb.";
   }
 
   match = message.match(/^Takeoff weight (.+) lb excede MTOW (.+) lb\.$/);
-  if (match) return `Takeoff weight ${match[1]} lb exceeds MTOW ${match[2]} lb.`;
+  if (match) {
+    return `Takeoff weight ${match[1]} lb exceeds MTOW ${match[2]} lb.`;
+  }
 
   match = message.match(/^CG de descolagem (.+) in fora de (.+)–(.+) in\.$/);
-  if (match) return `Takeoff CG ${match[1]} in is outside ${match[2]}-${match[3]} in.`;
+  if (match) {
+    return `Takeoff CG ${match[1]} in is outside ${match[2]}-${match[3]} in.`;
+  }
 
-  if (message === "Fuel de start/taxi/run-up superior ao fuel carregado; limitado ao fuel disponível.") {
+  if (
+    message ===
+    "Fuel de start/taxi/run-up superior ao fuel carregado; limitado ao fuel disponível."
+  ) {
     return "Start/taxi/run-up fuel exceeds loaded fuel and is limited to the available fuel.";
   }
-  if (message === "Ramp weight acima de 1670 lb: confirmar que o combustível previsto para start/taxi/run-up reduz o peso para MTOW antes da descolagem.") {
+  if (
+    message ===
+    "Ramp weight acima de 1670 lb: confirmar que o combustível previsto para start/taxi/run-up reduz o peso para MTOW antes da descolagem."
+  ) {
     return "Ramp weight is above 1670 lb; confirm start/taxi/run-up burn reduces takeoff weight to MTOW.";
   }
-  if (message === "A tabela base assume pista pavimentada, nivelada e seca. A pista está marcada como não pavimentada; nenhuma correção de superfície foi aplicada automaticamente.") {
+  if (
+    message ===
+    "A tabela base assume pista pavimentada, nivelada e seca. A pista está marcada como não pavimentada; nenhuma correção de superfície foi aplicada automaticamente."
+  ) {
     return "The base table assumes a paved, level, dry runway. This runway is marked non-paved; no surface correction is applied automatically.";
   }
 
-  match = message.match(/^A tabela base assume pista nivelada\. Slope (.+)% não foi corrigido automaticamente\.$/);
-  if (match) return `The base table assumes a level runway. Slope ${match[1]}% is not corrected automatically.`;
+  match = message.match(
+    /^A tabela base assume pista nivelada\. Slope (.+)% não foi corrigido automaticamente\.$/
+  );
+  if (match) {
+    return `The base table assumes a level runway. Slope ${match[1]}% is not corrected automatically.`;
+  }
 
-  match = message.match(/^Componente de vento cruzado (.+) kt excede o máximo demonstrado de (.+) kt\.$/);
-  if (match) return `Crosswind component ${match[1]} kt exceeds the demonstrated value of ${match[2]} kt.`;
+  match = message.match(
+    /^Componente de vento cruzado (.+) kt excede o máximo demonstrado de (.+) kt\.$/
+  );
+  if (match) {
+    return `Crosswind component ${match[1]} kt exceeds the demonstrated value of ${match[2]} kt.`;
+  }
 
   return message;
 }
@@ -452,12 +561,18 @@ export function C152ClientV3() {
   );
 
   const performanceRows = useMemo(
-    () => performanceResults.map((result) => calculateC152Performance(result)),
+    () =>
+      performanceResults.map((result) => calculateC152Performance(result)),
     [performanceResults]
   );
 
   const cgTrack = useMemo(
-    () => buildC152FlightCgTrack(wb, fuelPlan.tripFuelL, fuelPlan.alternateFuelL),
+    () =>
+      buildC152FlightCgTrack(
+        wb,
+        fuelPlan.tripFuelL,
+        fuelPlan.alternateFuelL
+      ),
     [wb, fuelPlan.tripFuelL, fuelPlan.alternateFuelL]
   );
 
@@ -519,7 +634,9 @@ export function C152ClientV3() {
       );
       setWeatherStatus(`${updatedCount}/${legs.length} airfields updated.`);
     } catch (error) {
-      setWeatherStatus(error instanceof Error ? error.message : "Weather update failed.");
+      setWeatherStatus(
+        error instanceof Error ? error.message : "Weather update failed."
+      );
     } finally {
       setWeatherBusy(false);
     }
@@ -574,20 +691,25 @@ export function C152ClientV3() {
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">BEW</p>
               <p className="mt-1 font-semibold">
-                {C152_CS_AVC.basicEmptyWeightLb} lb @ {C152_CS_AVC.basicEmptyCgDisplayIn.toFixed(2)} in
+                {weightDual(C152_CS_AVC.basicEmptyWeightLb)} @{" "}
+                {C152_CS_AVC.basicEmptyCgDisplayIn.toFixed(2)} in
               </p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">MTOW / MLW</p>
-              <p className="mt-1 font-semibold">{C152_CS_AVC.maxTakeoffWeightLb} lb</p>
+              <p className="mt-1 font-semibold">
+                {weightDual(C152_CS_AVC.maxTakeoffWeightLb, 0)}
+              </p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Usable fuel</p>
-              <p className="mt-1 font-semibold">24.5 US gal · {FULL_USABLE_FUEL_L} L</p>
+              <p className="mt-1 font-semibold">{exactFuel(FULL_USABLE_FUEL_L)}</p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Demonstrated crosswind</p>
-              <p className="mt-1 font-semibold">{C152_CS_AVC.maxDemonstratedCrosswindKt} kt</p>
+              <p className="mt-1 font-semibold">
+                {C152_CS_AVC.maxDemonstratedCrosswindKt} kt
+              </p>
             </div>
           </div>
         </div>
@@ -595,7 +717,9 @@ export function C152ClientV3() {
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-          <h2 className="text-lg font-bold text-zinc-950">1. Mass &amp; Balance</h2>
+          <h2 className="text-lg font-bold text-zinc-950">
+            1. Mass &amp; Balance
+          </h2>
           <div className="flex flex-wrap gap-2">
             <StatusBadge ok={wb.weightOk} label="Weight" />
             <StatusBadge ok={wb.cgOk} label="CG" />
@@ -610,13 +734,17 @@ export function C152ClientV3() {
             value={loading.pilotKg}
             min={0}
             step={0.5}
-            onChange={(pilotKg) => setLoading((current) => ({ ...current, pilotKg }))}
+            hint={`${fixed(c152KgToLb(loading.pilotKg), 1)} lb`}
+            onChange={(pilotKg) =>
+              setLoading((current) => ({ ...current, pilotKg }))
+            }
           />
           <NumberField
             label="Passenger (kg)"
             value={loading.passengerKg}
             min={0}
             step={0.5}
+            hint={`${fixed(c152KgToLb(loading.passengerKg), 1)} lb`}
             onChange={(passengerKg) =>
               setLoading((current) => ({ ...current, passengerKg }))
             }
@@ -627,6 +755,7 @@ export function C152ClientV3() {
             min={0}
             max={FULL_USABLE_FUEL_L}
             step={0.5}
+            hint={exactFuel(loading.fuelL)}
             onChange={updateLoadedFuel}
           />
           <NumberField
@@ -634,6 +763,7 @@ export function C152ClientV3() {
             value={loading.baggageArea1Kg}
             min={0}
             step={0.5}
+            hint={`${fixed(c152KgToLb(loading.baggageArea1Kg), 1)} lb`}
             onChange={(baggageArea1Kg) =>
               setLoading((current) => ({ ...current, baggageArea1Kg }))
             }
@@ -643,6 +773,7 @@ export function C152ClientV3() {
             value={loading.baggageArea2Kg}
             min={0}
             step={0.5}
+            hint={`${fixed(c152KgToLb(loading.baggageArea2Kg), 1)} lb`}
             onChange={(baggageArea2Kg) =>
               setLoading((current) => ({ ...current, baggageArea2Kg }))
             }
@@ -653,6 +784,7 @@ export function C152ClientV3() {
             min={0}
             max={loading.fuelL}
             step={0.1}
+            hint={exactFuel(loading.startTaxiRunupL)}
             onChange={(startTaxiRunupL) =>
               setLoading((current) => ({ ...current, startTaxiRunupL }))
             }
@@ -664,7 +796,7 @@ export function C152ClientV3() {
             <thead className="bg-zinc-50 text-zinc-600">
               <tr>
                 <th className="px-3 py-2 font-semibold">Loading data</th>
-                <th className="px-3 py-2 font-semibold">Weight lb</th>
+                <th className="px-3 py-2 font-semibold">Weight</th>
                 <th className="px-3 py-2 font-semibold">Arm in</th>
                 <th className="px-3 py-2 font-semibold">Moment /1000</th>
               </tr>
@@ -672,10 +804,14 @@ export function C152ClientV3() {
             <tbody className="divide-y divide-zinc-100">
               {wb.rows.map((row) => (
                 <tr key={row.label}>
-                  <td className="px-3 py-2 font-medium text-zinc-800">{row.label}</td>
-                  <td className="px-3 py-2">{fixed(row.weightLb, 1)}</td>
+                  <td className="px-3 py-2 font-medium text-zinc-800">
+                    {row.label}
+                  </td>
+                  <td className="px-3 py-2">{weightDual(row.weightLb)}</td>
                   <td className="px-3 py-2">{fixed(row.armIn, 2)}</td>
-                  <td className="px-3 py-2">{fixed(row.momentLbIn / 1000, 2)}</td>
+                  <td className="px-3 py-2">
+                    {fixed(row.momentLbIn / 1000, 2)}
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -691,7 +827,9 @@ export function C152ClientV3() {
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <h2 className="text-lg font-bold text-zinc-950">2. Aerodromes &amp; Weather</h2>
+          <h2 className="text-lg font-bold text-zinc-950">
+            2. Aerodromes &amp; Weather
+          </h2>
           <div className="flex flex-wrap items-end gap-3">
             <label className="space-y-1">
               <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -715,14 +853,21 @@ export function C152ClientV3() {
           </div>
         </div>
 
-        {weatherStatus ? <p className="mt-3 text-xs text-zinc-600">{weatherStatus}</p> : null}
+        {weatherStatus ? (
+          <p className="mt-3 text-xs text-zinc-600">{weatherStatus}</p>
+        ) : null}
 
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
           {legs.map((leg, index) => {
             const result = performanceResults[index];
             return (
-              <div key={leg.role} className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
-                <p className="font-semibold text-zinc-950">{roleLabel(leg.role)}</p>
+              <div
+                key={leg.role}
+                className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4"
+              >
+                <p className="font-semibold text-zinc-950">
+                  {roleLabel(leg.role)}
+                </p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 sm:col-span-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -730,7 +875,9 @@ export function C152ClientV3() {
                     </span>
                     <select
                       value={leg.icao}
-                      onChange={(event) => updateLeg(index, { icao: event.target.value })}
+                      onChange={(event) =>
+                        updateLeg(index, { icao: event.target.value })
+                      }
                       className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
                     >
                       {PERFORMANCE_ICAOS.map((icao) => (
@@ -745,7 +892,9 @@ export function C152ClientV3() {
                     value={leg.forecastHourUtc ?? 9}
                     min={0}
                     max={23}
-                    onChange={(forecastHourUtc) => updateLeg(index, { forecastHourUtc })}
+                    onChange={(forecastHourUtc) =>
+                      updateLeg(index, { forecastHourUtc })
+                    }
                   />
                   <NumberField
                     label="Temperature °C"
@@ -775,7 +924,10 @@ export function C152ClientV3() {
                 </div>
                 {result?.aerodrome ? (
                   <p className="mt-3 text-xs leading-5 text-zinc-600">
-                    RWY {result.bestRunway?.id ?? "-"} · PA {whole(result.pressureAltitudeFt)} ft · DA {whole(result.densityAltitudeFt)} ft · XW {fixed(result.crosswindKt, 1)} kt
+                    RWY {result.bestRunway?.id ?? "-"} · PA{" "}
+                    {altitudeDual(result.pressureAltitudeFt)} · DA{" "}
+                    {altitudeDual(result.densityAltitudeFt)} · XW{" "}
+                    {fixed(result.crosswindKt, 1)} kt
                   </p>
                 ) : null}
               </div>
@@ -785,7 +937,9 @@ export function C152ClientV3() {
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-lg font-bold text-zinc-950">3. Aerodrome Performance</h2>
+        <h2 className="text-lg font-bold text-zinc-950">
+          3. Aerodrome Performance
+        </h2>
 
         <div className="mt-5 space-y-4">
           {performanceRows.map((row, index) => {
@@ -796,24 +950,30 @@ export function C152ClientV3() {
                   key={legs[index].role}
                   className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900"
                 >
-                  {roleLabel(legs[index].role)}: performance unavailable for the selected conditions.
+                  {roleLabel(legs[index].role)}: performance unavailable for the
+                  selected conditions.
                 </div>
               );
             }
 
             return (
-              <div key={row.role} className="rounded-2xl border border-zinc-200 p-4">
+              <div
+                key={row.role}
+                className="rounded-2xl border border-zinc-200 p-4"
+              >
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
                     <h3 className="font-bold text-zinc-950">
                       {roleLabel(row.role)} · {row.icao} · RWY {row.runway}
                     </h3>
-                    <p className="mt-1 text-xs text-zinc-600">
-                      TODA {whole(row.todaM)} m · LDA {whole(row.ldaM)} m · ROC {whole(row.rocFpm)} ft/min
+                    <p className="mt-1 text-xs leading-5 text-zinc-600">
+                      TODA {distanceDual(row.todaM)} · LDA{" "}
+                      {distanceDual(row.ldaM)} · ROC {rocDual(row.rocFpm)}
                     </p>
                   </div>
                   <p className="text-xs font-semibold text-zinc-700">
-                    HW {fixed(row.headwindKt, 1)} kt · XW {fixed(row.crosswindKt, 1)} kt
+                    HW {fixed(row.headwindKt, 1)} kt · XW{" "}
+                    {fixed(row.crosswindKt, 1)} kt
                   </p>
                 </div>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -845,30 +1005,44 @@ export function C152ClientV3() {
         <div className="mt-4 space-y-3">
           <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-sm font-semibold text-zinc-950">Planning consumption</p>
-              <p className="mt-0.5 text-xs text-zinc-500">Fuel loaded: {liters(fuelPlan.fuelLoadedL)}</p>
+              <p className="text-sm font-semibold text-zinc-950">
+                Planning consumption
+              </p>
+              <p className="mt-0.5 text-xs text-zinc-500">
+                Fuel loaded: {operationalFuel(fuelPlan.fuelLoadedL)}
+              </p>
             </div>
-            <label className="flex items-center gap-2">
+            <label className="flex flex-wrap items-center justify-end gap-2">
               <input
                 type="number"
                 min={0}
                 step={0.5}
                 value={fuelPlan.rateLh}
-                onChange={(event) => updateFuelPlan("rateLh", Number(event.target.value))}
+                onChange={(event) =>
+                  updateFuelPlan("rateLh", Number(event.target.value))
+                }
                 className="w-28 rounded-lg border border-zinc-200 bg-white px-3 py-2 text-center text-sm font-medium outline-none focus:border-zinc-500"
               />
-              <span className="text-sm font-medium text-zinc-600">L/h</span>
+              <span className="text-sm font-medium text-zinc-600">
+                {fuelRate(fuelPlan.rateLh)}
+              </span>
             </label>
           </div>
 
           <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[620px] border-collapse text-sm">
+              <table className="w-full min-w-[680px] border-collapse text-sm">
                 <thead className="bg-zinc-100 text-zinc-700">
                   <tr>
-                    <th className="border-b border-r border-zinc-200 px-4 py-3 text-left font-semibold">Fuel planning</th>
-                    <th className="w-48 border-b border-r border-zinc-200 px-4 py-3 text-center font-semibold">Time</th>
-                    <th className="w-40 border-b border-zinc-200 px-4 py-3 text-center font-semibold">Fuel</th>
+                    <th className="border-b border-r border-zinc-200 px-4 py-3 text-left font-semibold">
+                      Fuel planning
+                    </th>
+                    <th className="w-48 border-b border-r border-zinc-200 px-4 py-3 text-center font-semibold">
+                      Time
+                    </th>
+                    <th className="w-52 border-b border-zinc-200 px-4 py-3 text-center font-semibold">
+                      Fuel
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -876,25 +1050,33 @@ export function C152ClientV3() {
                     label="Start-up and Taxi"
                     minutes={fuelPlan.taxiMin}
                     fuelL={fuelPlan.taxiFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("taxiMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("taxiMin", value)
+                    }
                   />
                   <FuelRow
                     label="Climb"
                     minutes={fuelPlan.climbMin}
                     fuelL={fuelPlan.climbFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("climbMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("climbMin", value)
+                    }
                   />
                   <FuelRow
                     label="Enroute"
                     minutes={fuelPlan.enrouteMin}
                     fuelL={fuelPlan.enrouteFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("enrouteMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("enrouteMin", value)
+                    }
                   />
                   <FuelRow
                     label="Descent"
                     minutes={fuelPlan.descentMin}
                     fuelL={fuelPlan.descentFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("descentMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("descentMin", value)
+                    }
                   />
                   <FuelRow
                     label="Trip Fuel"
@@ -911,13 +1093,17 @@ export function C152ClientV3() {
                     label="Alternate"
                     minutes={fuelPlan.alternateMin}
                     fuelL={fuelPlan.alternateFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("alternateMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("alternateMin", value)
+                    }
                   />
                   <FuelRow
                     label="Reserve"
                     minutes={fuelPlan.reserveMin}
                     fuelL={fuelPlan.reserveFuelL}
-                    onMinutesChange={(value) => updateFuelPlan("reserveMin", value)}
+                    onMinutesChange={(value) =>
+                      updateFuelPlan("reserveMin", value)
+                    }
                   />
                   <FuelRow
                     label="Required Ramp Fuel"
@@ -944,7 +1130,10 @@ export function C152ClientV3() {
 
         {!fuelPlan.fuelSufficient ? (
           <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
-            Shortfall: {fixed(fuelPlan.requiredRampFuelL - fuelPlan.fuelLoadedL, 1)} L
+            Shortfall:{" "}
+            {operationalFuel(
+              fuelPlan.requiredRampFuelL - fuelPlan.fuelLoadedL
+            )}
           </p>
         ) : null}
       </section>
@@ -955,7 +1144,9 @@ export function C152ClientV3() {
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-orange-700">
               RVP.CFI.066.02
             </p>
-            <h2 className="mt-1 text-lg font-bold text-zinc-950">5. Export PDF</h2>
+            <h2 className="mt-1 text-lg font-bold text-zinc-950">
+              5. Export PDF
+            </h2>
           </div>
           <button
             type="button"
@@ -966,7 +1157,9 @@ export function C152ClientV3() {
             {pdfBusy ? "Generating..." : "Export RVP.CFI.066.02"}
           </button>
         </div>
-        {pdfError ? <p className="mt-3 text-sm font-medium text-red-700">{pdfError}</p> : null}
+        {pdfError ? (
+          <p className="mt-3 text-sm font-medium text-red-700">{pdfError}</p>
+        ) : null}
       </section>
 
       {allWarnings.length ? (
