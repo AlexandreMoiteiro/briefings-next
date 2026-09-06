@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { AdminC152IndexLink } from "./c152-performance/admin-c152-index-link";
 
 type UsageEventRow = {
   id: string;
@@ -258,6 +259,8 @@ export default function AdminUsagePage() {
             >
               P2006T performance
             </a>
+
+            <AdminC152IndexLink />
 
             <button
               type="button"

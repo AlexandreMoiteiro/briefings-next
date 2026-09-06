@@ -1,9 +1,12 @@
+import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
+
 export const CUSTOM_AIRCRAFT_TYPE = "Custom aircraft" as const;
 
 export const navlogAircraftOptions = [
   "Tecnam P2006T",
   "Tecnam P2008",
   "Piper PA-28",
+  "Cessna 152",
   CUSTOM_AIRCRAFT_TYPE,
 ] as const;
 
@@ -100,6 +103,19 @@ export const navlogAircraftProfiles: Record<
     rodFpm: 500,
     defaultAltitude: 3000,
   },
+  "Cessna 152": {
+    climbTas: C152_NAVLOG_PRESET.climbTasKt,
+    cruiseTas: C152_NAVLOG_PRESET.cruiseTasKt,
+    descentTas: C152_NAVLOG_PRESET.descentTasKt,
+    fuelFlowLh: C152_NAVLOG_PRESET.fuelFlowLh,
+    taxiFuelL: C152_NAVLOG_PRESET.taxiFuelL,
+    taxiFuelFlowLh: C152_NAVLOG_PRESET.taxiFuelFlowLh,
+    startEfob: C152_NAVLOG_PRESET.startEfobL,
+    taxiMin: C152_NAVLOG_PRESET.taxiMin,
+    rocFpm: C152_NAVLOG_PRESET.rocFpm,
+    rodFpm: C152_NAVLOG_PRESET.rodFpm,
+    defaultAltitude: C152_NAVLOG_PRESET.defaultAltitudeFt,
+  },
 };
 
 const blankCustomAircraftProfile: NavlogAircraftProfile = {
@@ -137,6 +153,8 @@ export const piperRegistrations = [
   "OE-KPF",
   "OE-KPH",
 ];
+
+export const c152Registrations = [C152_NAVLOG_PRESET.registration];
 
 export const navlogReferenceLayers: NavlogReferenceLayer[] = [
   "IFR",
@@ -183,6 +201,7 @@ export function getAircraftTypeFromRegistration(
   registration: string
 ): NavlogAircraftType {
   if (p2006tRegistrations.includes(registration)) return "Tecnam P2006T";
+  if (c152Registrations.includes(registration)) return "Cessna 152";
   if (registration.startsWith("CS-")) return "Tecnam P2008";
   if (registration.startsWith("OE-")) return "Piper PA-28";
   return CUSTOM_AIRCRAFT_TYPE;
@@ -192,6 +211,7 @@ export function getRegistrationsForAircraft(aircraftType: NavlogAircraftType) {
   if (aircraftType === "Tecnam P2006T") return p2006tRegistrations;
   if (aircraftType === "Tecnam P2008") return tecnamRegistrations;
   if (aircraftType === "Piper PA-28") return piperRegistrations;
+  if (aircraftType === "Cessna 152") return c152Registrations;
   return [];
 }
 

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { C152ClientV4 } from "./c152-client-v4";
 import { P2006TMissionClient } from "./p2006t-mission-client";
 import { StandardAircraftClientV3 } from "./standard-aircraft-client-v3";
 
-type PerformanceMode = "P2006T" | "P2008" | "PA28";
+type PerformanceMode = "P2006T" | "P2008" | "PA28" | "C152";
 
 const OPTIONS: Array<{ value: PerformanceMode; label: string }> = [
   { value: "P2006T", label: "Tecnam P2006T" },
   { value: "P2008", label: "Tecnam P2008" },
   { value: "PA28", label: "Piper PA-28" },
+  { value: "C152", label: "Cessna 152 · CS-AVC" },
 ];
 
 export function PerformanceRouterClient() {
@@ -18,7 +20,7 @@ export function PerformanceRouterClient() {
   return (
     <div className="space-y-6">
       <section className="rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm">
-        <div className="grid gap-2 sm:grid-cols-3">
+        <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
           {OPTIONS.map((option) => (
             <button
               key={option.value}
@@ -44,6 +46,7 @@ export function PerformanceRouterClient() {
       {mode === "PA28" ? (
         <StandardAircraftClientV3 aircraft="Piper PA-28" />
       ) : null}
+      {mode === "C152" ? <C152ClientV4 /> : null}
     </div>
   );
 }
