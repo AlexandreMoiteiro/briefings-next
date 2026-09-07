@@ -6,7 +6,6 @@ import { BriefingBuilderClient as BaseBriefingBuilderClient } from "./briefing-b
 import {
   setBriefingAircraftOverride,
   setMissionObjectivesPdf,
-  type BriefingAircraftOverride,
 } from "@/lib/briefing-enhancements-store";
 
 const P2006T_REGISTRATIONS = ["CS-EAQ", "CS-EBX", "D-GSEV"] as const;
@@ -28,8 +27,9 @@ const PA28_REGISTRATIONS = [
   "OE-KPF",
   "OE-KPH",
 ] as const;
+const C152_REGISTRATIONS = ["CS-AVC"] as const;
 
-type AircraftTypeValue = "P2006T" | "P2008" | "PA28";
+type AircraftTypeValue = "P2006T" | "P2008" | "PA28" | "C152";
 
 function nativeSelectValue(select: HTMLSelectElement, value: string) {
   if (select.value === value) return;
@@ -85,12 +85,18 @@ function ensureOption(
 function ensureAircraftOptions(root: HTMLElement) {
   const aircraftType = findSelectByLabel(root, "Aircraft type");
   const registration = findSelectByLabel(root, "Registration");
+
   if (aircraftType) {
     ensureOption(aircraftType, "P2006T", "Tecnam P2006T");
+    ensureOption(aircraftType, "C152", "Cessna 152");
   }
+
   if (registration) {
     P2006T_REGISTRATIONS.forEach((value) =>
       ensureOption(registration, value, value, "Tecnam P2006T")
+    );
+    C152_REGISTRATIONS.forEach((value) =>
+      ensureOption(registration, value, value, "Cessna 152")
     );
   }
 }
@@ -105,12 +111,16 @@ function aircraftTypeForRegistration(registration: string): AircraftTypeValue | 
   if ((PA28_REGISTRATIONS as readonly string[]).includes(registration)) {
     return "PA28";
   }
+  if ((C152_REGISTRATIONS as readonly string[]).includes(registration)) {
+    return "C152";
+  }
   return null;
 }
 
 function defaultRegistrationFor(type: AircraftTypeValue) {
   if (type === "P2006T") return "D-GSEV";
   if (type === "P2008") return "CS-DHS";
+  if (type === "C152") return "CS-AVC";
   return "OE-KPE";
 }
 
@@ -123,6 +133,7 @@ function syncOverride(
   registrationSelect: HTMLSelectElement | null
 ) {
   const registration = registrationSelect?.value ?? "";
+
   if (
     aircraftTypeSelect?.value === "P2006T" &&
     (P2006T_REGISTRATIONS as readonly string[]).includes(registration)
@@ -130,11 +141,24 @@ function syncOverride(
     setBriefingAircraftOverride({
       enabled: true,
       aircraftType: "Tecnam P2006T",
-      registration: registration as BriefingAircraftOverride["registration"],
+      registration: registration as "CS-EAQ" | "CS-EBX" | "D-GSEV",
     });
-  } else {
-    setBriefingAircraftOverride(null);
+    return;
   }
+
+  if (
+    aircraftTypeSelect?.value === "C152" &&
+    (C152_REGISTRATIONS as readonly string[]).includes(registration)
+  ) {
+    setBriefingAircraftOverride({
+      enabled: true,
+      aircraftType: "Cessna 152",
+      registration: "CS-AVC",
+    });
+    return;
+  }
+
+  setBriefingAircraftOverride(null);
 }
 
 export function BriefingBuilderClientV3() {
