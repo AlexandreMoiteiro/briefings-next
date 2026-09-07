@@ -1,6 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type MouseEvent as ReactMouseEvent,
+} from "react";
 import { NavlogClientV3 } from "./navlog-client-v3";
 import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 
@@ -12,9 +17,14 @@ const AIRCRAFT = [
   "Custom aircraft",
 ] as const;
 
+const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
 const LITERS_PER_US_GALLON = 3.785411784;
 
 type Aircraft = (typeof AIRCRAFT)[number];
+
+function normalize(value: string | null | undefined) {
+  return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
+}
 
 function fuelDual(liters: number) {
   return `${liters.toFixed(1)} L (${(liters / LITERS_PER_US_GALLON).toFixed(1)} US gal)`;
@@ -87,6 +97,11 @@ function refreshProfileHelp(root: HTMLElement) {
 export function NavlogClientV5() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [aircraft, setAircraft] = useState<Aircraft>("Tecnam P2006T");
+  const [pilotName, setPilotName] = useState("");
+
+  useEffect(() => {
+    setPilotName(window.localStorage.getItem(PILOT_STORAGE_KEY) ?? "");
+  }, []);
 
   useEffect(() => {
     const root = rootRef.current;
@@ -116,6 +131,22 @@ export function NavlogClientV5() {
     };
   }, []);
 
+  function updatePilotName(value: string) {
+    setPilotName(value);
+    window.localStorage.setItem(PILOT_STORAGE_KEY, value);
+  }
+
+  function handleClickCapture(event: ReactMouseEvent<HTMLDivElement>) {
+    const button = (event.target as HTMLElement).closest("button");
+    if (!(button instanceof HTMLButtonElement) || button.disabled) return;
+    if (normalize(button.textContent) !== "export navlog pdf") return;
+    if (pilotName.trim()) return;
+
+    event.preventDefault();
+    event.stopPropagation();
+    window.alert("Enter the pilot name before downloading the NavLog PDF.");
+  }
+
   function choose(next: Aircraft) {
     setAircraft(next);
     const root = rootRef.current;
@@ -129,24 +160,43 @@ export function NavlogClientV5() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4" onClickCapture={handleClickCapture}>
       <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <label className="block space-y-2">
-          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Aircraft
-          </span>
-          <select
-            value={aircraft}
-            onChange={(event) => choose(event.target.value as Aircraft)}
-            className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
-          >
-            {AIRCRAFT.map((option) => (
-              <option key={option} value={option}>
-                {option}
-              </option>
-            ))}
-          </select>
-        </label>
+        <div className="grid gap-4 md:grid-cols-2">
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Pilot name <span className="text-red-600">*</span>
+            </span>
+            <input
+              value={pilotName}
+              onChange={(event) => updatePilotName(event.target.value)}
+              required
+              autoComplete="name"
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
+              placeholder="Required for download"
+            />
+            <span className="block text-xs text-zinc-500">
+              Required to download the NavLog PDF. The same name is reused in Performance.
+            </span>
+          </label>
+
+          <label className="block space-y-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+              Aircraft
+            </span>
+            <select
+              value={aircraft}
+              onChange={(event) => choose(event.target.value as Aircraft)}
+              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
+            >
+              {AIRCRAFT.map((option) => (
+                <option key={option} value={option}>
+                  {option}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
 
         {aircraft === "Cessna 152" ? (
           <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
