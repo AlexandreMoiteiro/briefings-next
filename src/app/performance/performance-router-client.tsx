@@ -55,7 +55,11 @@ export function PerformanceRouterClient() {
           <StandardAircraftClientV3 aircraft="Piper PA-28" />
         </PerformanceUsageTracker>
       ) : null}
-      {mode === "C152" ? <C152ClientV3 /> : null}
+      {mode === "C152" ? (
+        <PerformanceUsageTracker aircraft="Cessna 152">
+          <C152ClientV3 />
+        </PerformanceUsageTracker>
+      ) : null}
     </div>
   );
 }
