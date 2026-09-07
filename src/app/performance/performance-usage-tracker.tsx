@@ -67,10 +67,11 @@ function fuelValueFromRow(root: HTMLElement, key: string) {
 
   if (!row) {
     const labels = FUEL_ROW_LABELS[key] ?? [];
-    row = Array.from(root.querySelectorAll("tr")).find((candidate) => {
-      const firstCell = candidate.querySelector("td");
-      return labels.includes(normalize(firstCell?.textContent));
-    }) ?? null;
+    row =
+      Array.from(root.querySelectorAll("tr")).find((candidate) => {
+        const firstCell = candidate.querySelector("td");
+        return labels.includes(normalize(firstCell?.textContent));
+      }) ?? null;
   }
 
   const cells = row?.querySelectorAll("td");
@@ -90,9 +91,11 @@ function roleFromCard(card: HTMLElement, index: number) {
     knownRoles.includes(element.textContent?.trim() ?? "")
   );
 
-  return heading?.textContent?.trim() ||
+  return (
+    heading?.textContent?.trim() ||
     ["Departure", "Arrival", "Alternate", "Alternate 2"][index] ||
-    `Aerodrome ${index + 1}`;
+    `Aerodrome ${index + 1}`
+  );
 }
 
 function readPerformanceResults(root: HTMLElement) {
@@ -208,6 +211,16 @@ function c152ExportButton(root: HTMLElement) {
   return Array.from(root.querySelectorAll("button")).find(isC152ExportButton);
 }
 
+function isPerformanceDownloadButton(text: string) {
+  return (
+    text === "export pdf" ||
+    text.startsWith("export rvp.cfi.066.02") ||
+    text.startsWith("download do formulário") ||
+    text.startsWith("download do kneeboard") ||
+    text.startsWith("download das tabelas")
+  );
+}
+
 export function PerformanceUsageTracker({
   aircraft,
   children,
@@ -319,9 +332,14 @@ export function PerformanceUsageTracker({
     if (!(button instanceof HTMLButtonElement) || button.disabled) return;
 
     const text = normalize(button.textContent);
-    const isStandardExport = text === "export pdf";
-    const isC152Export = text.startsWith("export rvp.cfi.066.02");
-    if (!isStandardExport && !isC152Export) return;
+    if (!isPerformanceDownloadButton(text)) return;
+
+    if (!pilotName.trim()) {
+      event.preventDefault();
+      event.stopPropagation();
+      window.alert("Enter the pilot name before downloading a Performance PDF.");
+      return;
+    }
 
     window.setTimeout(startSuccessWatch, 50);
   }
@@ -333,19 +351,20 @@ export function PerformanceUsageTracker({
           Pilot
         </h2>
         <p className="mt-1 text-sm leading-6 text-zinc-500">
-          Optional. When filled, the pilot name is saved with the successful
-          Performance PDF export event.
+          Required. A pilot name must be entered before any Performance PDF can
+          be downloaded, and it is saved with the successful export event.
         </p>
         <label className="mt-4 block max-w-md space-y-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Pilot name
+            Pilot name <span className="text-red-600">*</span>
           </span>
           <input
             value={pilotName}
             onChange={(event) => updatePilotName(event.target.value)}
+            required
             autoComplete="name"
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-zinc-500"
-            placeholder="Optional"
+            placeholder="Required for download"
           />
         </label>
       </section>
