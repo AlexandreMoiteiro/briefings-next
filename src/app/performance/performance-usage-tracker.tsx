@@ -14,7 +14,11 @@ const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
 const SUCCESS_PATTERN = /performance pdf (?:generated|exported)/i;
 
 type PerformanceUsageTrackerProps = {
-  aircraft: "Tecnam P2006T" | "Tecnam P2008" | "Piper PA-28";
+  aircraft:
+    | "Tecnam P2006T"
+    | "Tecnam P2008"
+    | "Piper PA-28"
+    | "Cessna 152";
   children: ReactNode;
 };
 
@@ -49,10 +53,26 @@ function parseFirstNumber(value: string | null | undefined) {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+const FUEL_ROW_LABELS: Record<string, string[]> = {
+  required: ["required ramp fuel", "required usable"],
+  total: ["total ramp fuel", "loaded usable"],
+  loaded: ["loaded usable", "total ramp fuel"],
+  extra: ["extra", "extra usable"],
+};
+
 function fuelValueFromRow(root: HTMLElement, key: string) {
-  const row = root.querySelector(
+  let row = root.querySelector(
     `[data-standard-fuel-row="${key}"], [data-row-key="${key}"]`
   );
+
+  if (!row) {
+    const labels = FUEL_ROW_LABELS[key] ?? [];
+    row = Array.from(root.querySelectorAll("tr")).find((candidate) => {
+      const firstCell = candidate.querySelector("td");
+      return labels.includes(normalize(firstCell?.textContent));
+    }) ?? null;
+  }
+
   const cells = row?.querySelectorAll("td");
   const value = cells?.length ? cells[cells.length - 1]?.textContent : "";
   return parseFirstNumber(value);
@@ -77,9 +97,10 @@ function roleFromCard(card: HTMLElement, index: number) {
 
 function readPerformanceResults(root: HTMLElement) {
   const aerodromes = PERFORMANCE_AERODROMES as Record<string, JsonRecord>;
-  const icaoLabels = Array.from(root.querySelectorAll("label")).filter(
-    (label) => normalize(label.querySelector("span")?.textContent) === "icao"
-  );
+  const icaoLabels = Array.from(root.querySelectorAll("label")).filter((label) => {
+    const caption = normalize(label.querySelector("span")?.textContent);
+    return caption === "icao" || caption === "airfield";
+  });
 
   return icaoLabels
     .map((label, index) => {
@@ -107,9 +128,13 @@ function readPerformanceResults(root: HTMLElement) {
         leg: {
           role,
           icao,
-          tempC: numberFieldValue(card, ["Temperature C", "OAT C"]),
+          tempC: numberFieldValue(card, [
+            "Temperature C",
+            "Temperature °C",
+            "OAT C",
+          ]),
           qnhHpa: numberFieldValue(card, ["QNH hPa", "QNH"]),
-          windFrom: numberFieldValue(card, ["Wind from"]),
+          windFrom: numberFieldValue(card, ["Wind from", "Wind from °"]),
           windKt: numberFieldValue(card, ["Wind kt"]),
         },
         aerodrome,
@@ -127,7 +152,9 @@ function buildUsageEvent(
   aircraft: PerformanceUsageTrackerProps["aircraft"],
   pilotName: string
 ) {
-  const registration = fieldValue(root, ["Registration"]);
+  const registration =
+    fieldValue(root, ["Registration"]) ||
+    (aircraft === "Cessna 152" ? "CS-AVC" : "");
   const date = fieldValue(root, ["Flight date"]);
   const performanceResults = readPerformanceResults(root);
   const requiredRampFuelL = fuelValueFromRow(root, "required");
@@ -172,6 +199,15 @@ function buildUsageEvent(
   };
 }
 
+function isC152ExportButton(button: HTMLButtonElement) {
+  const text = normalize(button.textContent);
+  return text.startsWith("export rvp.cfi.066.02") || text === "generating...";
+}
+
+function c152ExportButton(root: HTMLElement) {
+  return Array.from(root.querySelectorAll("button")).find(isC152ExportButton);
+}
+
 export function PerformanceUsageTracker({
   aircraft,
   children,
@@ -196,6 +232,15 @@ export function PerformanceUsageTracker({
     window.localStorage.setItem(PILOT_STORAGE_KEY, value);
   }
 
+  function finishSuccessfulAttempt(root: HTMLElement) {
+    if (timerRef.current !== null) {
+      window.clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+    attemptRef.current = 0;
+    void logUsageEvent(buildUsageEvent(root, aircraft, pilotName));
+  }
+
   function startSuccessWatch() {
     const root = rootRef.current;
     if (!root) return;
@@ -207,6 +252,43 @@ export function PerformanceUsageTracker({
     const attempt = Date.now();
     attemptRef.current = attempt;
     const startedAt = Date.now();
+
+    if (aircraft === "Cessna 152") {
+      let sawGenerating = false;
+
+      timerRef.current = window.setInterval(() => {
+        if (attemptRef.current !== attempt) return;
+
+        const button = c152ExportButton(root);
+        const buttonText = normalize(button?.textContent);
+        if (buttonText === "generating...") sawGenerating = true;
+
+        const errorText = Array.from(root.querySelectorAll("p"))
+          .filter((element) => element.className.includes("text-red"))
+          .map((element) => element.textContent ?? "")
+          .join(" ")
+          .trim();
+
+        if (
+          sawGenerating &&
+          buttonText.startsWith("export rvp.cfi.066.02") &&
+          !errorText
+        ) {
+          finishSuccessfulAttempt(root);
+          return;
+        }
+
+        if (Date.now() - startedAt > 60_000) {
+          if (timerRef.current !== null) {
+            window.clearInterval(timerRef.current);
+            timerRef.current = null;
+          }
+          attemptRef.current = 0;
+        }
+      }, 250);
+      return;
+    }
+
     let sawClearedStatus = !SUCCESS_PATTERN.test(root.textContent ?? "");
 
     timerRef.current = window.setInterval(() => {
@@ -218,12 +300,7 @@ export function PerformanceUsageTracker({
       if (!successful) sawClearedStatus = true;
 
       if (successful && sawClearedStatus) {
-        if (timerRef.current !== null) {
-          window.clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        attemptRef.current = 0;
-        void logUsageEvent(buildUsageEvent(root, aircraft, pilotName));
+        finishSuccessfulAttempt(root);
         return;
       }
 
@@ -239,10 +316,12 @@ export function PerformanceUsageTracker({
 
   function handleClickCapture(event: ReactMouseEvent<HTMLDivElement>) {
     const button = (event.target as HTMLElement).closest("button");
-    if (!button || button.disabled) return;
+    if (!(button instanceof HTMLButtonElement) || button.disabled) return;
 
     const text = normalize(button.textContent);
-    if (text !== "export pdf") return;
+    const isStandardExport = text === "export pdf";
+    const isC152Export = text.startsWith("export rvp.cfi.066.02");
+    if (!isStandardExport && !isC152Export) return;
 
     window.setTimeout(startSuccessWatch, 50);
   }
