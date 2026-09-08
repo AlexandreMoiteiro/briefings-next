@@ -12,11 +12,16 @@ function hashIp(ip: string) {
 
 export async function POST(request: Request) {
   const ip = getClientIp(request);
-  if (!ip) {
-    return NextResponse.json({ allowed: true, ipHash: null });
+  const ipHash = ip ? hashIp(ip) : null;
+
+  let clientId = "";
+  try {
+    const body = (await request.json()) as { clientId?: unknown };
+    if (typeof body.clientId === "string") clientId = body.clientId.trim().slice(0, 200);
+  } catch {
+    clientId = "";
   }
 
-  const ipHash = hashIp(ip);
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -28,12 +33,13 @@ export async function POST(request: Request) {
     auth: { persistSession: false, autoRefreshToken: false },
   });
 
-  const { data, error } = await supabase.rpc("is_app_ip_banned", {
-    p_ip_hash: ipHash,
+  const { data, error } = await supabase.rpc("is_app_export_blocked", {
+    p_ip_hash: ipHash ?? "",
+    p_client_id: clientId,
   });
 
   if (error) {
-    console.warn("Could not verify export IP ban:", error.message);
+    console.warn("Could not verify export block:", error.message);
     return NextResponse.json({ allowed: true, ipHash });
   }
 
