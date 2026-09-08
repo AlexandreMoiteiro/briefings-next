@@ -4,7 +4,7 @@ import { useState } from "react";
 import { C152ClientV3 } from "./c152-client-v3";
 import { P2006TMissionClient } from "./p2006t-mission-client";
 import { PerformanceUsageTracker } from "./performance-usage-tracker";
-import { StandardAircraftClientV3 } from "./standard-aircraft-client-v3";
+import { StandardAircraftClientV4 } from "./standard-aircraft-client-v4";
 
 type PerformanceMode = "P2006T" | "P2008" | "PA28" | "C152";
 
@@ -40,20 +40,12 @@ export function PerformanceRouterClient() {
         </div>
       </section>
 
-      {mode === "P2006T" ? (
-        <PerformanceUsageTracker aircraft="Tecnam P2006T">
-          <P2006TMissionClient />
-        </PerformanceUsageTracker>
-      ) : null}
+      {mode === "P2006T" ? <P2006TMissionClient /> : null}
       {mode === "P2008" ? (
-        <PerformanceUsageTracker aircraft="Tecnam P2008">
-          <StandardAircraftClientV3 aircraft="Tecnam P2008" />
-        </PerformanceUsageTracker>
+        <StandardAircraftClientV4 aircraft="Tecnam P2008" />
       ) : null}
       {mode === "PA28" ? (
-        <PerformanceUsageTracker aircraft="Piper PA-28">
-          <StandardAircraftClientV3 aircraft="Piper PA-28" />
-        </PerformanceUsageTracker>
+        <StandardAircraftClientV4 aircraft="Piper PA-28" />
       ) : null}
       {mode === "C152" ? (
         <PerformanceUsageTracker aircraft="Cessna 152">
