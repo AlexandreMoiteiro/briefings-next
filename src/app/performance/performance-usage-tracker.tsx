@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { PERFORMANCE_AERODROMES } from "@/lib/performance/aerodromes";
+import { checkExportAccess } from "@/lib/export-access";
 import { logUsageEvent } from "@/lib/usage-events";
 
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
@@ -334,14 +335,34 @@ export function PerformanceUsageTracker({
     const text = normalize(button.textContent);
     if (!isPerformanceDownloadButton(text)) return;
 
+    if (button.dataset.briefingsAccessAllowed === "1") {
+      delete button.dataset.briefingsAccessAllowed;
+      window.setTimeout(startSuccessWatch, 50);
+      return;
+    }
+
+    event.preventDefault();
+    event.stopPropagation();
+
     if (!pilotName.trim()) {
-      event.preventDefault();
-      event.stopPropagation();
       window.alert("Enter the pilot name before downloading a Performance PDF.");
       return;
     }
 
-    window.setTimeout(startSuccessWatch, 50);
+    if (button.dataset.briefingsAccessChecking === "1") return;
+    button.dataset.briefingsAccessChecking = "1";
+
+    void checkExportAccess().then(({ allowed }) => {
+      delete button.dataset.briefingsAccessChecking;
+
+      if (!allowed) {
+        window.alert("Access to PDF exports has been blocked for this network/IP.");
+        return;
+      }
+
+      button.dataset.briefingsAccessAllowed = "1";
+      button.click();
+    });
   }
 
   return (
@@ -351,8 +372,7 @@ export function PerformanceUsageTracker({
           Pilot
         </h2>
         <p className="mt-1 text-sm leading-6 text-zinc-500">
-          Required. A pilot name must be entered before any Performance PDF can
-          be downloaded, and it is saved with the successful export event.
+          Required for all Performance PDF downloads.
         </p>
         <label className="mt-4 block max-w-md space-y-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -366,6 +386,9 @@ export function PerformanceUsageTracker({
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-zinc-500"
             placeholder="Required for download"
           />
+          <span className="block text-xs text-zinc-500">
+            Use your real name. Deliberately false names or abuse may result in access being blocked, including by IP/network.
+          </span>
         </label>
       </section>
 
