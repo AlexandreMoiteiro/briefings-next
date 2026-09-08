@@ -8,6 +8,7 @@ import {
 } from "react";
 import { NavlogClientV3 } from "./navlog-client-v3";
 import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
+import { checkExportAccess } from "@/lib/export-access";
 
 const AIRCRAFT = [
   "Tecnam P2006T",
@@ -140,11 +141,34 @@ export function NavlogClientV5() {
     const button = (event.target as HTMLElement).closest("button");
     if (!(button instanceof HTMLButtonElement) || button.disabled) return;
     if (normalize(button.textContent) !== "export navlog pdf") return;
-    if (pilotName.trim()) return;
+
+    if (button.dataset.briefingsAccessAllowed === "1") {
+      delete button.dataset.briefingsAccessAllowed;
+      return;
+    }
 
     event.preventDefault();
     event.stopPropagation();
-    window.alert("Enter the pilot name before downloading the NavLog PDF.");
+
+    if (!pilotName.trim()) {
+      window.alert("Enter the pilot name before downloading the NavLog PDF.");
+      return;
+    }
+
+    if (button.dataset.briefingsAccessChecking === "1") return;
+    button.dataset.briefingsAccessChecking = "1";
+
+    void checkExportAccess().then(({ allowed }) => {
+      delete button.dataset.briefingsAccessChecking;
+
+      if (!allowed) {
+        window.alert("Access to PDF exports has been blocked for this network/IP.");
+        return;
+      }
+
+      button.dataset.briefingsAccessAllowed = "1";
+      button.click();
+    });
   }
 
   function choose(next: Aircraft) {
@@ -176,7 +200,7 @@ export function NavlogClientV5() {
               placeholder="Required for download"
             />
             <span className="block text-xs text-zinc-500">
-              Required to download the NavLog PDF. The same name is reused in Performance.
+              Use your real name. Deliberately false names or abuse may result in access being blocked, including by IP/network.
             </span>
           </label>
 
