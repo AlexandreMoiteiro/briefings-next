@@ -78,8 +78,8 @@ export default function AdminIpBansPage() {
 
     const confirmed = window.confirm(
       banned
-        ? `Ban the network/IP associated with “${row.title ?? row.registration ?? "this event"}”? Future NavLog and Performance PDF exports from that IP will be blocked.`
-        : `Remove the IP ban for “${row.title ?? row.registration ?? "this event"}”?`
+        ? `Ban the whole network/IP associated with “${row.title ?? row.registration ?? "this event"}”? This can also block other devices sharing the same Wi-Fi/network.`
+        : `Remove the network/IP ban for “${row.title ?? row.registration ?? "this event"}”?`
     );
     if (!confirmed) return;
 
@@ -90,13 +90,13 @@ export default function AdminIpBansPage() {
       p_admin_code: adminCode,
       p_ip_hash: row.ip_hash,
       p_banned: banned,
-      p_reason: banned ? `Admin IP ban: ${row.title ?? row.id}` : null,
+      p_reason: banned ? `Admin network/IP ban: ${row.title ?? row.id}` : null,
     });
 
     setBusyKey("");
 
     if (banError) {
-      setError("Could not change this IP ban.");
+      setError("Could not change this network/IP ban.");
       return;
     }
 
@@ -108,8 +108,8 @@ export default function AdminIpBansPage() {
 
     const confirmed = window.confirm(
       banned
-        ? `Ban the browser/client associated with “${row.title ?? row.registration ?? "this event"}”? This is useful for older events that do not have an IP fingerprint.`
-        : `Remove the client ban for “${row.title ?? row.registration ?? "this event"}”?`
+        ? `Block the browser/device associated with “${row.title ?? row.registration ?? "this event"}”? This is the recommended first action and does not block other devices on the same network.`
+        : `Remove the browser/device block for “${row.title ?? row.registration ?? "this event"}”?`
     );
     if (!confirmed) return;
 
@@ -120,13 +120,13 @@ export default function AdminIpBansPage() {
       p_admin_code: adminCode,
       p_client_id: row.client_id,
       p_banned: banned,
-      p_reason: banned ? `Admin client ban: ${row.title ?? row.id}` : null,
+      p_reason: banned ? `Admin device/browser ban: ${row.title ?? row.id}` : null,
     });
 
     setBusyKey("");
 
     if (banError) {
-      setError("Could not change this client ban.");
+      setError("Could not change this browser/device block.");
       return;
     }
 
@@ -137,7 +137,7 @@ export default function AdminIpBansPage() {
     return (
       <main className="mx-auto max-w-3xl p-6">
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900">
-          Open the main Admin dashboard and enter the admin code first, then return to IP bans.
+          Open the main Admin dashboard and enter the admin code first, then return to Export access.
         </div>
       </main>
     );
@@ -150,11 +150,32 @@ export default function AdminIpBansPage() {
           Admin
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">
-          Export bans
+          Export access
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-          New exports carry a one-way IP fingerprint, so you can ban that network/IP without storing the raw address. Older events can still be blocked by client/browser ID.
+          Block the browser/device first. Use a network/IP ban only for repeated or serious abuse because it may also affect other devices sharing the same Wi-Fi or public IP.
         </p>
+      </div>
+
+      <div className="grid gap-3 md:grid-cols-2">
+        <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
+            Recommended
+          </p>
+          <p className="mt-1 font-semibold text-red-950">Block browser/device</p>
+          <p className="mt-1 text-sm leading-5 text-red-800">
+            Blocks only this saved browser/client ID. It is the safer first action for false names or abuse.
+          </p>
+        </div>
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+            Stronger action
+          </p>
+          <p className="mt-1 font-semibold text-zinc-900">Block network/IP</p>
+          <p className="mt-1 text-sm leading-5 text-zinc-600">
+            Blocks exports from that public IP. Other users on the same network may also be affected.
+          </p>
+        </div>
       </div>
 
       {error ? (
@@ -205,55 +226,73 @@ export default function AdminIpBansPage() {
                     >
                       {blocked ? "Blocked" : "Allowed"}
                     </span>
+                    {row.client_banned ? (
+                      <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
+                        Device blocked
+                      </span>
+                    ) : null}
+                    {row.ip_banned ? (
+                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 ring-1 ring-inset ring-zinc-200">
+                        Network blocked
+                      </span>
+                    ) : null}
                   </div>
                   <p className="mt-1 text-xs text-zinc-500">
                     {formatDate(row.created_at)} · {row.registration ?? "—"} · {row.aircraft_type ?? "—"}
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-zinc-400">
-                    IP {row.ip_hash ? `${row.ip_hash.slice(0, 12)}…` : "not captured (legacy)"} · client {row.client_id?.slice(0, 12) ?? "—"}
+                    device {row.client_id?.slice(0, 12) ?? "—"} · network {row.ip_hash ? `${row.ip_hash.slice(0, 12)}…` : "not captured (legacy)"}
                   </p>
                 </div>
 
                 <div className="flex flex-wrap gap-2">
-                  {row.ip_hash ? (
-                    <button
-                      type="button"
-                      disabled={ipBusy}
-                      onClick={() => void setIpBan(row, !row.ip_banned)}
-                      className={[
-                        "rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50",
-                        row.ip_banned
-                          ? "border border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"
-                          : "bg-red-600 text-white hover:bg-red-700",
-                      ].join(" ")}
-                    >
-                      {ipBusy ? "Working…" : row.ip_banned ? "Unban IP" : "Ban IP"}
-                    </button>
-                  ) : (
-                    <span className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-400">
-                      IP unavailable
-                    </span>
-                  )}
-
                   {row.client_id ? (
                     <button
                       type="button"
                       disabled={clientBusy}
                       onClick={() => void setClientBan(row, !row.client_banned)}
                       className={[
-                        "rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50",
+                        "rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50",
                         row.client_banned
-                          ? "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
-                          : "border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100",
+                          ? "border border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+                          : "bg-red-600 text-white hover:bg-red-700",
                       ].join(" ")}
                     >
                       {clientBusy
                         ? "Working…"
                         : row.client_banned
-                          ? "Unban client"
-                          : "Ban client"}
+                          ? "Unblock device"
+                          : "Block device"}
                     </button>
-                  ) : null}
+                  ) : (
+                    <span className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-400">
+                      Device ID unavailable
+                    </span>
+                  )}
+
+                  {row.ip_hash ? (
+                    <button
+                      type="button"
+                      disabled={ipBusy}
+                      onClick={() => void setIpBan(row, !row.ip_banned)}
+                      className={[
+                        "rounded-xl border px-4 py-2 text-sm font-semibold disabled:opacity-50",
+                        row.ip_banned
+                          ? "border-zinc-300 bg-white text-zinc-700 hover:bg-zinc-50"
+                          : "border-zinc-300 bg-zinc-50 text-zinc-700 hover:bg-zinc-100",
+                      ].join(" ")}
+                    >
+                      {ipBusy
+                        ? "Working…"
+                        : row.ip_banned
+                          ? "Unblock network/IP"
+                          : "Block network/IP"}
+                    </button>
+                  ) : (
+                    <span className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-400">
+                      Network/IP unavailable
+                    </span>
+                  )}
                 </div>
               </div>
             </article>
