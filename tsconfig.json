@@ -35,17 +35,11 @@
       "@/lib/performance/p2006t-performance": [
         "./src/lib/performance/p2006t-performance-conditioned.ts"
       ],
-      "@/lib/performance/p2006t-oei": [
-        "./src/lib/performance/p2006t-oei-conservative.ts"
-      ],
-      "@/lib/performance/p2006t-oei-table": [
-        "./src/lib/performance/p2006t-oei-table-conservative.ts"
-      ],
       "@/lib/performance/p2006t-additional-table-mapper": [
         "./src/lib/performance/p2006t-additional-table-mapper-v2.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf-v3": [
-        "./src/lib/pdf/p2006t-performance-pdf-v25-student.ts"
+        "./src/lib/pdf/p2006t-performance-pdf-v26-oei-explained.ts"
       ],
       "@/lib/pdf/p2006t-performance-pdf": [
         "./src/lib/pdf/p2006t-performance-pdf-complete.ts"
