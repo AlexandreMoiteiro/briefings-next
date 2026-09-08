@@ -22,6 +22,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         >
           C152 PDF mapper
         </a>
+        <a
+          href="/admin/ip-bans"
+          className="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 transition hover:bg-red-100"
+        >
+          IP bans
+        </a>
       </nav>
       {children}
     </div>
