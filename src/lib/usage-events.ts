@@ -1,3 +1,4 @@
+import { getStoredExportIpHash } from "@/lib/export-access";
 import { supabase } from "@/lib/supabase/client";
 
 export type UsageEventInput = {
@@ -116,6 +117,7 @@ export async function logUsageEvent(event: UsageEventInput) {
       payload: safeJson(enrichedEvent.payload, 100_000),
       user_agent: cleanText(navigator.userAgent, 500),
       url: cleanText(window.location.href, 1_000),
+      ip_hash: cleanText(getStoredExportIpHash(), 128),
     });
 
     if (error) {
