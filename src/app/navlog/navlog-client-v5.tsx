@@ -9,6 +9,7 @@ import {
 import { NavlogClientV3 } from "./navlog-client-v3";
 import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 import { checkExportAccess } from "@/lib/export-access";
+import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
 
 const AIRCRAFT = [
   "Tecnam P2006T",
@@ -99,6 +100,7 @@ export function NavlogClientV5() {
   const rootRef = useRef<HTMLDivElement>(null);
   const [aircraft, setAircraft] = useState<Aircraft>("Tecnam P2006T");
   const [pilotName, setPilotName] = useState("");
+  const [blockedDialogOpen, setBlockedDialogOpen] = useState(false);
 
   useEffect(() => {
     setPilotName(window.localStorage.getItem(PILOT_STORAGE_KEY) ?? "");
@@ -151,7 +153,7 @@ export function NavlogClientV5() {
     event.stopPropagation();
 
     if (!pilotName.trim()) {
-      window.alert("Enter the pilot name before downloading the NavLog PDF.");
+      window.alert("Enter your real name before downloading the NavLog PDF.");
       return;
     }
 
@@ -162,7 +164,7 @@ export function NavlogClientV5() {
       delete button.dataset.briefingsAccessChecking;
 
       if (!allowed) {
-        window.alert("Access to PDF exports has been blocked for this network/IP.");
+        setBlockedDialogOpen(true);
         return;
       }
 
@@ -199,8 +201,8 @@ export function NavlogClientV5() {
               className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
               placeholder="Required for download"
             />
-            <span className="block text-xs text-zinc-500">
-              Use your real name. Deliberately false names or abuse may result in access being blocked, including by IP/network.
+            <span className="block text-xs leading-5 text-zinc-500">
+              This tool is provided free and openly to everyone. To help keep it free, available to all and protected from abuse, enter your real name. Deliberately false names may result in this device being blocked from PDF exports.
             </span>
           </label>
 
@@ -251,6 +253,13 @@ export function NavlogClientV5() {
       <div ref={rootRef}>
         <NavlogClientV3 />
       </div>
+
+      <ExportBlockedDialog
+        open={blockedDialogOpen}
+        pilotName={pilotName}
+        onPilotNameChange={updatePilotName}
+        onClose={() => setBlockedDialogOpen(false)}
+      />
     </div>
   );
 }
