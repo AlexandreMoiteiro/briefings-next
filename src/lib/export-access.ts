@@ -1,3 +1,5 @@
+import { supabase } from "@/lib/supabase/client";
+
 const IP_HASH_STORAGE_KEY = "briefings_export_ip_hash";
 const CLIENT_ID_STORAGE_KEY = "briefings_anonymous_client_id";
 
@@ -53,4 +55,30 @@ export async function checkExportAccess(): Promise<ExportAccessResponse> {
     // Export remains available if the abuse-check service itself is unavailable.
     return { allowed: true, ipHash: null };
   }
+}
+
+export async function submitExportUnblockRequest(input: {
+  pilotName: string;
+  message: string;
+}) {
+  if (!supabase) throw new Error("Messaging service unavailable.");
+
+  const clientId = getAnonymousClientId();
+  const ipHash = getStoredExportIpHash();
+  const pilotName = input.pilotName.trim();
+  const message = input.message.trim();
+
+  if (!pilotName) throw new Error("Enter your real name.");
+  if (message.length < 5) throw new Error("Write a short message to the admin.");
+
+  const { error } = await supabase.rpc("submit_export_unblock_request", {
+    p_client_id: clientId,
+    p_ip_hash: ipHash || null,
+    p_pilot_name: pilotName,
+    p_message: message,
+    p_page_url: typeof window !== "undefined" ? window.location.href : null,
+    p_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+  });
+
+  if (error) throw new Error(error.message || "Could not send the request.");
 }
