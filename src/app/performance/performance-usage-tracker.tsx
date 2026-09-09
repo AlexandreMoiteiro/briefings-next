@@ -7,6 +7,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type ReactNode,
 } from "react";
+import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
 import { PERFORMANCE_AERODROMES } from "@/lib/performance/aerodromes";
 import { checkExportAccess } from "@/lib/export-access";
 import { logUsageEvent } from "@/lib/usage-events";
@@ -174,10 +175,7 @@ function buildUsageEvent(
   return {
     eventType: "performance_export" as const,
     module: "performance" as const,
-    title: [
-      `Performance ${registration || aircraft}`,
-      cleanPilotName || null,
-    ]
+    title: [`Performance ${registration || aircraft}`, cleanPilotName || null]
       .filter(Boolean)
       .join(" · "),
     aircraftType: aircraft,
@@ -230,6 +228,7 @@ export function PerformanceUsageTracker({
   const timerRef = useRef<number | null>(null);
   const attemptRef = useRef(0);
   const [pilotName, setPilotName] = useState("");
+  const [blockedDialogOpen, setBlockedDialogOpen] = useState(false);
 
   useEffect(() => {
     setPilotName(window.localStorage.getItem(PILOT_STORAGE_KEY) ?? "");
@@ -345,7 +344,7 @@ export function PerformanceUsageTracker({
     event.stopPropagation();
 
     if (!pilotName.trim()) {
-      window.alert("Enter the pilot name before downloading a Performance PDF.");
+      window.alert("Enter your real name before downloading a Performance PDF.");
       return;
     }
 
@@ -356,7 +355,7 @@ export function PerformanceUsageTracker({
       delete button.dataset.briefingsAccessChecking;
 
       if (!allowed) {
-        window.alert("Access to PDF exports has been blocked for this network/IP.");
+        setBlockedDialogOpen(true);
         return;
       }
 
@@ -374,7 +373,7 @@ export function PerformanceUsageTracker({
         <p className="mt-1 text-sm leading-6 text-zinc-500">
           Required for all Performance PDF downloads.
         </p>
-        <label className="mt-4 block max-w-md space-y-1.5">
+        <label className="mt-4 block max-w-xl space-y-1.5">
           <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
             Pilot name <span className="text-red-600">*</span>
           </span>
@@ -386,13 +385,20 @@ export function PerformanceUsageTracker({
             className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-zinc-500"
             placeholder="Required for download"
           />
-          <span className="block text-xs text-zinc-500">
-            Use your real name. Deliberately false names or abuse may result in access being blocked, including by IP/network.
+          <span className="block text-xs leading-5 text-zinc-500">
+            This tool is provided free and openly to everyone. To help keep it free, available to all and protected from abuse, enter your real name. Deliberately false names may result in this device being blocked from PDF exports.
           </span>
         </label>
       </section>
 
       {children}
+
+      <ExportBlockedDialog
+        open={blockedDialogOpen}
+        pilotName={pilotName}
+        onPilotNameChange={updatePilotName}
+        onClose={() => setBlockedDialogOpen(false)}
+      />
     </div>
   );
 }
