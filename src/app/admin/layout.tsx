@@ -28,6 +28,12 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         >
           Export access
         </a>
+        <a
+          href="/admin/unblock-requests"
+          className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-800 transition hover:bg-amber-100"
+        >
+          Unblock requests
+        </a>
       </nav>
       {children}
     </div>
