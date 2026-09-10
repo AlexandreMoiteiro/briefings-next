@@ -1,9 +1,5 @@
-import { AreaMapClient } from "./area-map-client";
+import { AreaMapWorkspace } from "./area-map-workspace";
 
 export default function AreaMapPage() {
-  return (
-    <div className="area-map-layout-v2">
-      <AreaMapClient />
-    </div>
-  );
+  return <AreaMapWorkspace />;
 }
