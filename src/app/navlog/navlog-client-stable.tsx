@@ -1,13 +1,14 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
 import {
   AircraftPicker,
   type AircraftChoice,
 } from "@/components/aircraft-picker";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
+import { PilotDownloadCard } from "@/components/pilot-download-card";
 import { PreparationPageHeader } from "@/components/preparation-page-header";
+import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
 import { checkExportAccess } from "@/lib/export-access";
 import type { NavlogAircraftType } from "@/lib/navlog";
 import { NavlogStudio } from "./navlog-studio";
@@ -65,64 +66,6 @@ function normalize(value: string | null | undefined) {
 
 function aircraftChoice(value: Aircraft) {
   return AIRCRAFT_CHOICES.find((choice) => choice.value === value)!;
-}
-
-function MissionContext({
-  aircraft,
-  imageSrc,
-  pilotName,
-  onPilotNameChange,
-  onChangeAircraft,
-}: {
-  aircraft: string;
-  imageSrc?: string;
-  pilotName: string;
-  onPilotNameChange: (value: string) => void;
-  onChangeAircraft: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-3 border-y border-zinc-200 py-3 lg:flex-row lg:items-center lg:justify-between">
-      <div className="flex min-w-0 items-center gap-3">
-        <div className="relative h-11 w-16 shrink-0 overflow-hidden rounded-lg bg-zinc-50">
-          {imageSrc ? (
-            <Image
-              src={imageSrc}
-              alt={aircraft}
-              fill
-              sizes="64px"
-              className="object-contain p-1"
-            />
-          ) : (
-            <span className="flex h-full items-center justify-center text-xl text-zinc-400">✈</span>
-          )}
-        </div>
-        <div className="min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-400">Aircraft</p>
-          <p className="truncate text-sm font-semibold text-zinc-950">{aircraft}</p>
-        </div>
-        <button
-          type="button"
-          onClick={onChangeAircraft}
-          className="ml-1 rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xs font-medium text-zinc-600 hover:bg-zinc-50"
-        >
-          Change
-        </button>
-      </div>
-
-      <label className="flex min-w-0 flex-1 items-center gap-3 lg:max-w-xl">
-        <span className="shrink-0 text-[10px] font-semibold uppercase tracking-[0.15em] text-zinc-400">
-          Pilot · PDF
-        </span>
-        <input
-          value={pilotName}
-          onChange={(event) => onPilotNameChange(event.target.value)}
-          autoComplete="name"
-          placeholder="Real name required for export"
-          className="h-10 min-w-0 flex-1 rounded-xl border border-zinc-200 bg-white px-3 text-sm outline-none transition focus:border-zinc-500"
-        />
-      </label>
-    </div>
-  );
 }
 
 export function NavlogClientStable() {
@@ -193,13 +136,20 @@ export function NavlogClientStable() {
       {started ? (
         <div className={showPicker ? "hidden" : "space-y-5"}>
           <PreparationPageHeader step={2} title="NavLog" description={PAGE_DESCRIPTION} />
-          <MissionContext
-            aircraft={selected.name}
+
+          <SelectedAircraftCard
+            name={selected.name}
+            registrations={selected.registrations}
             imageSrc={selected.imageSrc}
-            pilotName={pilotName}
-            onPilotNameChange={updatePilotName}
-            onChangeAircraft={() => setShowPicker(true)}
+            onChange={() => setShowPicker(true)}
           />
+
+          <PilotDownloadCard
+            value={pilotName}
+            onChange={updatePilotName}
+            documentLabel="NavLog"
+          />
+
           <NavlogStudio aircraftType={aircraft} />
         </div>
       ) : null}
