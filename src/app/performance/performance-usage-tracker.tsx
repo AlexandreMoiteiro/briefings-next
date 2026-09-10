@@ -8,6 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
+import { PilotDownloadCard } from "@/components/pilot-download-card";
 import { PERFORMANCE_AERODROMES } from "@/lib/performance/aerodromes";
 import { checkExportAccess } from "@/lib/export-access";
 import { logUsageEvent } from "@/lib/usage-events";
@@ -366,30 +367,11 @@ export function PerformanceUsageTracker({
 
   return (
     <div ref={rootRef} onClickCapture={handleClickCapture} className="space-y-6">
-      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
-          Pilot
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-zinc-500">
-          Required for all Performance PDF downloads.
-        </p>
-        <label className="mt-4 block max-w-xl space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Pilot name <span className="text-red-600">*</span>
-          </span>
-          <input
-            value={pilotName}
-            onChange={(event) => updatePilotName(event.target.value)}
-            required
-            autoComplete="name"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-zinc-500"
-            placeholder="Required for download"
-          />
-          <span className="block text-xs leading-5 text-zinc-500">
-            This tool is provided free and openly to everyone. To help keep it free, available to all and protected from abuse, enter your real name. Deliberately false names may result in this device being blocked from PDF exports.
-          </span>
-        </label>
-      </section>
+      <PilotDownloadCard
+        value={pilotName}
+        onChange={updatePilotName}
+        documentLabel="Performance"
+      />
 
       {children}
 
