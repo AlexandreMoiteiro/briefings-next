@@ -1,5 +1,5 @@
-import { PerformanceRouterClientV2 } from "./performance-router-client-v2";
+import { PerformanceRouterClientV3 } from "./performance-router-client-v3";
 
 export default function PerformancePage() {
-  return <PerformanceRouterClientV2 />;
+  return <PerformanceRouterClientV3 />;
 }
