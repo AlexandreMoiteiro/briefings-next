@@ -11,6 +11,9 @@ import {
   type AircraftChoice,
 } from "@/components/aircraft-picker";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
+import { PilotDownloadCard } from "@/components/pilot-download-card";
+import { PreparationPageHeader } from "@/components/preparation-page-header";
+import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
 import { checkExportAccess } from "@/lib/export-access";
 import { NavlogClient } from "./navlog-client";
 
@@ -58,6 +61,8 @@ const AIRCRAFT_CHOICES: readonly AircraftChoice<Aircraft>[] = [
 ];
 
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
+const PAGE_DESCRIPTION =
+  "Choose the aircraft, load or build the route, confirm wind and fuel, then review the calculated NavLog before the final Briefing.";
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -94,6 +99,69 @@ function hideBaseAircraftControl(select: HTMLSelectElement) {
   label.setAttribute("aria-hidden", "true");
 }
 
+function decorateRouteWorkspace(root: HTMLElement) {
+  const routeHeading = Array.from(root.querySelectorAll("h2")).find((heading) =>
+    normalize(heading.textContent).includes("build the route, manage saved routes")
+  );
+  const section = routeHeading?.closest("section") as HTMLElement | null;
+  if (!section) return false;
+
+  section.dataset.navlogRouteWorkspace = "true";
+  if (routeHeading) {
+    routeHeading.textContent = "Saved routes, route builder and working route";
+  }
+
+  const grid = Array.from(section.querySelectorAll("div.grid")).find((candidate) => {
+    const text = normalize(candidate.textContent);
+    return (
+      text.includes("create the working route") &&
+      text.includes("load or manage supabase routes") &&
+      text.includes("current map/table route")
+    );
+  }) as HTMLElement | undefined;
+
+  if (!grid) return false;
+  grid.dataset.navlogRouteGrid = "true";
+
+  let savedCard: HTMLElement | null = null;
+
+  Array.from(grid.children).forEach((child) => {
+    if (!(child instanceof HTMLElement)) return;
+    const text = normalize(child.textContent);
+
+    if (text.includes("create the working route")) {
+      child.dataset.navlogRouteCard = "build";
+    }
+
+    if (text.includes("load or manage supabase routes")) {
+      child.dataset.navlogRouteCard = "saved";
+      savedCard = child;
+      const heading = child.querySelector("h3");
+      if (heading) heading.textContent = "Choose, save or update routes";
+    }
+
+    if (text.includes("current map/table route")) {
+      child.dataset.navlogRouteCard = "current";
+    }
+  });
+
+  if (savedCard) {
+    const searchInput = savedCard.querySelector(
+      'input[placeholder="Search saved routes..."]'
+    );
+    const loadPanel = searchInput?.closest("div.mt-4") as HTMLElement | null;
+    const savedList = loadPanel
+      ? (Array.from(loadPanel.querySelectorAll("div")).find((element) =>
+          element.className.includes("max-h-80")
+        ) as HTMLElement | undefined)
+      : undefined;
+
+    if (savedList) savedList.dataset.navlogSavedList = "true";
+  }
+
+  return Boolean(savedCard);
+}
+
 export function NavlogClientStable() {
   const rootRef = useRef<HTMLDivElement>(null);
   const syncTimerRef = useRef<number | null>(null);
@@ -113,25 +181,25 @@ export function NavlogClientStable() {
     let cancelled = false;
     let attempt = 0;
 
-    const syncAircraft = () => {
+    const syncUi = () => {
       if (cancelled) return;
 
       const root = rootRef.current;
       const select = root ? findAircraftSelect(root) : undefined;
+      const routeWorkspaceReady = root ? decorateRouteWorkspace(root) : false;
 
       if (select) {
         setControlledSelect(select, aircraft);
         hideBaseAircraftControl(select);
-        return;
       }
 
       attempt += 1;
-      if (attempt < 16) {
-        syncTimerRef.current = window.setTimeout(syncAircraft, 120);
+      if (attempt < 24 && (!select || !routeWorkspaceReady)) {
+        syncTimerRef.current = window.setTimeout(syncUi, 120);
       }
     };
 
-    syncAircraft();
+    syncUi();
 
     return () => {
       cancelled = true;
@@ -192,62 +260,38 @@ export function NavlogClientStable() {
   return (
     <div className="navlog-consumer space-y-5" onClickCapture={handleClickCapture}>
       {showPicker ? (
-        <AircraftPicker title="NavLog" choices={AIRCRAFT_CHOICES} onSelect={choose} />
+        <div className="space-y-6">
+          <PreparationPageHeader
+            step={2}
+            title="NavLog"
+            description={PAGE_DESCRIPTION}
+          />
+          <AircraftPicker choices={AIRCRAFT_CHOICES} onSelect={choose} />
+        </div>
       ) : null}
 
       {started ? (
         <div className={showPicker ? "hidden" : "space-y-5"}>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="grid gap-4 lg:grid-cols-[1fr_360px] lg:items-center">
-              <div className="flex min-w-0 items-center gap-4">
-                <div className="flex h-16 w-28 shrink-0 items-center justify-center rounded-xl bg-zinc-50 p-2">
-                  {selected.imageSrc ? (
-                    <img
-                      src={selected.imageSrc}
-                      alt={selected.name}
-                      className="max-h-full max-w-full object-contain"
-                    />
-                  ) : (
-                    <span className="text-3xl text-zinc-400" aria-hidden="true">
-                      ✈
-                    </span>
-                  )}
-                </div>
+          <PreparationPageHeader
+            step={2}
+            title="NavLog"
+            description={PAGE_DESCRIPTION}
+          />
 
-                <div className="min-w-0">
-                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                    Flight preparation · Step 2
-                  </p>
-                  <p className="mt-1 text-lg font-semibold text-zinc-950">
-                    {selected.name}
-                  </p>
-                  <button
-                    type="button"
-                    onClick={() => setShowPicker(true)}
-                    className="mt-1 text-sm font-semibold text-zinc-500 underline decoration-zinc-300 underline-offset-4 hover:text-zinc-950"
-                  >
-                    Change aircraft
-                  </button>
-                </div>
-              </div>
+          <SelectedAircraftCard
+            name={selected.name}
+            registrations={selected.registrations}
+            imageSrc={selected.imageSrc}
+            onChange={() => setShowPicker(true)}
+          />
 
-              <label className="block space-y-1.5">
-                <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Pilot name <span className="text-red-600">*</span>
-                </span>
-                <input
-                  value={pilotName}
-                  onChange={(event) => updatePilotName(event.target.value)}
-                  required
-                  autoComplete="name"
-                  className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
-                  placeholder="Required for PDF download"
-                />
-              </label>
-            </div>
-          </section>
+          <PilotDownloadCard
+            value={pilotName}
+            onChange={updatePilotName}
+            documentLabel="NavLog"
+          />
 
-          <div ref={rootRef}>
+          <div ref={rootRef} className="navlog-base-ui">
             <NavlogClient />
           </div>
         </div>
