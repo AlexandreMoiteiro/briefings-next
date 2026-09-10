@@ -10,6 +10,7 @@ import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
 import { C152ClientV3 } from "./c152-client-v3";
 import { P2006TMissionClient } from "./p2006t-mission-client";
 import { PerformanceUsageTracker } from "./performance-usage-tracker";
+import { PerformanceWorkspace } from "./performance-workspace";
 import { StandardAircraftClientV4 } from "./standard-aircraft-client-v4";
 
 type PerformanceMode = "P2006T" | "P2008" | "PA28" | "C152";
@@ -87,18 +88,20 @@ export function PerformanceRouterClient() {
         className="performance-consumer space-y-4"
         data-performance-mode={mode}
       >
-        {mode === "P2006T" ? <P2006TMissionClient /> : null}
-        {mode === "P2008" ? (
-          <StandardAircraftClientV4 aircraft="Tecnam P2008" />
-        ) : null}
-        {mode === "PA28" ? (
-          <StandardAircraftClientV4 aircraft="Piper PA-28" />
-        ) : null}
-        {mode === "C152" ? (
-          <PerformanceUsageTracker aircraft="Cessna 152">
-            <C152ClientV3 />
-          </PerformanceUsageTracker>
-        ) : null}
+        <PerformanceWorkspace mode={mode}>
+          {mode === "P2006T" ? <P2006TMissionClient /> : null}
+          {mode === "P2008" ? (
+            <StandardAircraftClientV4 aircraft="Tecnam P2008" />
+          ) : null}
+          {mode === "PA28" ? (
+            <StandardAircraftClientV4 aircraft="Piper PA-28" />
+          ) : null}
+          {mode === "C152" ? (
+            <PerformanceUsageTracker aircraft="Cessna 152">
+              <C152ClientV3 />
+            </PerformanceUsageTracker>
+          ) : null}
+        </PerformanceWorkspace>
       </div>
     </div>
   );
