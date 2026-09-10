@@ -80,19 +80,19 @@ export function ExportBlockedDialog({
 
         <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-700">
           <p className="font-semibold text-red-800">
-            Access was blocked because a false name was used even though the app explicitly asks users to enter their real name.
+            PDF export is not available on this device.
           </p>
           <p>
-            This is a free tool made available openly to everyone. To keep it free, available to all users and protected from abuse, a real user name is required for PDF downloads.
+            A real user name is required for PDF downloads to help protect the service from abuse.
           </p>
           <p>
-            If you believe the block was a mistake, or you want to request access again, you can send a message to the admin below.
+            If you believe this was a mistake, you can request access again below.
           </p>
         </div>
 
         {sent ? (
           <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-            Your message was sent to the admin. Access will remain blocked until the admin reviews the request and decides whether to unblock this device.
+            Your request was sent. PDF export will remain unavailable until the request has been reviewed.
           </div>
         ) : (
           <div className="mt-5 space-y-4">
@@ -111,7 +111,7 @@ export function ExportBlockedDialog({
 
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Message to admin
+                Message
               </span>
               <textarea
                 value={message}
@@ -146,7 +146,7 @@ export function ExportBlockedDialog({
                 onClick={() => void sendRequest()}
                 className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
               >
-                {sending ? "Sending…" : "Send request to admin"}
+                {sending ? "Sending…" : "Request access"}
               </button>
             </div>
           </div>

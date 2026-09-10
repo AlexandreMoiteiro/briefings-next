@@ -37,16 +37,40 @@ textarea {
   outline-offset: 2px;
 }
 
+/* Shared Performance visual language ------------------------------------------------ */
+
+.performance-consumer,
 .performance-consumer > div,
 .performance-consumer > div > div {
   --consumer-card-border: #e4e4e7;
+  --consumer-muted: #71717a;
+  --consumer-surface: #ffffff;
+  --consumer-soft: #fafafa;
 }
 
 .performance-consumer section.rounded-3xl,
-.performance-consumer section[class*="rounded-3xl"] {
+.performance-consumer section[class*="rounded-3xl"],
+.performance-consumer section.rounded-2xl,
+.performance-consumer section[class*="rounded-2xl"] {
   border-radius: 1rem !important;
   border-color: var(--consumer-card-border) !important;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+.performance-consumer section[class*="bg-sky-50"],
+.performance-consumer section[class*="bg-orange-50"] {
+  background: var(--consumer-surface) !important;
+  border-color: var(--consumer-card-border) !important;
+}
+
+.performance-consumer section[class*="bg-sky-50"] [class*="text-sky-"],
+.performance-consumer section[class*="bg-orange-50"] [class*="text-orange-"] {
+  color: var(--consumer-muted) !important;
+}
+
+.performance-consumer section[class*="bg-orange-50"] button[class*="bg-orange-"] {
+  background: #18181b !important;
+  color: #ffffff !important;
 }
 
 .performance-consumer input,
@@ -54,50 +78,436 @@ textarea {
 .performance-consumer textarea {
   min-height: 42px;
   border-color: #d4d4d8 !important;
+  border-radius: 0.75rem !important;
 }
 
-.performance-consumer h1 {
-  font-size: clamp(1.875rem, 4vw, 2.5rem) !important;
-  line-height: 1.08 !important;
-}
-
+.performance-consumer h1,
 .performance-consumer h2 {
+  font-size: 1.125rem !important;
+  line-height: 1.5rem !important;
+  font-weight: 600 !important;
+  letter-spacing: -0.015em !important;
+}
+
+.performance-consumer h3,
+.performance-consumer h4 {
+  font-weight: 600 !important;
+}
+
+.performance-consumer table {
+  border-collapse: collapse;
+}
+
+.performance-consumer thead {
+  background: #f4f4f5;
+}
+
+.performance-consumer tbody tr:last-child td {
+  border-bottom-width: 0;
+}
+
+.performance-workspace [data-performance-section-container="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+}
+
+.performance-workspace [data-performance-section-container="true"] > * {
+  margin-top: 0 !important;
+}
+
+.performance-workspace [data-performance-section="weather"] {
+  order: 10;
+}
+
+.performance-workspace [data-performance-section="loading"] {
+  order: 20;
+}
+
+.performance-workspace [data-performance-section="reference"] {
+  order: 25;
+}
+
+.performance-workspace [data-performance-section="fuel"] {
+  order: 30;
+}
+
+.performance-workspace [data-performance-section="aerodrome"] {
+  order: 40;
+}
+
+.performance-workspace [data-performance-section="pdf"] {
+  order: 50;
+}
+
+.performance-workspace [data-performance-section-container="true"] > :not(section) {
+  order: 60;
+}
+
+.performance-workspace [data-performance-section] {
+  background: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+.performance-workspace [data-performance-section="weather"] [class*="border-sky-"] {
+  border-color: #e4e4e7 !important;
+}
+
+.performance-workspace [data-performance-section="weather"] [class*="bg-sky-"] {
+  background: #fafafa !important;
+}
+
+.performance-workspace [data-performance-title] {
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+.performance-workspace [data-performance-title]::after {
+  content: attr(data-performance-title);
+  display: block;
+  color: #18181b;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5rem;
   letter-spacing: -0.015em;
+}
+
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] {
+  padding: 1rem !important;
+  background: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:first-child {
+  display: none;
+}
+
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child {
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child > div {
+  border-color: #e4e4e7 !important;
+  background: #fafafa !important;
+}
+
+@media (min-width: 1024px) {
+  .performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+/* NavLog workbench ----------------------------------------------------------------- */
+
+.navlog-base-ui > div > section:first-child,
+.navlog-consumer [data-navlog-legacy-workflow="true"] {
+  display: none !important;
+}
+
+.navlog-consumer h2[data-navlog-display-label],
+.navlog-consumer h3[data-navlog-display-label],
+.navlog-consumer button[data-navlog-display-label] {
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+.navlog-consumer h2[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: block;
+  color: #18181b;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  letter-spacing: -0.015em;
+}
+
+.navlog-consumer h3[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: block;
+  color: #18181b;
+  font-size: 0.95rem;
+  font-weight: 600;
+  line-height: 1.4rem;
+}
+
+.navlog-consumer button[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: inline;
+  color: inherit;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
+}
+
+.navlog-base-ui input,
+.navlog-base-ui select,
+.navlog-base-ui textarea {
+  border-color: #d4d4d8 !important;
+}
+
+/* Mission setup is deliberately quieter and roomier than the old eight-column form. */
+.navlog-consumer [data-navlog-setup="true"] {
+  scroll-margin-top: 1rem;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 1rem !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child {
+  margin-bottom: 0.9rem !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child p:first-child {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child p:last-child {
+  margin-top: 0.2rem !important;
+  max-width: 760px;
+  font-size: 0.8rem !important;
+  line-height: 1.25rem !important;
+}
+
+.navlog-consumer [data-navlog-setup-notice="true"] {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div.grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.85rem 1rem !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] label,
+.navlog-consumer [data-navlog-setup="true"] [data-navlog-performance-toggle="true"] {
+  min-width: 0;
+}
+
+.navlog-consumer [data-navlog-setup-field="wind-check"] {
+  border-color: #d4d4d8 !important;
+  background: #fafafa !important;
+}
+
+.navlog-consumer [data-navlog-performance-toggle="true"] button {
+  min-height: 42px;
+  background: #fafafa !important;
+}
+
+/* Planning flow: source first, map second, review third. */
+.navlog-consumer [data-navlog-planning-flow="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.85rem !important;
+}
+
+.navlog-consumer [data-navlog-route-workspace="true"] {
+  order: 10;
+  scroll-margin-top: 1rem;
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  border-color: #d4d4d8 !important;
+  background: #ffffff !important;
+  padding: 1rem !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child {
+  margin-bottom: 0.85rem !important;
+}
+
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child > div:first-child > p,
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child > p {
+  display: none !important;
 }
 
 .navlog-consumer [data-navlog-route-grid="true"] {
   display: grid !important;
-  gap: 1rem !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.85rem !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"],
+.navlog-consumer [data-navlog-route-card="saved"],
+.navlog-consumer [data-navlog-route-card="current"] {
+  min-width: 0;
+  border-radius: 0.9rem !important;
+  border-color: #e4e4e7 !important;
+  background: #fafafa !important;
+  padding: 0.9rem !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] {
+  order: 10;
 }
 
 .navlog-consumer [data-navlog-route-card="saved"] {
-  order: -3;
+  order: 20;
+}
+
+.navlog-consumer [data-navlog-route-card="current"] {
+  order: 30;
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] > p:first-child,
+.navlog-consumer [data-navlog-route-card="saved"] > p:first-child,
+.navlog-consumer [data-navlog-route-card="current"] > p:first-child {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] [class*="text-violet-"],
+.navlog-consumer [data-navlog-route-card="saved"] [class*="text-zinc-"],
+.navlog-consumer [data-navlog-route-card="current"] [class*="text-sky-"] {
+  color: #52525b !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] [class*="border-violet-"],
+.navlog-consumer [data-navlog-route-card="build"] textarea,
+.navlog-consumer [data-navlog-route-card="build"] input,
+.navlog-consumer [data-navlog-route-card="saved"] input {
+  border-color: #d4d4d8 !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] [class*="bg-violet-"],
+.navlog-consumer [data-navlog-route-card="build"] button[class*="bg-violet-"] {
+  background: #18181b !important;
+  color: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] [class*="bg-white/70"],
+.navlog-consumer [data-navlog-route-card="current"] [class*="bg-white/70"] {
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="current"] [class*="bg-sky-950"] {
+  background: #18181b !important;
+  color: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-saved-panel="browse"] {
+  padding-top: 0.15rem;
+}
+
+.navlog-consumer [data-navlog-saved-list="true"] {
+  display: grid !important;
+  max-height: 280px !important;
+  grid-template-columns: minmax(0, 1fr) !important;
+  gap: 0.45rem !important;
+  overflow-y: auto !important;
+  padding-right: 0.25rem !important;
+}
+
+.navlog-consumer [data-navlog-saved-list="true"] article {
+  min-height: 0 !important;
+  border-radius: 0.75rem !important;
+  padding: 0.65rem !important;
+}
+
+.navlog-consumer [data-navlog-saved-list="true"] article button {
+  margin-top: 0.45rem !important;
+  padding-top: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
+}
+
+.navlog-consumer [data-navlog-saved-selection="true"] {
   border-color: #d4d4d8 !important;
   background: #ffffff !important;
 }
 
-.navlog-consumer [data-navlog-route-card="build"] {
-  order: -2;
+.navlog-consumer [data-navlog-saved-danger="true"] {
+  margin-top: 0 !important;
 }
 
-.navlog-consumer [data-navlog-route-card="current"] {
-  order: -1;
+/* The map has its own compact mode bar. Manual point mode is surfaced from the top dock. */
+.navlog-consumer [data-navlog-map-toolbar="true"] {
+  order: 20;
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+  box-shadow: none !important;
 }
 
-@media (min-width: 1280px) {
+.navlog-consumer [data-navlog-map-toolbar="true"] p:first-child {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-layers-panel="true"] {
+  order: 25;
+  scroll-margin-top: 1rem;
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 0.9rem !important;
+  box-shadow: none !important;
+}
+
+.navlog-consumer [data-navlog-manual-control="true"] {
+  border-color: #18181b !important;
+  background: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #18181b;
+}
+
+.navlog-consumer [data-navlog-reference-control="true"] {
+  background: #fafafa !important;
+}
+
+.navlog-consumer [data-navlog-map-canvas="true"] {
+  order: 30;
+  scroll-margin-top: 1rem;
+  margin: 0 !important;
+  min-width: 0;
+}
+
+.navlog-consumer [data-navlog-review="true"] {
+  scroll-margin-top: 1rem;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+@media (min-width: 768px) {
+  .navlog-consumer [data-navlog-setup="true"] > div.grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .navlog-consumer [data-navlog-setup-field="wind-check"] {
+    grid-column: span 2;
+  }
+}
+
+@media (min-width: 1024px) {
   .navlog-consumer [data-navlog-route-grid="true"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr) !important;
+    align-items: start;
+  }
+
+  .navlog-consumer [data-navlog-route-card="build"] {
+    grid-column: 1;
   }
 
   .navlog-consumer [data-navlog-route-card="saved"] {
-    grid-column: 1 / -1;
+    grid-column: 2;
   }
 
-  .navlog-consumer [data-navlog-saved-list="true"] {
-    display: grid !important;
-    max-height: none !important;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 0.75rem !important;
-    overflow: visible !important;
+  .navlog-consumer [data-navlog-route-card="current"] {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .navlog-consumer [data-navlog-setup="true"] > div.grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .navlog-consumer [data-navlog-setup-field="wind-check"] {
+    grid-column: span 2;
   }
 }
