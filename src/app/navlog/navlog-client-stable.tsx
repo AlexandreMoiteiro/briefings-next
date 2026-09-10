@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import {
   useEffect,
   useRef,
@@ -11,9 +12,7 @@ import {
   type AircraftChoice,
 } from "@/components/aircraft-picker";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
-import { PilotDownloadCard } from "@/components/pilot-download-card";
 import { PreparationPageHeader } from "@/components/preparation-page-header";
-import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
 import { checkExportAccess } from "@/lib/export-access";
 import { NavlogClient } from "./navlog-client";
 
@@ -62,7 +61,7 @@ const AIRCRAFT_CHOICES: readonly AircraftChoice<Aircraft>[] = [
 
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
 const PAGE_DESCRIPTION =
-  "Choose the aircraft, set the flight details, build or load the route, check it on the map, then review the NavLog before the final Briefing.";
+  "Set the mission, build or load the route, verify it on the map, then review the calculated NavLog before the final Briefing.";
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -104,6 +103,84 @@ function setDisplayLabel(element: HTMLElement, label: string) {
   element.setAttribute("aria-label", label);
 }
 
+function findButton(root: HTMLElement, values: string[]) {
+  return Array.from(root.querySelectorAll("button")).find((button) => {
+    const text = normalize(button.textContent);
+    const aria = normalize(button.getAttribute("aria-label"));
+    return values.some((value) => text === value || aria === value);
+  }) as HTMLButtonElement | undefined;
+}
+
+function markSetupField(section: HTMLElement, labelText: string, role: string) {
+  const label = Array.from(section.querySelectorAll("label")).find((candidate) =>
+    normalize(candidate.textContent).startsWith(labelText)
+  ) as HTMLElement | undefined;
+
+  if (label) label.dataset.navlogSetupField = role;
+}
+
+function decorateSetup(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll("h2")).find((item) =>
+    normalize(item.textContent).includes("flight setup and weather")
+  ) as HTMLElement | undefined;
+
+  if (!heading) return false;
+  const section = heading.closest("section") as HTMLElement | null;
+  if (!section) return false;
+
+  section.dataset.navlogSetup = "true";
+  setDisplayLabel(heading, "Mission setup");
+
+  const noticeStrong = Array.from(section.querySelectorAll("strong")).find((item) =>
+    normalize(item.textContent).includes("confirm the aircraft first")
+  );
+  const notice = noticeStrong?.closest("div") as HTMLElement | null;
+  if (notice) notice.dataset.navlogSetupNotice = "true";
+
+  markSetupField(section, "registration", "registration");
+  markSetupField(section, "callsign", "callsign");
+  markSetupField(section, "efob l", "efob");
+  markSetupField(section, "off-blocks", "offblocks");
+  markSetupField(section, "on-blocks", "onblocks");
+  markSetupField(section, "lesson", "lesson");
+  markSetupField(section, "instructor", "instructor");
+  markSetupField(section, "student", "student");
+  markSetupField(section, "wind from", "wind-from");
+  markSetupField(section, "wind kt", "wind-kt");
+  markSetupField(section, "alt add", "alt-add");
+  markSetupField(section, "wind checked", "wind-check");
+
+  const performanceButton = Array.from(section.querySelectorAll("button")).find(
+    (button) => normalize(button.textContent) === "performance" || normalize(button.textContent) === "hide performance"
+  );
+  const performanceWrap = performanceButton?.parentElement;
+  if (performanceWrap instanceof HTMLElement) {
+    performanceWrap.dataset.navlogPerformanceToggle = "true";
+  }
+
+  return true;
+}
+
+function decorateReview(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll("h2")).find(
+    (item) => normalize(item.textContent) === "working route plan"
+  ) as HTMLElement | undefined;
+  const section = heading?.closest("section") as HTMLElement | null;
+  if (!section) return false;
+  section.dataset.navlogReview = "true";
+  return true;
+}
+
+function decorateWorkflow(root: HTMLElement) {
+  const heading = Array.from(root.querySelectorAll("h2")).find((item) =>
+    normalize(item.textContent).includes("complete each step before exporting")
+  ) as HTMLElement | undefined;
+  const section = heading?.closest("section") as HTMLElement | null;
+  if (!section) return false;
+  section.dataset.navlogLegacyWorkflow = "true";
+  return true;
+}
+
 function decorateRouteWorkspace(root: HTMLElement) {
   const previouslyDecorated = root.querySelector(
     '[data-navlog-route-title="true"]'
@@ -141,7 +218,7 @@ function decorateRouteWorkspace(root: HTMLElement) {
     if (mapToolbar) {
       mapToolbar.dataset.navlogMapToolbar = "true";
       const mapHeading = mapToolbar.querySelector("h2") as HTMLElement | null;
-      if (mapHeading) setDisplayLabel(mapHeading, "Check the route on the map");
+      if (mapHeading) setDisplayLabel(mapHeading, "Map workspace");
 
       Array.from(mapToolbar.querySelectorAll("button")).forEach((button) => {
         const text = normalize(button.textContent);
@@ -161,7 +238,18 @@ function decorateRouteWorkspace(root: HTMLElement) {
       }
       return normalize(child.textContent).includes("reference layers");
     });
-    if (layersPanel) layersPanel.dataset.navlogLayersPanel = "true";
+    if (layersPanel) {
+      layersPanel.dataset.navlogLayersPanel = "true";
+      const labels = Array.from(layersPanel.querySelectorAll("label"));
+      const manual = labels.find((label) =>
+        normalize(label.textContent).includes("manual map click")
+      ) as HTMLElement | undefined;
+      const references = labels.find((label) =>
+        normalize(label.textContent).startsWith("reference points")
+      ) as HTMLElement | undefined;
+      if (manual) manual.dataset.navlogManualControl = "true";
+      if (references) references.dataset.navlogReferenceControl = "true";
+    }
   }
 
   const grid = Array.from(section.querySelectorAll("div.grid")).find((candidate) => {
@@ -192,7 +280,7 @@ function decorateRouteWorkspace(root: HTMLElement) {
   if (buildCard) {
     buildCard.dataset.navlogRouteCard = "build";
     const heading = buildCard.querySelector("h3") as HTMLElement | null;
-    if (heading) setDisplayLabel(heading, "Build a new route");
+    if (heading) setDisplayLabel(heading, "Build route");
   }
 
   if (currentCard) {
@@ -205,11 +293,11 @@ function decorateRouteWorkspace(root: HTMLElement) {
   savedCard.dataset.navlogRouteCard = "saved";
 
   const savedHeading = savedCard.querySelector("h3") as HTMLElement | null;
-  if (savedHeading) setDisplayLabel(savedHeading, "Saved routes");
+  if (savedHeading) setDisplayLabel(savedHeading, "Route library");
 
   Array.from(savedCard.querySelectorAll("button")).forEach((button) => {
     const text = normalize(button.textContent);
-    if (text === "load") setDisplayLabel(button, "Browse saved");
+    if (text === "load") setDisplayLabel(button, "Browse");
     if (text === "manage") setDisplayLabel(button, "Save / edit");
     if (text === "load into map/table") setDisplayLabel(button, "Use route");
   });
@@ -247,6 +335,116 @@ function decorateRouteWorkspace(root: HTMLElement) {
   return true;
 }
 
+function decorateNavlog(root: HTMLElement) {
+  decorateWorkflow(root);
+  decorateSetup(root);
+  decorateReview(root);
+  return decorateRouteWorkspace(root);
+}
+
+function MissionIdentityBar({
+  aircraft,
+  pilotName,
+  imageSrc,
+  onPilotNameChange,
+  onChangeAircraft,
+}: {
+  aircraft: string;
+  pilotName: string;
+  imageSrc?: string;
+  onPilotNameChange: (value: string) => void;
+  onChangeAircraft: () => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm sm:px-5">
+      <div className="grid gap-4 lg:grid-cols-[minmax(260px,0.8fr)_minmax(320px,1fr)_auto] lg:items-center">
+        <div className="flex min-w-0 items-center gap-3">
+          <div className="relative flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50">
+            {imageSrc ? (
+              <Image
+                src={imageSrc}
+                alt={aircraft}
+                fill
+                sizes="80px"
+                className="object-contain p-1.5"
+              />
+            ) : (
+              <span className="text-2xl text-zinc-400" aria-hidden="true">✈</span>
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+              Aircraft
+            </p>
+            <p className="mt-0.5 truncate text-base font-semibold text-zinc-950">
+              {aircraft}
+            </p>
+          </div>
+        </div>
+
+        <label className="block">
+          <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            Pilot name · required for PDF
+          </span>
+          <input
+            value={pilotName}
+            onChange={(event) => onPilotNameChange(event.target.value)}
+            autoComplete="name"
+            placeholder="Enter your real name"
+            className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm font-medium text-zinc-900 outline-none transition focus:border-zinc-950"
+          />
+        </label>
+
+        <div className="flex items-center gap-2 lg:justify-end">
+          <details className="relative">
+            <summary className="cursor-pointer list-none rounded-xl border border-zinc-200 px-3 py-2.5 text-sm font-medium text-zinc-600 hover:bg-zinc-50">
+              PDF identity
+            </summary>
+            <div className="absolute right-0 top-12 z-20 w-80 rounded-xl border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600 shadow-xl">
+              Use your real name. It helps keep PDF exports available to everyone and protects the service from abuse. Deliberately false names may block PDF export access on this device.
+            </div>
+          </details>
+          <button
+            type="button"
+            onClick={onChangeAircraft}
+            className="rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50"
+          >
+            Change aircraft
+          </button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WorkbenchDock({ onAction }: { onAction: (action: string) => void }) {
+  const actions = [
+    { key: "setup", title: "Mission setup", note: "times · fuel · wind" },
+    { key: "route", title: "Build or load", note: "route text · search · saved" },
+    { key: "manual", title: "Add point on map", note: "manual waypoint mode" },
+    { key: "layers", title: "Map layers", note: "reference points · overlays" },
+    { key: "review", title: "Review NavLog", note: "waypoints · headings · EFOB" },
+  ];
+
+  return (
+    <nav className="navlog-workbench-dock rounded-2xl border border-zinc-200 bg-zinc-950 p-2 shadow-sm" aria-label="NavLog workbench">
+      <div className="grid gap-1 sm:grid-cols-2 lg:grid-cols-5">
+        {actions.map((action) => (
+          <button
+            key={action.key}
+            type="button"
+            onClick={() => onAction(action.key)}
+            className="rounded-xl px-3 py-2.5 text-left transition hover:bg-white/10"
+          >
+            <span className="block text-sm font-semibold text-white">{action.title}</span>
+            <span className="mt-0.5 block text-[11px] text-zinc-400">{action.note}</span>
+          </button>
+        ))}
+      </div>
+    </nav>
+  );
+}
+
 export function NavlogClientStable() {
   const rootRef = useRef<HTMLDivElement>(null);
   const syncTimerRef = useRef<number | null>(null);
@@ -271,7 +469,7 @@ export function NavlogClientStable() {
 
       const root = rootRef.current;
       const select = root ? findAircraftSelect(root) : undefined;
-      const routeWorkspaceReady = root ? decorateRouteWorkspace(root) : false;
+      const routeWorkspaceReady = root ? decorateNavlog(root) : false;
 
       if (select) {
         setControlledSelect(select, aircraft);
@@ -304,7 +502,84 @@ export function NavlogClientStable() {
     window.localStorage.setItem(PILOT_STORAGE_KEY, value);
   }
 
+  function redecorateSoon() {
+    window.setTimeout(() => {
+      const root = rootRef.current;
+      if (root) decorateNavlog(root);
+    }, 40);
+  }
+
+  function activateBaseMode(mode: "route" | "layers", after?: () => void) {
+    const root = rootRef.current;
+    if (!root) return;
+    decorateNavlog(root);
+
+    const button =
+      mode === "route"
+        ? findButton(root, ["route workflow", "route tools"])
+        : findButton(root, ["layers", "map layers"]);
+
+    button?.click();
+    window.setTimeout(() => {
+      const currentRoot = rootRef.current;
+      if (currentRoot) decorateNavlog(currentRoot);
+      after?.();
+    }, 60);
+  }
+
+  function scrollTo(selector: string) {
+    const element = rootRef.current?.querySelector(selector);
+    if (element instanceof HTMLElement) {
+      element.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }
+
+  function handleWorkbenchAction(action: string) {
+    const root = rootRef.current;
+    if (!root) return;
+    decorateNavlog(root);
+
+    if (action === "setup") {
+      scrollTo('[data-navlog-setup="true"]');
+      return;
+    }
+
+    if (action === "route") {
+      activateBaseMode("route", () =>
+        scrollTo('[data-navlog-route-workspace="true"]')
+      );
+      return;
+    }
+
+    if (action === "layers") {
+      activateBaseMode("layers", () =>
+        scrollTo('[data-navlog-layers-panel="true"]')
+      );
+      return;
+    }
+
+    if (action === "manual") {
+      activateBaseMode("layers", () => {
+        const currentRoot = rootRef.current;
+        const control = currentRoot?.querySelector(
+          '[data-navlog-manual-control="true"] input[type="checkbox"]'
+        );
+        if (control instanceof HTMLInputElement && !control.checked) {
+          control.click();
+        }
+        scrollTo('[data-navlog-map-canvas="true"]');
+      });
+      return;
+    }
+
+    if (action === "review") {
+      scrollTo('[data-navlog-review="true"]');
+    }
+  }
+
   function handleClickCapture(event: ReactMouseEvent<HTMLDivElement>) {
+    redecorateSoon();
+
     const button = (event.target as HTMLElement).closest("button");
     if (!(button instanceof HTMLButtonElement) || button.disabled) return;
     if (normalize(button.textContent) !== "export navlog pdf") return;
@@ -360,25 +635,22 @@ export function NavlogClientStable() {
       ) : null}
 
       {started ? (
-        <div className={showPicker ? "hidden" : "space-y-5"}>
+        <div className={showPicker ? "hidden" : "space-y-4"}>
           <PreparationPageHeader
             step={2}
             title="NavLog"
             description={PAGE_DESCRIPTION}
           />
 
-          <SelectedAircraftCard
-            name={selected.name}
-            registrations={selected.registrations}
+          <MissionIdentityBar
+            aircraft={selected.name}
+            pilotName={pilotName}
             imageSrc={selected.imageSrc}
-            onChange={() => setShowPicker(true)}
+            onPilotNameChange={updatePilotName}
+            onChangeAircraft={() => setShowPicker(true)}
           />
 
-          <PilotDownloadCard
-            value={pilotName}
-            onChange={updatePilotName}
-            documentLabel="NavLog"
-          />
+          <WorkbenchDock onAction={handleWorkbenchAction} />
 
           <div ref={rootRef} className="navlog-base-ui">
             <NavlogClient />
