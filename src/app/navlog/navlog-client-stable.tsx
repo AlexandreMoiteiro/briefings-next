@@ -103,7 +103,9 @@ function decorateRouteWorkspace(root: HTMLElement) {
   const routeHeading = Array.from(root.querySelectorAll("h2")).find((heading) =>
     normalize(heading.textContent).includes("build the route, manage saved routes")
   );
-  const section = routeHeading?.closest("section") as HTMLElement | null;
+  if (!routeHeading) return false;
+
+  const section = routeHeading.closest("section") as HTMLElement | null;
   if (!section) return false;
 
   section.dataset.navlogRouteWorkspace = "true";
