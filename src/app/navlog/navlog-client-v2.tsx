@@ -94,9 +94,14 @@ function readAircraft(root: HTMLElement) {
   return `${select.value} ${selectedText}`.trim();
 }
 
-function isPiperAircraft(value: string) {
+function usesUsGallons(value: string) {
   const normalized = value.toUpperCase().replace(/[^A-Z0-9]/g, "");
-  return normalized.includes("PIPER") || normalized.includes("PA28");
+  return (
+    normalized.includes("PIPER") ||
+    normalized.includes("PA28") ||
+    normalized.includes("CESSNA152") ||
+    normalized.includes("C152")
+  );
 }
 
 function readGroundMinutes(root: HTMLElement, fallback: number) {
@@ -164,8 +169,8 @@ function updateFuelUnits(
     if (!stored) return;
 
     const next = showGallons
-      ? stored
-      : stored.replace(/\b(\d+)\(\d+\)\b/g, "$1");
+      ? stored.replace(/\b(\d+)\((\d+)\)\b/g, "$1 L ($2 US gal)")
+      : stored.replace(/\b(\d+)\((\d+)\)\b/g, "$1 L");
 
     if (node.nodeValue !== next) node.nodeValue = next;
   });
@@ -271,7 +276,7 @@ export function NavlogClientV2() {
 
       updateFuelUnits(
         root,
-        isPiperAircraft(nextAircraft),
+        usesUsGallons(nextAircraft),
         fuelOriginalsRef.current
       );
 
@@ -338,7 +343,7 @@ export function NavlogClientV2() {
           )
         : null}
       <span className="sr-only" aria-live="polite">
-        {isPiperAircraft(aircraft)
+        {usesUsGallons(aircraft)
           ? "Fuel shown in litres and US gallons."
           : "Fuel shown in litres."}
       </span>

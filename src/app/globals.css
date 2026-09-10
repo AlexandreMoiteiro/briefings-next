@@ -23,3 +23,81 @@ select,
 textarea {
   font: inherit;
 }
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+:focus-visible {
+  outline: 2px solid #18181b;
+  outline-offset: 2px;
+}
+
+.performance-consumer > div,
+.performance-consumer > div > div {
+  --consumer-card-border: #e4e4e7;
+}
+
+.performance-consumer section.rounded-3xl,
+.performance-consumer section[class*="rounded-3xl"] {
+  border-radius: 1rem !important;
+  border-color: var(--consumer-card-border) !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+.performance-consumer input,
+.performance-consumer select,
+.performance-consumer textarea {
+  min-height: 42px;
+  border-color: #d4d4d8 !important;
+}
+
+.performance-consumer h1 {
+  font-size: clamp(1.875rem, 4vw, 2.5rem) !important;
+  line-height: 1.08 !important;
+}
+
+.performance-consumer h2 {
+  letter-spacing: -0.015em;
+}
+
+.navlog-consumer [data-navlog-route-grid="true"] {
+  display: grid !important;
+  gap: 1rem !important;
+}
+
+.navlog-consumer [data-navlog-route-card="saved"] {
+  order: -3;
+  border-color: #d4d4d8 !important;
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] {
+  order: -2;
+}
+
+.navlog-consumer [data-navlog-route-card="current"] {
+  order: -1;
+}
+
+@media (min-width: 1280px) {
+  .navlog-consumer [data-navlog-route-grid="true"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  }
+
+  .navlog-consumer [data-navlog-route-card="saved"] {
+    grid-column: 1 / -1;
+  }
+
+  .navlog-consumer [data-navlog-saved-list="true"] {
+    display: grid !important;
+    max-height: none !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.75rem !important;
+    overflow: visible !important;
+  }
+}

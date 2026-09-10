@@ -1,7 +1,7 @@
 export type BriefingAircraftOverride = {
   enabled: boolean;
-  aircraftType: "Tecnam P2006T";
-  registration: "CS-EAQ" | "CS-EBX" | "D-GSEV";
+  aircraftType: "Tecnam P2006T" | "Cessna 152";
+  registration: "CS-EAQ" | "CS-EBX" | "D-GSEV" | "CS-AVC";
 };
 
 let missionObjectivesPdf: File | null = null;

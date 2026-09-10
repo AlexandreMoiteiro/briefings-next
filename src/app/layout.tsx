@@ -6,7 +6,7 @@ import { AppShell } from "@/components/app-shell";
 export const metadata: Metadata = {
   title: "Briefings",
   description:
-    "Flight briefing builder with NavLog, Performance, Mass & Balance, VFR Map and PDF generation.",
+    "Flight briefing, NavLog, performance and aviation map tools in one place.",
   icons: {
     icon: [
       { url: "/favicon.ico" },
@@ -23,7 +23,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="pt">
+    <html lang="en">
       <body>
         <AppShell>{children}</AppShell>
       </body>

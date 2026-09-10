@@ -2,41 +2,36 @@ export const navigationItems = [
   {
     title: "Briefing",
     href: "/briefing",
-    eyebrow: "PDF Builder",
-    description:
-      "Build a complete flight briefing package with weather, NOTAM, performance, FPL and route sections.",
-    details: ["Local PDF generation", "Ordered sections", "File previews"],
+    eyebrow: "Flight package",
+    description: "Assemble mission, weather, NOTAM, performance, FPL and route documents into one PDF.",
+    details: ["Mission", "Weather & NOTAM", "Final PDF"],
   },
   {
     title: "NavLog",
     href: "/navlog",
-    eyebrow: "Navigation",
-    description:
-      "Create an operational navigation log with route building, wind checks, headings, timings, fuel and EFOB.",
-    details: ["Wind confirmation", "Saved routes", "Fuel/EFOB review"],
+    eyebrow: "Route planning",
+    description: "Build or reuse a route, apply aircraft and wind data, review fuel and export the NavLog.",
+    details: ["Saved routes", "Wind & headings", "Fuel & EFOB"],
   },
   {
     title: "Performance",
     href: "/performance",
-    eyebrow: "M&B + Performance",
-    description:
-      "Calculate Mass & Balance, fuel planning and aerodrome performance for the selected aircraft.",
-    details: ["Aircraft-specific data", "MET/runway checks", "Template export"],
+    eyebrow: "M&B + performance",
+    description: "Calculate loading, fuel and runway performance for the selected aircraft.",
+    details: ["Mass & balance", "Aerodromes", "PDF export"],
   },
   {
     title: "Area Map",
     href: "/area-map",
-    eyebrow: "NOTAM areas",
-    description:
-      "Plot coordinate areas mentioned in NOTAMs so temporary restrictions and local areas are easier to visualise.",
-    details: ["DMS parser", "GeoJSON copy", "Saved areas"],
+    eyebrow: "NOTAM / GAMET",
+    description: "Plot coordinate areas, choose what is visible and export the map.",
+    details: ["GAMET coordinates", "Saved areas", "PDF map"],
   },
   {
     title: "Aviation Map",
     href: "/vfr-map",
-    eyebrow: "Portugal airspace",
-    description:
-      "Get a general view of Portuguese aviation data: aerodromes, VFR points, IFR fixes, navaids and map overlays.",
-    details: ["Portugal overview", "Search points", "Layer control"],
+    eyebrow: "Portugal",
+    description: "Search aerodromes, VFR points, IFR fixes and navaids on the aviation map.",
+    details: ["VFR chart", "Search", "Layers"],
   },
 ] as const;
