@@ -1,5 +1,4 @@
-import { getStoredExportIpHash } from "@/lib/export-access";
-import { supabase } from "@/lib/supabase/client";
+import { getAnonymousClientId } from "@/lib/export-access";
 
 export type UsageEventInput = {
   eventType:
@@ -13,38 +12,18 @@ export type UsageEventInput = {
   title?: string;
   aircraftType?: string;
   registration?: string;
+  routeName?: string;
   summary?: Record<string, unknown>;
   payload?: Record<string, unknown>;
 };
 
-const CLIENT_ID_STORAGE_KEY = "briefings_anonymous_client_id";
 const PILOT_NAME_STORAGE_KEY = "briefings_performance_pilot_name";
+const USAGE_EVENT_ENDPOINT = "/api/usage-events";
 
 function cleanText(value: unknown, maxLength: number) {
   if (value === null || value === undefined) return null;
-
   const text = String(value).trim();
-
-  if (!text) return null;
-
-  return text.slice(0, maxLength);
-}
-
-function getAnonymousClientId() {
-  if (typeof window === "undefined") return "";
-
-  const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
-
-  if (existing) return existing;
-
-  const id =
-    typeof crypto !== "undefined" && "randomUUID" in crypto
-      ? crypto.randomUUID()
-      : `client_${Date.now()}_${Math.random().toString(16).slice(2)}`;
-
-  window.localStorage.setItem(CLIENT_ID_STORAGE_KEY, id);
-
-  return id;
+  return text ? text.slice(0, maxLength) : null;
 }
 
 function getPilotName() {
@@ -94,35 +73,71 @@ function safeJson(value: unknown, maxChars: number) {
 
     return JSON.parse(json) as Record<string, unknown>;
   } catch {
-    return {
-      invalid: true,
-    };
+    return { invalid: true };
   }
+}
+
+function createEventId() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
+
+  return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (character) => {
+    const random = Math.floor(Math.random() * 16);
+    const value = character === "x" ? random : (random & 0x3) | 0x8;
+    return value.toString(16);
+  });
 }
 
 export async function logUsageEvent(event: UsageEventInput) {
   if (typeof window === "undefined") return;
-  if (!supabase) return;
 
   const enrichedEvent = enrichExportEvent(event);
+  const body = JSON.stringify({
+    eventId: createEventId(),
+    clientId: getAnonymousClientId(),
+    eventType: enrichedEvent.eventType,
+    module: enrichedEvent.module,
+    title: cleanText(enrichedEvent.title, 240),
+    aircraftType: cleanText(enrichedEvent.aircraftType, 120),
+    registration: cleanText(enrichedEvent.registration, 80),
+    routeName: cleanText(enrichedEvent.routeName, 160),
+    summary: safeJson(enrichedEvent.summary, 12_000),
+    payload: safeJson(enrichedEvent.payload, 38_000),
+    url: cleanText(window.location.href, 1_000),
+  });
+
+  // sendBeacon is deliberately the first choice. On iOS/iPadOS, opening or
+  // saving a PDF can background the page immediately; beacon is designed to
+  // survive that transition. The body is kept below the browser keepalive
+  // budget, and the server uses eventId to make retries idempotent.
+  try {
+    if (typeof navigator.sendBeacon === "function") {
+      const queued = navigator.sendBeacon(
+        USAGE_EVENT_ENDPOINT,
+        new Blob([body], { type: "application/json" })
+      );
+      if (queued) return;
+    }
+  } catch {
+    // Fall through to keepalive fetch.
+  }
 
   try {
-    const { error } = await supabase.from("app_usage_events").insert({
-      client_id: getAnonymousClientId(),
-      event_type: enrichedEvent.eventType,
-      module: enrichedEvent.module,
-      title: cleanText(enrichedEvent.title, 240),
-      aircraft_type: cleanText(enrichedEvent.aircraftType, 120),
-      registration: cleanText(enrichedEvent.registration, 80),
-      summary: safeJson(enrichedEvent.summary, 20_000),
-      payload: safeJson(enrichedEvent.payload, 100_000),
-      user_agent: cleanText(navigator.userAgent, 500),
-      url: cleanText(window.location.href, 1_000),
-      ip_hash: cleanText(getStoredExportIpHash(), 128),
+    const response = await fetch(USAGE_EVENT_ENDPOINT, {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body,
+      credentials: "same-origin",
+      keepalive: true,
+      cache: "no-store",
     });
 
-    if (error) {
-      console.warn("Usage event could not be logged:", error.message);
+    if (!response.ok) {
+      console.warn(`Usage event could not be logged (${response.status}).`);
     }
   } catch (error) {
     console.warn("Usage event could not be logged:", error);
