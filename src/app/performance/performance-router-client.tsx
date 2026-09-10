@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo, useState } from "react";
 import {
   AircraftPicker,
@@ -43,6 +44,22 @@ const OPTIONS: readonly AircraftChoice<PerformanceMode>[] = [
   },
 ];
 
+function PerformanceHeader() {
+  return (
+    <header className="border-b border-zinc-200 pb-6">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+        Flight preparation · Step 1
+      </p>
+      <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
+        Performance
+      </h1>
+      <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600 sm:text-base">
+        Complete aircraft loading, fuel planning and runway performance first. The NavLog and final Briefing come afterwards.
+      </p>
+    </header>
+  );
+}
+
 export function PerformanceRouterClient() {
   const [mode, setMode] = useState<PerformanceMode | null>(null);
   const selected = useMemo(
@@ -52,33 +69,40 @@ export function PerformanceRouterClient() {
 
   if (!mode || !selected) {
     return (
-      <AircraftPicker
-        title="Performance"
-        choices={OPTIONS}
-        onSelect={setMode}
-      />
+      <div className="space-y-5">
+        <PerformanceHeader />
+        <AircraftPicker
+          title="Choose aircraft"
+          choices={OPTIONS}
+          onSelect={setMode}
+        />
+      </div>
     );
   }
 
   return (
     <div className="space-y-5">
+      <PerformanceHeader />
+
       <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex min-w-0 items-center gap-4">
-            <div className="flex h-16 w-28 shrink-0 items-center justify-center rounded-xl bg-zinc-50 p-2">
-              <img
-                src={selected.imageSrc}
+            <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50 p-2">
+              <Image
+                src={selected.imageSrc || "/aircraft/p2006.png"}
                 alt={selected.imageAlt || selected.name}
-                className="max-h-full max-w-full object-contain"
+                fill
+                sizes="112px"
+                className="object-contain p-2"
               />
             </div>
             <div className="min-w-0">
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
-                Performance
+                Selected aircraft
               </p>
-              <h1 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-950">
+              <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-950">
                 {selected.name}
-              </h1>
+              </h2>
               <p className="mt-1 truncate text-xs text-zinc-500">
                 {selected.registrations}
               </p>
@@ -95,7 +119,7 @@ export function PerformanceRouterClient() {
         </div>
       </section>
 
-      <div className="performance-consumer">
+      <div className="performance-consumer space-y-4">
         {mode === "P2006T" ? <P2006TMissionClient /> : null}
         {mode === "P2008" ? (
           <StandardAircraftClientV4 aircraft="Tecnam P2008" />
