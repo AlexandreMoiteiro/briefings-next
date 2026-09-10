@@ -72,7 +72,10 @@ function decoratePerformance(root: HTMLElement) {
     recognized.push(section);
 
     const title = SECTION_TITLES[kind];
-    if (title && heading.textContent !== title) heading.textContent = title;
+    if (title) {
+      heading.dataset.performanceTitle = title;
+      heading.setAttribute("aria-label", title);
+    }
   });
 
   const counts = new Map<HTMLElement, number>();
