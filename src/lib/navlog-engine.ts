@@ -325,9 +325,9 @@ function buildTocTodNodes(
           lon: pos.lon,
           alt: b.alt,
           src: "CALC",
-          note: `TOC\\n+${dFrom.toFixed(1)} ${compactNavToken(
+          note: `TOC\n+${dFrom.toFixed(1)} ${compactNavToken(
             fromLabel
-          )}\\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
+          )}\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
           stopMin: 0,
           useGlobalWind: true,
           windFrom: setup.windFrom,
@@ -360,9 +360,9 @@ function buildTocTodNodes(
           lon: pos.lon,
           alt: a.alt,
           src: "CALC",
-          note: `TOD\\n+${dFrom.toFixed(1)} ${compactNavToken(
+          note: `TOD\n+${dFrom.toFixed(1)} ${compactNavToken(
             fromLabel
-          )}\\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
+          )}\n-${dTo.toFixed(1)} ${compactNavToken(toLabel)}`,
           stopMin: 0,
           useGlobalWind: true,
           windFrom: setup.windFrom,
@@ -470,7 +470,7 @@ export function buildNavlogCalculation(
 
   const legs: NavlogLeg[] = [];
   let timeCursor = Math.max(0, setup.taxiMin * 60);
-  const taxiFuelL = rf((setup.taxiFuelFlowLh * setup.taxiMin) / 60);
+  const taxiFuelL = rf((setup.fuelFlowLh * setup.taxiMin) / 60);
   let efob = Math.max(0, setup.startEfob - taxiFuelL);
 
   for (let index = 0; index < nodes.length - 1; index += 1) {
@@ -682,7 +682,7 @@ export function navlogLegsToCsv(legs: NavlogLeg[]) {
     leg.efobStartL,
     leg.efobEndL,
     `${String(leg.windFrom).padStart(3, "0")}/${leg.windKt}`,
-    leg.tracking.replaceAll("\\n", " "),
+    leg.tracking.replaceAll("\n", " "),
   ]);
 
   return [header, ...rows]
@@ -691,7 +691,7 @@ export function navlogLegsToCsv(legs: NavlogLeg[]) {
         .map((cell) => `"${String(cell).replaceAll('"', '""')}"`)
         .join(",")
     )
-    .join("\\n");
+    .join("\n");
 }
 
 export function navlogSummary(legs: NavlogLeg[]) {
