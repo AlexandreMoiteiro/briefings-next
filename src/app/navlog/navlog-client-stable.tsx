@@ -155,14 +155,32 @@ function decorateRouteWorkspace(root: HTMLElement) {
   const searchInput = savedCard.querySelector(
     'input[placeholder="Search saved routes..."]'
   );
-  const loadPanel = searchInput?.closest("div.mt-4") as HTMLElement | null;
-  const savedList = loadPanel
-    ? (Array.from(loadPanel.querySelectorAll("div")).find((element) =>
+  const browsePanel = searchInput?.closest("div.mt-4") as HTMLElement | null;
+  if (browsePanel) browsePanel.dataset.navlogSavedPanel = "browse";
+
+  const savedList = browsePanel
+    ? (Array.from(browsePanel.querySelectorAll("div")).find((element) =>
         element.className.includes("max-h-80")
       ) as HTMLElement | undefined)
     : undefined;
-
   if (savedList) savedList.dataset.navlogSavedList = "true";
+
+  const nameInput = savedCard.querySelector(
+    'input[placeholder="Saved route name..."]'
+  );
+  const managePanel = nameInput?.closest("div.mt-4") as HTMLElement | null;
+  if (managePanel) {
+    managePanel.dataset.navlogSavedPanel = "manage";
+
+    const selectedLabel = Array.from(managePanel.querySelectorAll("p")).find(
+      (paragraph) => normalize(paragraph.textContent) === "selected saved route"
+    );
+    const selectionCard = selectedLabel?.closest("div.rounded-xl") as HTMLElement | null;
+    if (selectionCard) selectionCard.dataset.navlogSavedSelection = "true";
+
+    const danger = managePanel.querySelector("details") as HTMLElement | null;
+    if (danger) danger.dataset.navlogSavedDanger = "true";
+  }
 
   return true;
 }
