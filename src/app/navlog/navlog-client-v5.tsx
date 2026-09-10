@@ -7,33 +7,24 @@ import {
   type MouseEvent as ReactMouseEvent,
 } from "react";
 import { NavlogClientV3 } from "./navlog-client-v3";
-import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 import { checkExportAccess } from "@/lib/export-access";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
 
-const AIRCRAFT = [
-  "Tecnam P2006T",
-  "Tecnam P2008",
-  "Piper PA-28",
-  "Cessna 152",
-  "Custom aircraft",
+const AIRCRAFT_OPTIONS = [
+  { value: "Tecnam P2006T", detail: "Twin engine" },
+  { value: "Tecnam P2008", detail: "Single engine" },
+  { value: "Piper PA-28", detail: "Single engine" },
+  { value: "Cessna 152", detail: "CS-AVC" },
+  { value: "Custom aircraft", detail: "Enter your own values" },
 ] as const;
 
+const AIRCRAFT = AIRCRAFT_OPTIONS.map((item) => item.value);
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
-const LITERS_PER_US_GALLON = 3.785411784;
 
 type Aircraft = (typeof AIRCRAFT)[number];
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
-}
-
-function fuelDual(liters: number) {
-  return `${liters.toFixed(1)} L (${(liters / LITERS_PER_US_GALLON).toFixed(1)} US gal)`;
-}
-
-function fuelRateDual(litersPerHour: number) {
-  return `${litersPerHour.toFixed(1)} L/h (${(litersPerHour / LITERS_PER_US_GALLON).toFixed(1)} US gal/h)`;
 }
 
 function findAircraftSelect(root: HTMLElement) {
@@ -72,7 +63,7 @@ function changeSelect(select: HTMLSelectElement, value: Aircraft) {
   return true;
 }
 
-function refreshProfileHelp(root: HTMLElement) {
+function cleanProfileHelp(root: HTMLElement) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
   while (walker.nextNode()) nodes.push(walker.currentNode as Text);
@@ -80,17 +71,23 @@ function refreshProfileHelp(root: HTMLElement) {
   for (const node of nodes) {
     const value = node.nodeValue ?? "";
 
-    if (value.includes("Tecnam/Piper profiles load generic starting values")) {
+    if (
+      value.includes("Tecnam/Piper profiles load generic starting values") ||
+      value.includes("Cessna 152 / CS-AVC uses its dedicated preset")
+    ) {
       node.nodeValue = value.replace(
-        /Tecnam\/Piper profiles load generic starting values, including 20 min ground\/taxi time and default climb\/descent rates\. Review TAS, ROC\/ROD, fuel flow, EFOB and ground\/taxi time for the actual aircraft, mission and conditions\./,
-        "Aircraft profiles load starting values. Cessna 152 / CS-AVC uses its dedicated preset; Tecnam and Piper keep their existing presets. Review TAS, ROC/ROD, fuel flow, EFOB and ground/taxi time for the actual mission and conditions."
+        /Tecnam\/Piper profiles load generic starting values, including 20 min ground\/taxi time and default climb\/descent rates\. Review TAS, ROC\/ROD, fuel flow, EFOB and ground\/taxi time for the actual aircraft, mission and conditions\.|Aircraft profiles load starting values\. Cessna 152 \/ CS-AVC uses its dedicated preset; Tecnam and Piper keep their existing presets\. Review TAS, ROC\/ROD, fuel flow, EFOB and ground\/taxi time for the actual mission and conditions\./,
+        "Review the loaded aircraft values for this flight and adjust speeds, fuel flow, EFOB or ground time when required."
       );
     }
 
-    if (value.includes("The Tecnam/Piper default is 20 minutes")) {
+    if (
+      value.includes("The Tecnam/Piper default is 20 minutes") ||
+      value.includes("The Cessna 152 default is 10 minutes")
+    ) {
       node.nodeValue = value.replace(
-        /The Tecnam\/Piper default is 20 minutes, but this is only a starting point\./,
-        "The Cessna 152 default is 10 minutes; Tecnam and Piper remain at 20 minutes. These are starting points."
+        /The Tecnam\/Piper default is 20 minutes, but this is only a starting point\.|The Cessna 152 default is 10 minutes; Tecnam and Piper remain at 20 minutes\. These are starting points\./,
+        "Use the planned ground/taxi time for this flight."
       );
     }
   }
@@ -115,7 +112,7 @@ export function NavlogClientV5() {
       if (!select) return;
 
       hideOriginalAircraftControl(select);
-      refreshProfileHelp(root);
+      cleanProfileHelp(root);
 
       const value = select.value as Aircraft;
       if (AIRCRAFT.includes(value)) {
@@ -185,69 +182,98 @@ export function NavlogClientV5() {
     });
   }
 
+  function openSavedRoutes() {
+    const root = rootRef.current;
+    if (!root) return;
+
+    const heading = Array.from(root.querySelectorAll("h2, h3, h4")).find((element) =>
+      /saved routes/i.test(element.textContent ?? "")
+    );
+    const target = heading?.closest("section") ?? heading;
+    target?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   return (
     <div className="space-y-4" onClickCapture={handleClickCapture}>
-      <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm">
-        <div className="grid gap-4 md:grid-cols-2">
-          <label className="block space-y-2">
+      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            Start here
+          </p>
+          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
+            Choose the aircraft first
+          </h1>
+          <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-600">
+            Aircraft selection controls the speeds, fuel assumptions and calculations used by the NavLog.
+          </p>
+        </div>
+
+        <div className="mt-5 grid gap-2 sm:grid-cols-2 xl:grid-cols-5" role="radiogroup" aria-label="Aircraft">
+          {AIRCRAFT_OPTIONS.map((option) => {
+            const selected = aircraft === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => choose(option.value)}
+                className={[
+                  "rounded-2xl border px-4 py-3 text-left transition",
+                  selected
+                    ? "border-zinc-950 bg-zinc-950 text-white shadow-sm"
+                    : "border-zinc-200 bg-zinc-50 text-zinc-800 hover:border-zinc-400 hover:bg-white",
+                ].join(" ")}
+              >
+                <span className="block text-sm font-semibold">{option.value}</span>
+                <span className={[
+                  "mt-1 block text-xs",
+                  selected ? "text-zinc-300" : "text-zinc-500",
+                ].join(" ")}>
+                  {option.detail}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="mt-5 grid gap-3 lg:grid-cols-2">
+          <label className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
             <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Pilot name <span className="text-red-600">*</span>
+              Pilot name · required to export
             </span>
             <input
               value={pilotName}
               onChange={(event) => updatePilotName(event.target.value)}
               required
               autoComplete="name"
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
-              placeholder="Required for download"
+              className="mt-2 w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
+              placeholder="Your real name"
             />
-            <span className="block text-xs leading-5 text-zinc-500">
-              This tool is provided free and openly to everyone. To help keep it free, available to all and protected from abuse, enter your real name. Deliberately false names may result in this device being blocked from PDF exports.
+            <span className="mt-2 block text-xs leading-5 text-zinc-500">
+              Use your real name. It is required for exports so this free tool can remain open and abuse can be managed. Deliberately false names may block this device from PDF exports.
             </span>
           </label>
 
-          <label className="block space-y-2">
-            <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-              Aircraft
-            </span>
-            <select
-              value={aircraft}
-              onChange={(event) => choose(event.target.value as Aircraft)}
-              className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none focus:border-zinc-950"
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
+              Reusing a route?
+            </p>
+            <h2 className="mt-1 text-base font-semibold text-zinc-950">
+              Start from Saved routes
+            </h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              Saved routes are reusable route templates. Load one first, then update the flight-specific wind, altitude, timings and fuel.
+            </p>
+            <button
+              type="button"
+              onClick={openSavedRoutes}
+              className="mt-3 rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800"
             >
-              {AIRCRAFT.map((option) => (
-                <option key={option} value={option}>
-                  {option}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        {aircraft === "Cessna 152" ? (
-          <div className="mt-4 rounded-2xl border border-sky-200 bg-sky-50 p-4 text-sm text-sky-950">
-            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-              <p className="font-semibold">CS-AVC preset</p>
-              <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">
-                Taxi {C152_NAVLOG_PRESET.taxiMin} min
-              </p>
-            </div>
-            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-4">
-              <p className="rounded-xl bg-white px-3 py-2">
-                TAS C/C/D: {C152_NAVLOG_PRESET.climbTasKt} / {C152_NAVLOG_PRESET.cruiseTasKt} / {C152_NAVLOG_PRESET.descentTasKt} kt
-              </p>
-              <p className="rounded-xl bg-white px-3 py-2">
-                Fuel flow: {fuelRateDual(C152_NAVLOG_PRESET.fuelFlowLh)}
-              </p>
-              <p className="rounded-xl bg-white px-3 py-2">
-                ROC / ROD: {C152_NAVLOG_PRESET.rocFpm} / {C152_NAVLOG_PRESET.rodFpm} fpm
-              </p>
-              <p className="rounded-xl bg-white px-3 py-2">
-                EFOB: {fuelDual(C152_NAVLOG_PRESET.startEfobL)} · {C152_NAVLOG_PRESET.defaultAltitudeFt} ft
-              </p>
-            </div>
+              Open Saved routes
+            </button>
           </div>
-        ) : null}
+        </div>
       </section>
 
       <div ref={rootRef}>

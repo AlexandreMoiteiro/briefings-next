@@ -2,41 +2,49 @@ export const navigationItems = [
   {
     title: "Briefing",
     href: "/briefing",
-    eyebrow: "PDF Builder",
+    eyebrow: "Flight package",
     description:
-      "Build a complete flight briefing package with weather, NOTAM, performance, FPL and route sections.",
-    details: ["Local PDF generation", "Ordered sections", "File previews"],
+      "Assemble the documents for a flight in one ordered briefing PDF.",
+    details: ["Mission", "Weather & NOTAM", "Final PDF"],
   },
   {
     title: "NavLog",
     href: "/navlog",
-    eyebrow: "Navigation",
+    eyebrow: "Route planning",
     description:
-      "Create an operational navigation log with route building, wind checks, headings, timings, fuel and EFOB.",
-    details: ["Wind confirmation", "Saved routes", "Fuel/EFOB review"],
+      "Build a route, apply wind and aircraft data, review fuel and export the NavLog.",
+    details: ["Saved routes", "Wind & headings", "Fuel & EFOB"],
   },
   {
     title: "Performance",
     href: "/performance",
-    eyebrow: "M&B + Performance",
+    eyebrow: "M&B + performance",
     description:
-      "Calculate Mass & Balance, fuel planning and aerodrome performance for the selected aircraft.",
-    details: ["Aircraft-specific data", "MET/runway checks", "Template export"],
+      "Calculate loading, fuel and runway performance for the selected aircraft.",
+    details: ["Mass & balance", "Aerodromes", "PDF export"],
   },
   {
     title: "Area Map",
     href: "/area-map",
-    eyebrow: "NOTAM areas",
+    eyebrow: "NOTAM / GAMET",
     description:
-      "Plot coordinate areas mentioned in NOTAMs so temporary restrictions and local areas are easier to visualise.",
-    details: ["DMS parser", "GeoJSON copy", "Saved areas"],
+      "Turn coordinate descriptions into a map and save or export the affected area.",
+    details: ["GAMET coordinates", "Saved areas", "PDF map"],
   },
   {
     title: "Aviation Map",
     href: "/vfr-map",
-    eyebrow: "Portugal airspace",
+    eyebrow: "Portugal",
     description:
-      "Get a general view of Portuguese aviation data: aerodromes, VFR points, IFR fixes, navaids and map overlays.",
-    details: ["Portugal overview", "Search points", "Layer control"],
+      "Search aerodromes, VFR points, IFR fixes and navaids on the aviation map.",
+    details: ["VFR chart", "Search", "Layers"],
+  },
+  {
+    title: "Feedback",
+    href: "/feedback",
+    eyebrow: "Suggestions & questions",
+    description:
+      "Send a suggestion, ask a question or report something that is not working as expected.",
+    details: ["Suggestion", "Question", "Problem"],
   },
 ] as const;

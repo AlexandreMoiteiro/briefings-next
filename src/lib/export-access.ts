@@ -8,7 +8,7 @@ type ExportAccessResponse = {
   ipHash: string | null;
 };
 
-function getAnonymousClientId() {
+export function getAnonymousClientId() {
   if (typeof window === "undefined") return "";
 
   const existing = window.localStorage.getItem(CLIENT_ID_STORAGE_KEY);
@@ -52,33 +52,72 @@ export async function checkExportAccess(): Promise<ExportAccessResponse> {
       ipHash,
     };
   } catch {
-    // Export remains available if the abuse-check service itself is unavailable.
     return { allowed: true, ipHash: null };
   }
+}
+
+async function submitUnblockDirect(input: {
+  clientId: string;
+  ipHash: string;
+  pilotName: string;
+  message: string;
+  pageUrl: string | null;
+}) {
+  if (!supabase) throw new Error("Messaging service unavailable.");
+
+  const { error } = await supabase.rpc("submit_export_unblock_request", {
+    p_client_id: input.clientId,
+    p_ip_hash: input.ipHash || null,
+    p_pilot_name: input.pilotName,
+    p_message: input.message,
+    p_page_url: input.pageUrl,
+    p_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+  });
+
+  if (error) throw new Error(error.message || "Could not send the request.");
 }
 
 export async function submitExportUnblockRequest(input: {
   pilotName: string;
   message: string;
 }) {
-  if (!supabase) throw new Error("Messaging service unavailable.");
-
   const clientId = getAnonymousClientId();
   const ipHash = getStoredExportIpHash();
   const pilotName = input.pilotName.trim();
   const message = input.message.trim();
+  const pageUrl = typeof window !== "undefined" ? window.location.href : null;
 
   if (!pilotName) throw new Error("Enter your real name.");
   if (message.length < 5) throw new Error("Write a short message to the admin.");
 
-  const { error } = await supabase.rpc("submit_export_unblock_request", {
-    p_client_id: clientId,
-    p_ip_hash: ipHash || null,
-    p_pilot_name: pilotName,
-    p_message: message,
-    p_page_url: typeof window !== "undefined" ? window.location.href : null,
-    p_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
-  });
+  try {
+    const response = await fetch("/api/unblock-request", {
+      method: "POST",
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        clientId,
+        ipHash: ipHash || null,
+        pilotName,
+        message,
+        pageUrl,
+      }),
+    });
 
-  if (error) throw new Error(error.message || "Could not send the request.");
+    if (response.ok) return;
+
+    const data = (await response.json().catch(() => ({}))) as { error?: string };
+    if (response.status < 500) {
+      throw new Error(data.error || "Could not send the request.");
+    }
+  } catch (error) {
+    if (error instanceof Error && !/fetch|network|failed/i.test(error.message)) {
+      throw error;
+    }
+  }
+
+  await submitUnblockDirect({ clientId, ipHash, pilotName, message, pageUrl });
 }

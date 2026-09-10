@@ -14,7 +14,10 @@ html {
 
 body {
   margin: 0;
+  min-width: 320px;
   background: #fafafa;
+  color: #18181b;
+  -webkit-font-smoothing: antialiased;
 }
 
 button,
@@ -22,4 +25,33 @@ input,
 select,
 textarea {
   font: inherit;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgba(24, 24, 27, 0.18);
+  outline-offset: 2px;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled,
+button:disabled {
+  cursor: not-allowed;
+}
+
+::selection {
+  background: #e4e4e7;
+  color: #18181b;
 }

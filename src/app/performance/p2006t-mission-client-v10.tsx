@@ -18,20 +18,20 @@ const DOWNLOADS: Array<{
 }> = [
   {
     mode: "form",
-    title: "Download do formulário",
-    description: "Apenas o formulário oficial de M&B e Performance preenchido.",
+    title: "Official form",
+    description: "Completed Mass & Balance and Performance form.",
   },
   {
     mode: "kneeboard",
-    title: "Download do kneeboard",
+    title: "Kneeboard",
     description:
-      "Uma única página com pesos, combustível, enroute e os valores ASDR/OEI de cada aeródromo.",
+      "One-page operational summary with weights, fuel, enroute and aerodrome ASDR/OEI values.",
   },
   {
     mode: "tables",
-    title: "Download das tabelas",
+    title: "AFM tables",
     description:
-      "Tabelas AFM com a célula conservadora usada, contas simples e evidência OEI por aeródromo.",
+      "Source tables with the values used, interpolation calculations and OEI evidence for each aerodrome.",
   },
 ];
 
@@ -145,16 +145,14 @@ export function P2006TMissionClientV10() {
 
     const onFinished = () => {
       if (busyModeRef.current) {
-        releaseDownload("PDF gerado e download iniciado.");
+        releaseDownload("PDF generated and download started.");
       }
     };
 
     const onFailed = (event: Event) => {
       if (!busyModeRef.current) return;
       const custom = event as CustomEvent<{ message?: string }>;
-      releaseDownload(
-        custom.detail?.message || "Não foi possível gerar o PDF."
-      );
+      releaseDownload(custom.detail?.message || "Could not generate the PDF.");
     };
 
     sync();
@@ -202,16 +200,15 @@ export function P2006TMissionClientV10() {
     watchdogRef.current = window.setTimeout(() => {
       if (busyModeRef.current) {
         releaseDownload(
-          "A geração demorou demasiado tempo. Os downloads foram libertados para tentar novamente."
+          "PDF generation took too long. The download buttons are available again so you can retry."
         );
       }
     }, 90_000);
 
-    // Let the busy card paint before starting the client-side PDF work.
     window.setTimeout(() => {
       const current = originalButtonRef.current;
       if (!current || current.disabled) {
-        releaseDownload("O gerador PDF ainda não está disponível.");
+        releaseDownload("The PDF generator is not ready yet.");
         return;
       }
       current.click();
@@ -224,12 +221,14 @@ export function P2006TMissionClientV10() {
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
-            Downloads PDF
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+            Export
+          </p>
+          <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">
+            PDF downloads
           </h2>
           <p className="mt-1 max-w-3xl text-sm leading-6 text-zinc-500">
-            Gere cada documento operacional em separado. Assim que o browser
-            inicia o download, os três botões ficam novamente disponíveis.
+            Choose the document you need. Each option uses the same calculation currently shown above.
           </p>
         </div>
 
@@ -242,10 +241,10 @@ export function P2006TMissionClientV10() {
                 type="button"
                 onClick={() => download(downloadOption.mode)}
                 disabled={!available || Boolean(busyMode)}
-                className="rounded-2xl border border-zinc-200 bg-white p-4 text-left transition hover:border-zinc-500 hover:bg-zinc-50 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
+                className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4 text-left transition hover:border-zinc-500 hover:bg-white disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"
               >
                 <span className="block text-sm font-semibold text-zinc-950">
-                  {busy ? "A gerar..." : downloadOption.title}
+                  {busy ? "Generating…" : downloadOption.title}
                 </span>
                 <span className="mt-1 block text-xs leading-5 text-zinc-500">
                   {downloadOption.description}
@@ -256,9 +255,8 @@ export function P2006TMissionClientV10() {
         </div>
 
         {!available && !busyMode ? (
-          <p className="mt-3 text-sm text-amber-700">
-            Complete os quatro cálculos de aeródromo e a massa vazia do avião
-            antes de fazer os downloads.
+          <p className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-sm text-amber-800">
+            Complete the four aerodrome calculations and aircraft empty-mass data before downloading.
           </p>
         ) : null}
         {status ? <p className="mt-3 text-sm text-zinc-600">{status}</p> : null}
