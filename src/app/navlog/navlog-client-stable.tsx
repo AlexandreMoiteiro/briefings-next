@@ -99,17 +99,28 @@ function hideBaseAircraftControl(select: HTMLSelectElement) {
   label.setAttribute("aria-hidden", "true");
 }
 
+function setDisplayLabel(element: HTMLElement, label: string) {
+  element.dataset.navlogDisplayLabel = label;
+  element.setAttribute("aria-label", label);
+}
+
 function decorateRouteWorkspace(root: HTMLElement) {
-  const routeHeading = Array.from(root.querySelectorAll("h2")).find((heading) =>
-    normalize(heading.textContent).includes("build the route, manage saved routes")
-  );
+  const previouslyDecorated = root.querySelector(
+    '[data-navlog-route-title="true"]'
+  ) as HTMLElement | null;
+  const routeHeading =
+    previouslyDecorated ??
+    (Array.from(root.querySelectorAll("h2")).find((heading) =>
+      normalize(heading.textContent).includes("build the route, manage saved routes")
+    ) as HTMLElement | undefined);
   if (!routeHeading) return false;
 
   const section = routeHeading.closest("section") as HTMLElement | null;
   if (!section) return false;
 
   section.dataset.navlogRouteWorkspace = "true";
-  routeHeading.textContent = "Saved routes, route builder and working route";
+  routeHeading.dataset.navlogRouteTitle = "true";
+  setDisplayLabel(routeHeading, "Saved routes, route builder and working route");
 
   const grid = Array.from(section.querySelectorAll("div.grid")).find((candidate) => {
     const text = normalize(candidate.textContent);
@@ -142,14 +153,16 @@ function decorateRouteWorkspace(root: HTMLElement) {
   if (!savedCard) return false;
   savedCard.dataset.navlogRouteCard = "saved";
 
-  const savedHeading = savedCard.querySelector("h3");
-  if (savedHeading) savedHeading.textContent = "Choose, save or update routes";
+  const savedHeading = savedCard.querySelector("h3") as HTMLElement | null;
+  if (savedHeading) {
+    setDisplayLabel(savedHeading, "Choose, save or update routes");
+  }
 
   Array.from(savedCard.querySelectorAll("button")).forEach((button) => {
     const text = normalize(button.textContent);
-    if (text === "load") button.textContent = "Browse routes";
-    if (text === "manage") button.textContent = "Save / edit";
-    if (text === "load into map/table") button.textContent = "Use route";
+    if (text === "load") setDisplayLabel(button, "Browse routes");
+    if (text === "manage") setDisplayLabel(button, "Save / edit");
+    if (text === "load into map/table") setDisplayLabel(button, "Use route");
   });
 
   const searchInput = savedCard.querySelector(
