@@ -1,12 +1,14 @@
 "use client";
 
+import { NavlogStudio } from "./navlog-studio";
+
 /**
  * Legacy compatibility export.
  *
- * The previous NavLog UI accumulated route cards, workflow cards and DOM/CSS
- * decorators. The active page now uses NavlogStudio directly through
- * navlog-client-stable.tsx. Keep this small alias temporarily so any old local
- * imports keep compiling while the versioned NavLog wrappers are removed in a
- * later cleanup.
+ * The active NavLog page no longer uses this component. Keep a zero-argument
+ * wrapper temporarily so older versioned NavLog modules continue to type-check
+ * until they are deleted in a dedicated cleanup.
  */
-export { NavlogStudio as NavlogClient } from "./navlog-studio";
+export function NavlogClient() {
+  return <NavlogStudio aircraftType="Tecnam P2006T" />;
+}
