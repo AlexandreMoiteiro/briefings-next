@@ -151,14 +151,20 @@ textarea {
   border-color: #e4e4e7 !important;
 }
 
-.performance-workspace [data-performance-section] > div:first-child h1,
-.performance-workspace [data-performance-section] > div:first-child h2,
-.performance-workspace [data-performance-section] > h1,
-.performance-workspace [data-performance-section] > h2 {
-  color: #18181b !important;
-  font-size: 1.125rem !important;
-  font-weight: 600 !important;
-  line-height: 1.5rem !important;
+.performance-workspace [data-performance-title] {
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+.performance-workspace [data-performance-title]::after {
+  content: attr(data-performance-title);
+  display: block;
+  color: #18181b;
+  font-size: 1.125rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+  letter-spacing: -0.015em;
 }
 
 /* C152 used to look like a separate blue/orange product. Keep its aircraft-specific
@@ -196,6 +202,42 @@ textarea {
    inside the base calculator while keeping the base calculation/state intact. */
 .navlog-base-ui > div > section:first-child {
   display: none !important;
+}
+
+.navlog-consumer h2[data-navlog-display-label],
+.navlog-consumer h3[data-navlog-display-label],
+.navlog-consumer button[data-navlog-display-label] {
+  color: transparent !important;
+  font-size: 0 !important;
+  line-height: 0 !important;
+}
+
+.navlog-consumer h2[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: block;
+  color: #18181b;
+  font-size: 1.25rem;
+  font-weight: 600;
+  line-height: 1.75rem;
+  letter-spacing: -0.015em;
+}
+
+.navlog-consumer h3[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: block;
+  color: #18181b;
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5rem;
+}
+
+.navlog-consumer button[data-navlog-display-label]::after {
+  content: attr(data-navlog-display-label);
+  display: inline;
+  color: currentColor;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1rem;
 }
 
 .navlog-consumer [data-navlog-route-workspace="true"] {
