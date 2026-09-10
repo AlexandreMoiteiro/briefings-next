@@ -6,7 +6,8 @@ export type UsageEventInput = {
     | "performance_export"
     | "briefing_export"
     | "area_map_save"
-    | "area_map_update";
+    | "area_map_update"
+    | "area_map_pdf_export";
   module: "navlog" | "performance" | "briefing" | "area-map";
   title?: string;
   aircraftType?: string;

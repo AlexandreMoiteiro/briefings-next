@@ -10,6 +10,13 @@ function fieldInput(root: HTMLElement, labelText: string) {
   return label?.querySelector<HTMLInputElement>("input") ?? null;
 }
 
+function fieldSelect(root: HTMLElement, labelText: string) {
+  const label = Array.from(root.querySelectorAll<HTMLLabelElement>("label")).find(
+    (candidate) => candidate.textContent?.includes(labelText)
+  );
+  return label?.querySelector<HTMLSelectElement>("select") ?? null;
+}
+
 function numberFromText(text: string, expressions: RegExp[]) {
   for (const expression of expressions) {
     const match = text.match(expression);
@@ -31,12 +38,11 @@ function calculationCard(root: HTMLElement) {
 
 function compactCalculation(root: HTMLElement) {
   const card = calculationCard(root);
-  if (!card || card.querySelector("[data-p2006-compact-calculation='true']")) {
-    return;
-  }
+  if (!card) return;
 
   const body = card.querySelector<HTMLDivElement>(":scope > div");
   if (!body) return;
+  if (body.querySelector("[data-p2006-compact-calculation='true']")) return;
 
   const originalText = body.textContent ?? "";
   const finalDistance = numberFromText(originalText, [
@@ -57,6 +63,9 @@ function compactCalculation(root: HTMLElement) {
   const slope = Number(fieldInput(root, "Runway slope %")?.value ?? 0);
   const paved = Boolean(fieldInput(root, "Paved runway")?.checked);
   const interpolatedDistance = tableDistance ?? finalDistance;
+
+  card.dataset.p2006FinalDistance = String(finalDistance);
+  card.dataset.p2006TableDistance = String(interpolatedDistance);
 
   const corrections: string[] = [];
   if (wind > 0) {
@@ -113,8 +122,112 @@ function performanceSection(root: HTMLElement) {
   return heading?.closest<HTMLElement>("section") ?? null;
 }
 
+function joinCorrections(parts: string[]) {
+  if (!parts.length) return "no additional";
+  if (parts.length === 1) return parts[0];
+  return `${parts.slice(0, -1).join(", ")} and ${parts.at(-1)}`;
+}
+
+function addEngineWording(root: HTMLElement) {
+  const section = performanceSection(root);
+  const aside = section?.querySelector<HTMLElement>("aside");
+  const calculation = calculationCard(root);
+  if (!aside || !calculation) return;
+
+  const finalDistance = Number(calculation.dataset.p2006FinalDistance);
+  const tableDistance = Number(calculation.dataset.p2006TableDistance);
+  if (!Number.isFinite(finalDistance) || !Number.isFinite(tableDistance)) return;
+
+  const sourceSelect = fieldSelect(root, "Source page");
+  const resultSelect = fieldSelect(root, "Result");
+  const sourceText = sourceSelect?.selectedOptions[0]?.textContent?.trim() ?? "";
+  const resultText = resultSelect?.selectedOptions[0]?.textContent?.trim() ?? "";
+  const weight = Number(sourceText.match(/(\d+)\s*kg/i)?.[1] ?? 0);
+  const isTakeoff = /^T\/O/i.test(sourceText);
+  const isFiftyFeet = /50\s*ft/i.test(resultText);
+  const altitude = Number(fieldInput(root, "Pressure altitude ft")?.value ?? 0);
+  const temperature = Number(fieldInput(root, "OAT °C")?.value ?? 0);
+  const wind = Number(fieldInput(root, "Wind kt")?.value ?? 0);
+  const slope = Number(fieldInput(root, "Runway slope %")?.value ?? 0);
+  const paved = Boolean(fieldInput(root, "Paved runway")?.checked);
+  const corrections: string[] = [];
+
+  if (paved) corrections.push("paved-runway");
+  if (wind > 0) corrections.push(`${formatNumber(wind)} kt headwind`);
+  if (wind < 0) corrections.push(`${formatNumber(Math.abs(wind))} kt tailwind`);
+  if (slope > 0) corrections.push(`about ${formatNumber(slope, 1)}% upslope`);
+  if (slope < 0) corrections.push(`about ${formatNumber(Math.abs(slope), 1)}% downslope`);
+
+  const operation = isTakeoff ? "Take-off" : "Landing";
+  const condition = isFiftyFeet
+    ? isTakeoff
+      ? "to 50 ft"
+      : "from 50 ft"
+    : "ground roll";
+  const marginDistance = Math.round(finalDistance * 1.25);
+  const paragraphs = [
+    `Let's consider about ${formatNumber(weight)} kg, ${formatNumber(
+      altitude,
+      0
+    )} ft pressure altitude and ${formatNumber(temperature, 1)} C.`,
+    `The surrounding AFM cells are interpolated to ${formatNumber(
+      tableDistance,
+      1
+    )} m and the ${joinCorrections(corrections)} corrections are applied.`,
+    isFiftyFeet
+      ? `${operation} ${condition} is about ${formatNumber(
+          finalDistance
+        )} m; with the OM buffer (x1.25), use ${formatNumber(
+          marginDistance
+        )} m.`
+      : `${operation} ${condition} is about ${formatNumber(
+          finalDistance
+        )} m before the operator margin.`,
+  ];
+  const signature = paragraphs.join("\n");
+  const existing = aside.querySelector<HTMLElement>(
+    "[data-p2006-engine-wording='true']"
+  );
+  if (existing?.dataset.signature === signature) return;
+
+  const card = document.createElement("section");
+  card.dataset.p2006EngineWording = "true";
+  card.dataset.signature = signature;
+  card.className =
+    "rounded-3xl border border-indigo-200 bg-indigo-50 p-5 shadow-sm";
+
+  const eyebrow = document.createElement("p");
+  eyebrow.className =
+    "text-xs font-semibold uppercase tracking-[0.16em] text-indigo-700";
+  eyebrow.textContent = "Performance engine wording";
+  card.appendChild(eyebrow);
+
+  const title = document.createElement("h3");
+  title.className = "mt-1 text-lg font-semibold text-zinc-950";
+  title.textContent = "Texto que aparecerá no motor de performance";
+  card.appendChild(title);
+
+  const note = document.createElement("p");
+  note.className = "mt-2 text-xs leading-5 text-zinc-600";
+  note.textContent =
+    "Atualiza com os valores do preview para poderes validar a redação antes de a usar no PDF e no cálculo operacional.";
+  card.appendChild(note);
+
+  const textBox = document.createElement("div");
+  textBox.className =
+    "mt-3 space-y-2 rounded-2xl border border-indigo-200 bg-white p-4 text-sm leading-6 text-zinc-800";
+  paragraphs.forEach((paragraph) => {
+    const line = document.createElement("p");
+    line.textContent = paragraph;
+    textBox.appendChild(line);
+  });
+  card.appendChild(textBox);
+
+  existing?.replaceWith(card);
+  if (!existing) aside.appendChild(card);
+}
+
 function polishPreview(root: HTMLElement) {
-  // The form image already explains the geometry; keep only the plotted path.
   root
     .querySelectorAll<HTMLDivElement>(
       "div.pointer-events-none.absolute.bottom-3.left-3"
@@ -123,7 +236,6 @@ function polishPreview(root: HTMLElement) {
       summary.style.display = "none";
     });
 
-  // Keep the applicable maximum-mass line, but remove its redundant label.
   root.querySelectorAll<SVGTextElement>("svg text").forEach((label) => {
     if (!/^Max\s+\d+\s+kg$/i.test(label.textContent?.trim() ?? "")) return;
     label.style.display = "none";
@@ -133,7 +245,6 @@ function polishPreview(root: HTMLElement) {
     }
   });
 
-  // The coloured cells alone are enough: remove numbered badges and arrows.
   root.querySelectorAll<SVGGElement>("svg g").forEach((group) => {
     const label = group.querySelector<SVGTextElement>(":scope > text");
     if (!label || !/^[1-4]$/.test(label.textContent?.trim() ?? "")) return;
@@ -147,7 +258,6 @@ function polishPreview(root: HTMLElement) {
     .querySelectorAll<SVGLineElement>("svg line[marker-end]")
     .forEach((line) => line.style.setProperty("display", "none"));
 
-  // Remove only the green interpolation point from the performance table.
   performanceSection(root)
     ?.querySelectorAll<SVGCircleElement>("svg circle")
     .forEach((circle) => {
@@ -158,6 +268,7 @@ function polishPreview(root: HTMLElement) {
     });
 
   compactCalculation(root);
+  addEngineWording(root);
 }
 
 export function P2006TCalculationPreview() {

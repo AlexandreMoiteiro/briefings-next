@@ -1,6 +1,5 @@
 "use client";
 
-import { logUsageEvent } from "@/lib/usage-events";
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -11,6 +10,12 @@ import {
   type AreaMapPoint,
   type SavedArea,
 } from "@/lib/area-map-saved-areas";
+import { parseCoordinateAreaInput } from "@/lib/coordinate-area-parser";
+import {
+  buildAreaMapPdf,
+  type AreaMapPdfSource,
+} from "@/lib/pdf/area-map-pdf";
+import { logUsageEvent } from "@/lib/usage-events";
 
 const CoordinateLeafletMap = dynamic(
   () =>
@@ -36,125 +41,6 @@ export type CoordinateMapArea = {
   isDraft?: boolean;
   isSelected?: boolean;
 };
-
-type ParseResult = {
-  points: ParsedCoordinatePoint[];
-  warnings: string[];
-  errors: string[];
-};
-
-function dmsToDecimal(
-  degrees: number,
-  minutes: number,
-  seconds: number,
-  direction: string
-) {
-  const value = degrees + minutes / 60 + seconds / 3600;
-  return direction === "S" || direction === "W" ? -value : value;
-}
-
-function parseLatitude(raw: string, warnings: string[]) {
-  const clean = raw.replace(/\s+/g, "").toUpperCase();
-  const direction = clean.slice(-1);
-  let digits = clean.slice(0, -1);
-
-  if (!["N", "S"].includes(direction)) {
-    throw new Error(`Invalid latitude: ${raw}`);
-  }
-
-  if (digits.length === 5) {
-    const fixed = `3${digits}`;
-    warnings.push(`${clean} interpretado como ${fixed}${direction}.`);
-    digits = fixed;
-  }
-
-  if (digits.length !== 6) {
-    throw new Error(`Invalid latitude: ${raw}`);
-  }
-
-  const degrees = Number(digits.slice(0, 2));
-  const minutes = Number(digits.slice(2, 4));
-  const seconds = Number(digits.slice(4, 6));
-
-  if (degrees > 90 || minutes > 59 || seconds > 59) {
-    throw new Error(`Invalid latitude: ${raw}`);
-  }
-
-  return dmsToDecimal(degrees, minutes, seconds, direction);
-}
-
-function parseLongitude(raw: string, warnings: string[]) {
-  const clean = raw.replace(/\s+/g, "").toUpperCase();
-  const direction = clean.slice(-1);
-  let digits = clean.slice(0, -1);
-
-  if (!["E", "W"].includes(direction)) {
-    throw new Error(`Invalid longitude: ${raw}`);
-  }
-
-  if (digits.length === 6) {
-    const fixed = `0${digits}`;
-    warnings.push(`${clean} interpretado como ${fixed}${direction}.`);
-    digits = fixed;
-  }
-
-  if (digits.length !== 7) {
-    throw new Error(`Invalid longitude: ${raw}`);
-  }
-
-  const degrees = Number(digits.slice(0, 3));
-  const minutes = Number(digits.slice(3, 5));
-  const seconds = Number(digits.slice(5, 7));
-
-  if (degrees > 180 || minutes > 59 || seconds > 59) {
-    throw new Error(`Invalid longitude: ${raw}`);
-  }
-
-  return dmsToDecimal(degrees, minutes, seconds, direction);
-}
-
-function parseCoordinateInput(input: string): ParseResult {
-  const warnings: string[] = [];
-  const errors: string[] = [];
-  const points: ParsedCoordinatePoint[] = [];
-
-  const cleaned = input
-    .toUpperCase()
-    .replace(/[–—]/g, "-")
-    .replace(/,/g, " ");
-
-  const regex = /(\d{5,6}\s*[NS])\s*(\d{6,7}\s*[EW])/gi;
-  const matches = Array.from(cleaned.matchAll(regex));
-
-  if (!matches.length && input.trim()) {
-    errors.push(
-      "No valid coordinates found. Use DDMMSSN DDDMMSSW format."
-    );
-  }
-
-  matches.forEach((match, index) => {
-    const latRaw = match[1];
-    const lonRaw = match[2];
-
-    try {
-      const lat = parseLatitude(latRaw, warnings);
-      const lon = parseLongitude(lonRaw, warnings);
-
-      points.push({
-        lat,
-        lon,
-        label: `P${index + 1}`,
-        raw: `${latRaw.replace(/\s+/g, "")} ${lonRaw.replace(/\s+/g, "")}`,
-      });
-    } catch (error) {
-      errors.push(
-        error instanceof Error ? error.message : "Invalid coordinate."
-      );
-    }
-  });
-
-  return { points, warnings, errors };
-}
 
 function closePolygon(points: ParsedCoordinatePoint[]) {
   if (points.length < 3) return points;
@@ -206,6 +92,30 @@ function buildGeoJson(points: ParsedCoordinatePoint[]) {
   );
 }
 
+function safeFilename(value: string) {
+  return (
+    value
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^a-zA-Z0-9_-]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 80) || "area-map"
+  );
+}
+
+function downloadPdf(bytes: Uint8Array, filename: string) {
+  const blob = new Blob([Uint8Array.from(bytes)], { type: "application/pdf" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+}
+
 export function AreaMapClient() {
   const [input, setInput] = useState("");
   const [areaName, setAreaName] = useState("");
@@ -213,9 +123,12 @@ export function AreaMapClient() {
   const [selectedAreaId, setSelectedAreaId] = useState("");
   const [areasStatus, setAreasStatus] = useState("");
   const [copyStatus, setCopyStatus] = useState("");
+  const [pdfStatus, setPdfStatus] = useState("");
+  const [pdfSource, setPdfSource] = useState<AreaMapPdfSource>("standard");
   const [busy, setBusy] = useState(false);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
-  const parsed = useMemo(() => parseCoordinateInput(input), [input]);
+  const parsed = useMemo(() => parseCoordinateAreaInput(input), [input]);
   const geoJson = useMemo(() => buildGeoJson(parsed.points), [parsed.points]);
 
   const canSave =
@@ -298,6 +211,7 @@ export function AreaMapClient() {
   function selectSavedArea(id: string) {
     setSelectedAreaId(id);
     setAreasStatus("");
+    setPdfStatus("");
 
     if (!id) {
       setAreaName("");
@@ -318,6 +232,7 @@ export function AreaMapClient() {
     setAreaName("");
     setInput("");
     setAreasStatus("");
+    setPdfStatus("");
   }
 
   async function saveNewArea() {
@@ -433,7 +348,56 @@ export function AreaMapClient() {
 
     await navigator.clipboard.writeText(geoJson);
     setCopyStatus("GeoJSON copied.");
-    setTimeout(() => setCopyStatus(""), 1600);
+    window.setTimeout(() => setCopyStatus(""), 1_600);
+  }
+
+  async function exportPdf() {
+    if (!mapAreas.length || pdfBusy) return;
+
+    setPdfBusy(true);
+    setPdfStatus("Preparing PDF and map tiles...");
+
+    try {
+      const bytes = await buildAreaMapPdf({
+        areas: mapAreas,
+        source: pdfSource,
+        title: areaName.trim() || "Coordinate areas",
+      });
+      const date = new Date().toISOString().slice(0, 10);
+      const baseName =
+        mapAreas.length === 1
+          ? safeFilename(mapAreas[0].name)
+          : `area-map-${date}`;
+
+      downloadPdf(bytes, `${baseName}.pdf`);
+      setPdfStatus("PDF downloaded.");
+
+      void logUsageEvent({
+        eventType: "area_map_pdf_export",
+        module: "area-map",
+        title: areaName.trim() || "Area Map PDF",
+        summary: {
+          areas: mapAreas.length,
+          points: mapAreas.reduce((total, area) => total + area.points.length, 0),
+          mapSource: pdfSource,
+        },
+        payload: {
+          areas: mapAreas.map((area) => ({
+            id: area.id,
+            name: area.name,
+            points: area.points,
+          })),
+          mapSource: pdfSource,
+        },
+      });
+    } catch (error) {
+      console.error(error);
+      setPdfStatus(
+        error instanceof Error ? error.message : "Could not generate the PDF."
+      );
+    } finally {
+      setPdfBusy(false);
+    }
   }
 
   return (
@@ -446,11 +410,14 @@ export function AreaMapClient() {
         </h1>
 
         <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-          Paste DMS coordinates from NOTAMs, plot the area on the map, and save it for quick visual review.
+          Paste coordinates from NOTAM, GAMET or SIGMET messages, plot the
+          affected areas, and export the complete map to PDF.
         </p>
 
         <div className="mt-5 max-w-4xl rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
-          <strong>Use case:</strong> when a NOTAM defines an area by coordinates, paste those coordinates here to visualise the affected area instead of reading it only as text.
+          <strong>Accepted formats:</strong> compact DMS (384221N 0090058W),
+          ICAO degrees/minutes (3842N 00900W or N3842 W00900), DMS with
+          symbols/spaces, decimal hemispheres, and signed decimal pairs.
         </div>
       </section>
 
@@ -482,7 +449,7 @@ export function AreaMapClient() {
 
               <label className="space-y-2">
                 <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                  Nome
+                  Name
                 </span>
                 <input
                   value={areaName}
@@ -546,27 +513,55 @@ export function AreaMapClient() {
               <textarea
                 value={input}
                 onChange={(event) => setInput(event.target.value)}
-                rows={8}
+                rows={9}
                 className="w-full rounded-2xl border border-zinc-200 bg-white px-3 py-3 font-mono text-sm leading-6 outline-none transition focus:border-zinc-400"
-                placeholder="384221N 0090058W - 384226N 0090052W - ..."
+                placeholder={
+                  "SIGMET polygon examples:\nN3842 W00900 - N3900 W00830\n384221N 0090058W - 384226N 0090052W"
+                }
               />
             </label>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
               <button
                 type="button"
                 onClick={copyGeoJson}
                 disabled={!geoJson}
-                className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
+                className="rounded-xl border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-50 disabled:text-zinc-300"
               >
                 Copy GeoJSON
               </button>
+
+              <button
+                type="button"
+                onClick={exportPdf}
+                disabled={!mapAreas.length || pdfBusy}
+                className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
+              >
+                {pdfBusy ? "Generating PDF..." : "Download PDF"}
+              </button>
             </div>
 
-            {copyStatus ? (
-              <p className="mt-3 text-sm font-medium text-zinc-600">
-                {copyStatus}
-              </p>
+            <label className="mt-3 block space-y-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
+                PDF background
+              </span>
+              <select
+                value={pdfSource}
+                onChange={(event) =>
+                  setPdfSource(event.target.value as AreaMapPdfSource)
+                }
+                className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
+              >
+                <option value="standard">OpenTopoMap</option>
+                <option value="vfr-chart">VFR chart</option>
+              </select>
+            </label>
+
+            {copyStatus || pdfStatus ? (
+              <div className="mt-3 space-y-1 text-sm font-medium text-zinc-600">
+                {copyStatus ? <p>{copyStatus}</p> : null}
+                {pdfStatus ? <p>{pdfStatus}</p> : null}
+              </div>
             ) : null}
           </div>
 
