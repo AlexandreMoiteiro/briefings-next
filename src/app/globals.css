@@ -106,8 +106,6 @@ textarea {
   border-bottom-width: 0;
 }
 
-/* The four aircraft now read in the same operational order. The decorator only adds
-   semantic data attributes; the calculations and aircraft-specific fields stay intact. */
 .performance-workspace [data-performance-section-container="true"] {
   display: flex !important;
   flex-direction: column !important;
@@ -175,8 +173,6 @@ textarea {
   letter-spacing: -0.015em;
 }
 
-/* C152 used to look like a separate blue/orange product. Keep its aircraft-specific
-   reference values but render them as a compact neutral strip after loading. */
 .performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] {
   padding: 1rem !important;
   background: #ffffff !important;
@@ -206,8 +202,6 @@ textarea {
 
 /* NavLog -------------------------------------------------------------------------- */
 
-/* The stable shell already provides the page header. Hide the legacy duplicate header
-   inside the base calculator while keeping the base calculation/state intact. */
 .navlog-base-ui > div > section:first-child {
   display: none !important;
 }
@@ -223,9 +217,9 @@ textarea {
   content: attr(data-navlog-display-label);
   display: block;
   color: #18181b;
-  font-size: 1.25rem;
+  font-size: 1.125rem;
   font-weight: 600;
-  line-height: 1.75rem;
+  line-height: 1.5rem;
   letter-spacing: -0.015em;
 }
 
@@ -233,9 +227,9 @@ textarea {
   content: attr(data-navlog-display-label);
   display: block;
   color: #18181b;
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 600;
-  line-height: 1.5rem;
+  line-height: 1.4rem;
 }
 
 .navlog-consumer button[data-navlog-display-label]::after {
@@ -247,8 +241,34 @@ textarea {
   line-height: 1rem;
 }
 
+.navlog-consumer [data-navlog-planning-flow="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1rem !important;
+}
+
 .navlog-consumer [data-navlog-route-workspace="true"] {
+  order: 10;
+  margin: 0 !important;
   border-color: #d4d4d8 !important;
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-map-toolbar="true"] {
+  order: 20;
+  margin: 0 !important;
+  box-shadow: none !important;
+}
+
+.navlog-consumer [data-navlog-layers-panel="true"] {
+  order: 25;
+  margin: 0 !important;
+}
+
+.navlog-consumer [data-navlog-map-canvas="true"] {
+  order: 30;
+  margin: 0 !important;
+  min-width: 0;
 }
 
 .navlog-consumer [data-navlog-route-grid="true"] {
@@ -257,44 +277,42 @@ textarea {
   gap: 1rem !important;
 }
 
-.navlog-consumer [data-navlog-route-card="saved"] {
-  order: -3;
-  border-color: #d4d4d8 !important;
-  background: #ffffff !important;
-}
-
-.navlog-consumer [data-navlog-route-card="saved"] > p:first-child {
-  color: #52525b !important;
+.navlog-consumer [data-navlog-route-card="build"],
+.navlog-consumer [data-navlog-route-card="saved"],
+.navlog-consumer [data-navlog-route-card="current"] {
+  min-width: 0;
+  border-color: #e4e4e7 !important;
+  background: #fafafa !important;
 }
 
 .navlog-consumer [data-navlog-route-card="build"] {
-  order: -2;
-  border-color: #e4e4e7 !important;
-  background: #fafafa !important;
+  order: 10;
 }
 
-.navlog-consumer [data-navlog-route-card="build"] [class*="text-violet-"] {
-  color: #52525b !important;
-}
-
-.navlog-consumer [data-navlog-route-card="build"] button[class*="bg-violet-"] {
-  background: #18181b !important;
-  color: #ffffff !important;
+.navlog-consumer [data-navlog-route-card="saved"] {
+  order: 20;
 }
 
 .navlog-consumer [data-navlog-route-card="current"] {
-  order: -1;
-  border-color: #e4e4e7 !important;
-  background: #fafafa !important;
+  order: 30;
 }
 
+.navlog-consumer [data-navlog-route-card="build"] [class*="text-violet-"],
+.navlog-consumer [data-navlog-route-card="saved"] [class*="text-zinc-"],
 .navlog-consumer [data-navlog-route-card="current"] [class*="text-sky-"] {
   color: #52525b !important;
 }
 
+.navlog-consumer [data-navlog-route-card="build"] button[class*="bg-violet-"],
 .navlog-consumer [data-navlog-route-card="current"] [class*="bg-sky-950"] {
   background: #18181b !important;
   color: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] textarea,
+.navlog-consumer [data-navlog-route-card="build"] input,
+.navlog-consumer [data-navlog-route-card="saved"] input {
+  border-color: #d4d4d8 !important;
 }
 
 .navlog-consumer [data-navlog-saved-panel="browse"] {
@@ -303,113 +321,48 @@ textarea {
 
 .navlog-consumer [data-navlog-saved-list="true"] {
   display: grid !important;
-  max-height: none !important;
+  max-height: 320px !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  gap: 0.75rem !important;
-  overflow: visible !important;
-  padding-right: 0 !important;
+  gap: 0.5rem !important;
+  overflow-y: auto !important;
+  padding-right: 0.25rem !important;
 }
 
 .navlog-consumer [data-navlog-saved-list="true"] article {
-  display: flex;
-  min-height: 126px;
-  flex-direction: column;
-  justify-content: space-between;
+  min-height: 0 !important;
+  padding: 0.75rem !important;
+}
+
+.navlog-consumer [data-navlog-saved-list="true"] article button {
+  margin-top: 0.5rem !important;
+  padding-top: 0.45rem !important;
+  padding-bottom: 0.45rem !important;
 }
 
 .navlog-consumer [data-navlog-saved-selection="true"] {
   border-color: #d4d4d8 !important;
-  background: #fafafa !important;
+  background: #ffffff !important;
 }
 
 .navlog-consumer [data-navlog-saved-danger="true"] {
   margin-top: 0 !important;
 }
 
-/* Area Map ------------------------------------------------------------------------ */
-
-.area-map-layout-v2 > div > section.grid {
-  grid-template-columns: minmax(0, 1fr) !important;
-}
-
-.area-map-layout-v2 > div > section.grid > main {
-  order: -1;
-  min-width: 0;
-}
-
-.area-map-layout-v2 > div > section.grid > main > div.sticky {
-  position: static !important;
-  top: auto !important;
-}
-
-.area-map-layout-v2 > div > section.grid > aside {
-  order: 0;
-}
-
-@media (min-width: 768px) {
-  .navlog-consumer [data-navlog-saved-list="true"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
 @media (min-width: 1024px) {
-  .navlog-consumer [data-navlog-saved-panel="manage"] {
-    display: grid !important;
-    grid-template-columns: minmax(0, 1.35fr) minmax(280px, 0.65fr);
-    align-items: start;
-    gap: 0.75rem 1rem;
-  }
-
-  .navlog-consumer [data-navlog-saved-panel="manage"] > label {
-    grid-column: 1;
-    grid-row: 1;
-  }
-
-  .navlog-consumer [data-navlog-saved-panel="manage"] > div.grid {
-    grid-column: 1;
-    grid-row: 2;
-  }
-
-  .navlog-consumer [data-navlog-saved-selection="true"] {
-    grid-column: 2;
-    grid-row: 1;
-  }
-
-  .navlog-consumer [data-navlog-saved-danger="true"] {
-    grid-column: 2;
-    grid-row: 2 / span 2;
-  }
-
-  .navlog-consumer [data-navlog-saved-panel="manage"] > p {
-    grid-column: 1;
-  }
-
-  .area-map-layout-v2 > div > section.grid > aside {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    align-items: start;
-    gap: 1rem;
-  }
-
-  .area-map-layout-v2 > div > section.grid > aside > * + * {
-    margin-top: 0 !important;
-  }
-
-  .area-map-layout-v2 > div > section.grid > aside > section:nth-child(n + 3) {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (min-width: 1280px) {
   .navlog-consumer [data-navlog-route-grid="true"] {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr) !important;
+    align-items: start;
+  }
+
+  .navlog-consumer [data-navlog-route-card="build"] {
+    grid-column: 1;
   }
 
   .navlog-consumer [data-navlog-route-card="saved"] {
-    grid-column: 1 / -1;
+    grid-column: 2;
   }
 
-  .navlog-consumer [data-navlog-saved-list="true"] {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  .navlog-consumer [data-navlog-route-card="current"] {
+    grid-column: 1 / -1;
   }
 }
