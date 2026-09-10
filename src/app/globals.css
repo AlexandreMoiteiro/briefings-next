@@ -43,7 +43,9 @@ textarea {
 }
 
 .performance-consumer section.rounded-3xl,
-.performance-consumer section[class*="rounded-3xl"] {
+.performance-consumer section[class*="rounded-3xl"],
+.performance-consumer section.rounded-2xl,
+.performance-consumer section[class*="rounded-2xl"] {
   border-radius: 1rem !important;
   border-color: var(--consumer-card-border) !important;
   box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
@@ -54,6 +56,7 @@ textarea {
 .performance-consumer textarea {
   min-height: 42px;
   border-color: #d4d4d8 !important;
+  border-radius: 0.75rem !important;
 }
 
 .performance-consumer h1 {
@@ -63,6 +66,14 @@ textarea {
 
 .performance-consumer h2 {
   letter-spacing: -0.015em;
+}
+
+.performance-consumer table {
+  border-collapse: collapse;
+}
+
+.performance-consumer thead {
+  background: #f4f4f5;
 }
 
 .navlog-consumer [data-navlog-route-grid="true"] {
@@ -82,6 +93,41 @@ textarea {
 
 .navlog-consumer [data-navlog-route-card="current"] {
   order: -1;
+}
+
+.area-map-layout-v2 > div > section.grid {
+  grid-template-columns: minmax(0, 1fr) !important;
+}
+
+.area-map-layout-v2 > div > section.grid > main {
+  order: -1;
+  min-width: 0;
+}
+
+.area-map-layout-v2 > div > section.grid > main > div.sticky {
+  position: static !important;
+  top: auto !important;
+}
+
+.area-map-layout-v2 > div > section.grid > aside {
+  order: 0;
+}
+
+@media (min-width: 1024px) {
+  .area-map-layout-v2 > div > section.grid > aside {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    align-items: start;
+    gap: 1rem;
+  }
+
+  .area-map-layout-v2 > div > section.grid > aside > * + * {
+    margin-top: 0 !important;
+  }
+
+  .area-map-layout-v2 > div > section.grid > aside > section:nth-child(n + 3) {
+    grid-column: 1 / -1;
+  }
 }
 
 @media (min-width: 1280px) {
