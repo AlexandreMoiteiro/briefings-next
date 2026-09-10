@@ -200,9 +200,10 @@ textarea {
   }
 }
 
-/* NavLog -------------------------------------------------------------------------- */
+/* NavLog workbench ----------------------------------------------------------------- */
 
-.navlog-base-ui > div > section:first-child {
+.navlog-base-ui > div > section:first-child,
+.navlog-consumer [data-navlog-legacy-workflow="true"] {
   display: none !important;
 }
 
@@ -241,48 +242,103 @@ textarea {
   line-height: 1rem;
 }
 
+.navlog-base-ui input,
+.navlog-base-ui select,
+.navlog-base-ui textarea {
+  border-color: #d4d4d8 !important;
+}
+
+/* Mission setup is deliberately quieter and roomier than the old eight-column form. */
+.navlog-consumer [data-navlog-setup="true"] {
+  scroll-margin-top: 1rem;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 1rem !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child {
+  margin-bottom: 0.9rem !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child p:first-child {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div:first-child p:last-child {
+  margin-top: 0.2rem !important;
+  max-width: 760px;
+  font-size: 0.8rem !important;
+  line-height: 1.25rem !important;
+}
+
+.navlog-consumer [data-navlog-setup-notice="true"] {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] > div.grid {
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 0.85rem 1rem !important;
+}
+
+.navlog-consumer [data-navlog-setup="true"] label,
+.navlog-consumer [data-navlog-setup="true"] [data-navlog-performance-toggle="true"] {
+  min-width: 0;
+}
+
+.navlog-consumer [data-navlog-setup-field="wind-check"] {
+  border-color: #d4d4d8 !important;
+  background: #fafafa !important;
+}
+
+.navlog-consumer [data-navlog-performance-toggle="true"] button {
+  min-height: 42px;
+  background: #fafafa !important;
+}
+
+/* Planning flow: source first, map second, review third. */
 .navlog-consumer [data-navlog-planning-flow="true"] {
   display: flex !important;
   flex-direction: column !important;
-  gap: 1rem !important;
+  gap: 0.85rem !important;
 }
 
 .navlog-consumer [data-navlog-route-workspace="true"] {
   order: 10;
+  scroll-margin-top: 1rem;
   margin: 0 !important;
+  border-radius: 1rem !important;
   border-color: #d4d4d8 !important;
   background: #ffffff !important;
+  padding: 1rem !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
 }
 
-.navlog-consumer [data-navlog-map-toolbar="true"] {
-  order: 20;
-  margin: 0 !important;
-  box-shadow: none !important;
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child {
+  margin-bottom: 0.85rem !important;
 }
 
-.navlog-consumer [data-navlog-layers-panel="true"] {
-  order: 25;
-  margin: 0 !important;
-}
-
-.navlog-consumer [data-navlog-map-canvas="true"] {
-  order: 30;
-  margin: 0 !important;
-  min-width: 0;
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child > div:first-child > p,
+.navlog-consumer [data-navlog-route-workspace="true"] > div:first-child > p {
+  display: none !important;
 }
 
 .navlog-consumer [data-navlog-route-grid="true"] {
   display: grid !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  gap: 1rem !important;
+  gap: 0.85rem !important;
 }
 
 .navlog-consumer [data-navlog-route-card="build"],
 .navlog-consumer [data-navlog-route-card="saved"],
 .navlog-consumer [data-navlog-route-card="current"] {
   min-width: 0;
+  border-radius: 0.9rem !important;
   border-color: #e4e4e7 !important;
   background: #fafafa !important;
+  padding: 0.9rem !important;
 }
 
 .navlog-consumer [data-navlog-route-card="build"] {
@@ -295,6 +351,13 @@ textarea {
 
 .navlog-consumer [data-navlog-route-card="current"] {
   order: 30;
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] > p:first-child,
+.navlog-consumer [data-navlog-route-card="saved"] > p:first-child,
+.navlog-consumer [data-navlog-route-card="current"] > p:first-child {
+  display: none !important;
 }
 
 .navlog-consumer [data-navlog-route-card="build"] [class*="text-violet-"],
@@ -303,40 +366,52 @@ textarea {
   color: #52525b !important;
 }
 
-.navlog-consumer [data-navlog-route-card="build"] button[class*="bg-violet-"],
-.navlog-consumer [data-navlog-route-card="current"] [class*="bg-sky-950"] {
-  background: #18181b !important;
-  color: #ffffff !important;
-}
-
+.navlog-consumer [data-navlog-route-card="build"] [class*="border-violet-"],
 .navlog-consumer [data-navlog-route-card="build"] textarea,
 .navlog-consumer [data-navlog-route-card="build"] input,
 .navlog-consumer [data-navlog-route-card="saved"] input {
   border-color: #d4d4d8 !important;
 }
 
+.navlog-consumer [data-navlog-route-card="build"] [class*="bg-violet-"],
+.navlog-consumer [data-navlog-route-card="build"] button[class*="bg-violet-"] {
+  background: #18181b !important;
+  color: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="build"] [class*="bg-white/70"],
+.navlog-consumer [data-navlog-route-card="current"] [class*="bg-white/70"] {
+  background: #ffffff !important;
+}
+
+.navlog-consumer [data-navlog-route-card="current"] [class*="bg-sky-950"] {
+  background: #18181b !important;
+  color: #ffffff !important;
+}
+
 .navlog-consumer [data-navlog-saved-panel="browse"] {
-  padding-top: 0.25rem;
+  padding-top: 0.15rem;
 }
 
 .navlog-consumer [data-navlog-saved-list="true"] {
   display: grid !important;
-  max-height: 320px !important;
+  max-height: 280px !important;
   grid-template-columns: minmax(0, 1fr) !important;
-  gap: 0.5rem !important;
+  gap: 0.45rem !important;
   overflow-y: auto !important;
   padding-right: 0.25rem !important;
 }
 
 .navlog-consumer [data-navlog-saved-list="true"] article {
   min-height: 0 !important;
-  padding: 0.75rem !important;
+  border-radius: 0.75rem !important;
+  padding: 0.65rem !important;
 }
 
 .navlog-consumer [data-navlog-saved-list="true"] article button {
-  margin-top: 0.5rem !important;
-  padding-top: 0.45rem !important;
-  padding-bottom: 0.45rem !important;
+  margin-top: 0.45rem !important;
+  padding-top: 0.4rem !important;
+  padding-bottom: 0.4rem !important;
 }
 
 .navlog-consumer [data-navlog-saved-selection="true"] {
@@ -348,9 +423,69 @@ textarea {
   margin-top: 0 !important;
 }
 
+/* The map has its own compact mode bar. Manual point mode is surfaced from the top dock. */
+.navlog-consumer [data-navlog-map-toolbar="true"] {
+  order: 20;
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 0.75rem 1rem !important;
+  box-shadow: none !important;
+}
+
+.navlog-consumer [data-navlog-map-toolbar="true"] p:first-child {
+  display: none !important;
+}
+
+.navlog-consumer [data-navlog-layers-panel="true"] {
+  order: 25;
+  scroll-margin-top: 1rem;
+  margin: 0 !important;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  background: #ffffff !important;
+  padding: 0.9rem !important;
+  box-shadow: none !important;
+}
+
+.navlog-consumer [data-navlog-manual-control="true"] {
+  border-color: #18181b !important;
+  background: #ffffff !important;
+  box-shadow: inset 0 0 0 1px #18181b;
+}
+
+.navlog-consumer [data-navlog-reference-control="true"] {
+  background: #fafafa !important;
+}
+
+.navlog-consumer [data-navlog-map-canvas="true"] {
+  order: 30;
+  scroll-margin-top: 1rem;
+  margin: 0 !important;
+  min-width: 0;
+}
+
+.navlog-consumer [data-navlog-review="true"] {
+  scroll-margin-top: 1rem;
+  border-radius: 1rem !important;
+  border-color: #e4e4e7 !important;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 0.04) !important;
+}
+
+@media (min-width: 768px) {
+  .navlog-consumer [data-navlog-setup="true"] > div.grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  }
+
+  .navlog-consumer [data-navlog-setup-field="wind-check"] {
+    grid-column: span 2;
+  }
+}
+
 @media (min-width: 1024px) {
   .navlog-consumer [data-navlog-route-grid="true"] {
-    grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr) !important;
+    grid-template-columns: minmax(0, 1.2fr) minmax(320px, 0.8fr) !important;
     align-items: start;
   }
 
@@ -364,5 +499,15 @@ textarea {
 
   .navlog-consumer [data-navlog-route-card="current"] {
     grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 1280px) {
+  .navlog-consumer [data-navlog-setup="true"] > div.grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  }
+
+  .navlog-consumer [data-navlog-setup-field="wind-check"] {
+    grid-column: span 2;
   }
 }
