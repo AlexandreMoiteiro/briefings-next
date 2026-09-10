@@ -62,7 +62,7 @@ const AIRCRAFT_CHOICES: readonly AircraftChoice<Aircraft>[] = [
 
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
 const PAGE_DESCRIPTION =
-  "Choose the aircraft, load or build the route, confirm wind and fuel, then review the calculated NavLog before the final Briefing.";
+  "Choose the aircraft, set the flight details, build or load the route, check it on the map, then review the NavLog before the final Briefing.";
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -120,7 +120,49 @@ function decorateRouteWorkspace(root: HTMLElement) {
 
   section.dataset.navlogRouteWorkspace = "true";
   routeHeading.dataset.navlogRouteTitle = "true";
-  setDisplayLabel(routeHeading, "Saved routes, route builder and working route");
+  setDisplayLabel(routeHeading, "Build or load the route");
+
+  const planningFlow = section.parentElement;
+  if (planningFlow instanceof HTMLElement) {
+    planningFlow.dataset.navlogPlanningFlow = "true";
+
+    const siblingSections = Array.from(planningFlow.children).filter(
+      (child): child is HTMLElement => child instanceof HTMLElement
+    );
+
+    const mapToolbar = siblingSections.find((child) => {
+      if (child === section || child.tagName !== "SECTION") return false;
+      const heading = child.querySelector("h2");
+      return normalize(heading?.textContent).includes(
+        "build and check the route around the map"
+      );
+    });
+
+    if (mapToolbar) {
+      mapToolbar.dataset.navlogMapToolbar = "true";
+      const mapHeading = mapToolbar.querySelector("h2") as HTMLElement | null;
+      if (mapHeading) setDisplayLabel(mapHeading, "Check the route on the map");
+
+      Array.from(mapToolbar.querySelectorAll("button")).forEach((button) => {
+        const text = normalize(button.textContent);
+        if (text === "route workflow") setDisplayLabel(button, "Route tools");
+        if (text === "layers") setDisplayLabel(button, "Map layers");
+      });
+    }
+
+    const mapCanvas = siblingSections.find(
+      (child) => child.tagName === "MAIN"
+    );
+    if (mapCanvas) mapCanvas.dataset.navlogMapCanvas = "true";
+
+    const layersPanel = siblingSections.find((child) => {
+      if (child === section || child === mapToolbar || child.tagName !== "SECTION") {
+        return false;
+      }
+      return normalize(child.textContent).includes("reference layers");
+    });
+    if (layersPanel) layersPanel.dataset.navlogLayersPanel = "true";
+  }
 
   const grid = Array.from(section.querySelectorAll("div.grid")).find((candidate) => {
     const text = normalize(candidate.textContent);
@@ -147,20 +189,27 @@ function decorateRouteWorkspace(root: HTMLElement) {
     normalize(card.textContent).includes("current map/table route")
   );
 
-  if (buildCard) buildCard.dataset.navlogRouteCard = "build";
-  if (currentCard) currentCard.dataset.navlogRouteCard = "current";
+  if (buildCard) {
+    buildCard.dataset.navlogRouteCard = "build";
+    const heading = buildCard.querySelector("h3") as HTMLElement | null;
+    if (heading) setDisplayLabel(heading, "Build a new route");
+  }
+
+  if (currentCard) {
+    currentCard.dataset.navlogRouteCard = "current";
+    const heading = currentCard.querySelector("h3") as HTMLElement | null;
+    if (heading) setDisplayLabel(heading, "Working route");
+  }
 
   if (!savedCard) return false;
   savedCard.dataset.navlogRouteCard = "saved";
 
   const savedHeading = savedCard.querySelector("h3") as HTMLElement | null;
-  if (savedHeading) {
-    setDisplayLabel(savedHeading, "Choose, save or update routes");
-  }
+  if (savedHeading) setDisplayLabel(savedHeading, "Saved routes");
 
   Array.from(savedCard.querySelectorAll("button")).forEach((button) => {
     const text = normalize(button.textContent);
-    if (text === "load") setDisplayLabel(button, "Browse routes");
+    if (text === "load") setDisplayLabel(button, "Browse saved");
     if (text === "manage") setDisplayLabel(button, "Save / edit");
     if (text === "load into map/table") setDisplayLabel(button, "Use route");
   });
