@@ -16,15 +16,25 @@ export function AppShell({ children }: AppShellProps) {
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
-            {navigationItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-lg px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
-              >
-                {item.title}
-              </Link>
-            ))}
+            {navigationItems.map((item, index) => {
+              const startsUtilities =
+                item.group === "utility" &&
+                navigationItems[index - 1]?.group !== "utility";
+
+              return (
+                <div
+                  key={item.href}
+                  className={startsUtilities ? "ml-2 border-l border-zinc-200 pl-2" : ""}
+                >
+                  <Link
+                    href={item.href}
+                    className="rounded-lg px-3 py-2 text-sm text-zinc-600 transition hover:bg-zinc-100 hover:text-zinc-950"
+                  >
+                    {item.title}
+                  </Link>
+                </div>
+              );
+            })}
           </nav>
         </div>
       </header>
