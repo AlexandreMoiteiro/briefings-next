@@ -71,7 +71,7 @@ export const navlogAircraftProfiles: Record<
     fuelFlowLh: 36,
     taxiFuelL: 12,
     taxiFuelFlowLh: 36,
-    startEfob: 194.4,
+    startEfob: 200,
     taxiMin: 20,
     rocFpm: 850,
     rodFpm: 500,
