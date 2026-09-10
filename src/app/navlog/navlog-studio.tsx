@@ -185,6 +185,33 @@ function ComposerTab({
   );
 }
 
+function AlternateStartButton({ active, onClick }: { active: boolean; onClick: () => void }) {
+  const help =
+    "Marks this waypoint as the start of the alternate segment. The NavLog then calculates the fuel needed to reach the alternate plus the 45 min final reserve, and the maximum holding/wait time available before leaving for the alternate while preserving that fuel. Planning aid only: verify the minima applicable to the flight.";
+
+  return (
+    <span className="group relative inline-flex">
+      <button
+        type="button"
+        onClick={onClick}
+        title={help}
+        aria-label={`${active ? "Unset" : "Start"} alternate. ${help}`}
+        className="rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700"
+      >
+        {active ? "Unset alternate" : "Start alternate"}
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute bottom-full right-0 z-[1000] mb-2 hidden w-80 rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-2.5 text-left text-[11px] font-normal leading-4 text-white shadow-xl group-hover:block group-focus-within:block"
+      >
+        <strong className="mb-1 block text-xs">Why mark the alternate start?</strong>
+        This is the point where the alternate segment begins. It lets the NavLog show the minimum fuel needed for the alternate + 45 min final reserve and the maximum hold/wait time available before departing for the alternate while preserving that fuel.
+        <span className="mt-1.5 block text-zinc-300">Planning aid — always verify the operational minima applicable to the flight.</span>
+      </span>
+    </span>
+  );
+}
+
 export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftType }) {
   const initialProfile = useMemo(
     () => applyAircraftProfile(navlogDefaultSetup, aircraftType),
@@ -220,7 +247,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
     setup.cruiseTas > 0 &&
     setup.descentTas > 0 &&
     setup.fuelFlowLh > 0 &&
-    setup.taxiFuelFlowLh >= 0 &&
     setup.startEfob > 0 &&
     setup.rocFpm > 0 &&
     setup.rodFpm > 0;
@@ -274,7 +300,14 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
     key: K,
     value: NavlogSetupForm[K]
   ) {
-    setSetup((current) => ({ ...current, [key]: value }));
+    setSetup((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "fuelFlowLh" || key === "taxiMin") {
+        next.taxiFuelFlowLh = next.fuelFlowLh;
+        next.taxiFuelL = (next.fuelFlowLh * next.taxiMin) / 60;
+      }
+      return next;
+    });
   }
 
   function updateWind<K extends "windFrom" | "windKt">(
@@ -762,7 +795,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   return (
     <div className="navlog-studio space-y-5">
       <section className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div className="grid gap-px overflow-hidden rounded-2xl bg-zinc-200 sm:grid-cols-2 lg:grid-cols-6">
+        <div className="grid gap-px overflow-hidden rounded-t-2xl bg-zinc-200 sm:grid-cols-2 lg:grid-cols-6">
           <div className="bg-white p-3 lg:col-span-1">
             <FieldLabel>Registration</FieldLabel>
             {isCustomAircraft ? (
@@ -859,6 +892,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
         </div>
 
+        <div className="border-t border-zinc-200 bg-zinc-50/70 px-4 py-2.5 text-xs leading-5 text-zinc-600">
+          <strong className="text-zinc-800">Ground/taxi planning:</strong> 20 min is assumed by default. The same aircraft fuel flow is used on the ground and in every flight phase; change the allowance below only when the mission requires it.
+        </div>
+
         <details className="group border-t border-zinc-200">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-medium text-zinc-600 hover:bg-zinc-50">
             <span>More mission details & aircraft assumptions</span>
@@ -923,7 +960,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               <div>
                 <p className="text-sm font-semibold text-zinc-900">Aircraft assumptions</p>
                 <p className="text-xs text-zinc-500">
-                  TAS, fuel flow, climb/descent and taxi values used by the calculation engine.
+                  TAS, one common fuel flow, climb/descent rates and the editable 20 min default ground/taxi allowance.
                 </p>
               </div>
               <button
@@ -940,9 +977,8 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 <NumberField label="Climb TAS" value={setup.climbTas} min={30} max={250} onChange={(value) => updateSetup("climbTas", value)} />
                 <NumberField label="Cruise TAS" value={setup.cruiseTas} min={30} max={300} onChange={(value) => updateSetup("cruiseTas", value)} />
                 <NumberField label="Descent TAS" value={setup.descentTas} min={30} max={250} onChange={(value) => updateSetup("descentTas", value)} />
-                <NumberField label="Fuel L/h" value={setup.fuelFlowLh} min={0} max={120} onChange={(value) => updateSetup("fuelFlowLh", value)} />
-                <NumberField label="Taxi min" value={setup.taxiMin} min={0} max={120} step={5} onChange={(value) => updateSetup("taxiMin", value)} />
-                <NumberField label="Taxi FF" value={setup.taxiFuelFlowLh} min={0} max={40} step={0.5} onChange={(value) => updateSetup("taxiFuelFlowLh", value)} />
+                <NumberField label="Fuel L/h · all phases" value={setup.fuelFlowLh} min={0} max={120} onChange={(value) => updateSetup("fuelFlowLh", value)} />
+                <NumberField label="Ground / taxi min" value={setup.taxiMin} min={0} max={120} step={5} onChange={(value) => updateSetup("taxiMin", value)} />
                 <NumberField label="ROC" value={setup.rocFpm} min={100} max={2000} step={50} onChange={(value) => updateSetup("rocFpm", value)} />
                 <NumberField label="ROD" value={setup.rodFpm} min={100} max={2000} step={50} onChange={(value) => updateSetup("rodFpm", value)} />
                 <NumberField label="Default alt" value={setup.defaultAltitude} min={0} max={20000} step={100} onChange={(value) => updateSetup("defaultAltitude", value)} />
@@ -959,9 +995,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                   </select>
                 </label>
                 <div>
-                  <FieldLabel>Taxi fuel</FieldLabel>
+                  <FieldLabel>Ground / taxi fuel</FieldLabel>
                   <div className="flex h-11 items-center rounded-xl border border-zinc-200 bg-white px-3 text-sm font-semibold">
-                    {((setup.taxiFuelFlowLh * setup.taxiMin) / 60).toFixed(1)} L
+                    {((setup.fuelFlowLh * setup.taxiMin) / 60).toFixed(1)} L
                   </div>
                 </div>
               </div>
@@ -1295,7 +1331,14 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                           {waypoint.vorPref === "FIXED" ? <select value={waypoint.vorIdent} onChange={(event) => updateWaypoint(waypoint.id, { vorIdent: event.target.value })} className="mt-2 block w-28 rounded-lg border border-zinc-200 bg-white px-2 py-1.5"><option value="">Select</option>{vorOptions.map((vor) => <option key={vor}>{vor}</option>)}</select> : null}
                         </td>
                         <td className="px-4 py-3 align-top"><input value={waypoint.note} onChange={(event) => updateWaypoint(waypoint.id, { note: event.target.value })} placeholder="NavLog note" className="w-44 rounded-lg border border-zinc-200 px-2 py-1.5" /></td>
-                        <td className="px-4 py-3 align-top"><div className="flex flex-wrap gap-2"><button type="button" onClick={() => moveWaypoint(waypoint.id, "up")} disabled={index === 0} className="rounded-lg border border-zinc-200 px-2 py-1 disabled:opacity-30">↑</button><button type="button" onClick={() => moveWaypoint(waypoint.id, "down")} disabled={index === routeWaypoints.length - 1} className="rounded-lg border border-zinc-200 px-2 py-1 disabled:opacity-30">↓</button><button type="button" onClick={() => toggleAlternateMarker(waypoint.id)} className="rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700">{waypoint.alternateMarker ? "Unset alt" : "Start alt"}</button><button type="button" onClick={() => removeWaypoint(waypoint.id)} className="rounded-lg px-2 py-1 text-xs font-medium text-red-600">Remove</button></div></td>
+                        <td className="px-4 py-3 align-top">
+                          <div className="flex flex-wrap gap-2">
+                            <button type="button" onClick={() => moveWaypoint(waypoint.id, "up")} disabled={index === 0} className="rounded-lg border border-zinc-200 px-2 py-1 disabled:opacity-30">↑</button>
+                            <button type="button" onClick={() => moveWaypoint(waypoint.id, "down")} disabled={index === routeWaypoints.length - 1} className="rounded-lg border border-zinc-200 px-2 py-1 disabled:opacity-30">↓</button>
+                            <AlternateStartButton active={waypoint.alternateMarker === true} onClick={() => toggleAlternateMarker(waypoint.id)} />
+                            <button type="button" onClick={() => removeWaypoint(waypoint.id)} className="rounded-lg px-2 py-1 text-xs font-medium text-red-600">Remove</button>
+                          </div>
+                        </td>
                       </tr>
                     );
                   })}
