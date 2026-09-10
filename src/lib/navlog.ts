@@ -190,7 +190,7 @@ export const navlogDefaultSetup: NavlogSetupForm = {
   rocFpm: defaultProfile.rocFpm,
   rodFpm: defaultProfile.rodFpm,
   defaultAltitude: defaultProfile.defaultAltitude,
-  showReferencePoints: false,
+  showReferencePoints: true,
   referenceLayers: navlogReferenceLayers,
   showAirways: true,
   showOpenAip: true,
