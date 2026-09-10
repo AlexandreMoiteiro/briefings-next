@@ -106,31 +106,86 @@ textarea {
   border-bottom-width: 0;
 }
 
+/* The four aircraft now read in the same operational order. The decorator only adds
+   semantic data attributes; the calculations and aircraft-specific fields stay intact. */
+.performance-workspace [data-performance-section-container="true"] {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 1.5rem !important;
+}
+
+.performance-workspace [data-performance-section-container="true"] > * {
+  margin-top: 0 !important;
+}
+
+.performance-workspace [data-performance-section="weather"] {
+  order: 10;
+}
+
+.performance-workspace [data-performance-section="loading"] {
+  order: 20;
+}
+
+.performance-workspace [data-performance-section="reference"] {
+  order: 25;
+}
+
+.performance-workspace [data-performance-section="fuel"] {
+  order: 30;
+}
+
+.performance-workspace [data-performance-section="aerodrome"] {
+  order: 40;
+}
+
+.performance-workspace [data-performance-section="pdf"] {
+  order: 50;
+}
+
+.performance-workspace [data-performance-section-container="true"] > :not(section) {
+  order: 60;
+}
+
+.performance-workspace [data-performance-section] {
+  background: #ffffff !important;
+  border-color: #e4e4e7 !important;
+}
+
+.performance-workspace [data-performance-section] > div:first-child h1,
+.performance-workspace [data-performance-section] > div:first-child h2,
+.performance-workspace [data-performance-section] > h1,
+.performance-workspace [data-performance-section] > h2 {
+  color: #18181b !important;
+  font-size: 1.125rem !important;
+  font-weight: 600 !important;
+  line-height: 1.5rem !important;
+}
+
 /* C152 used to look like a separate blue/orange product. Keep its aircraft-specific
-   information, but render it as the same neutral Performance workspace. */
-.performance-consumer[data-performance-mode="C152"] > div > div.space-y-6 > section:first-child {
+   reference values but render them as a compact neutral strip after loading. */
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] {
   padding: 1rem !important;
   background: #ffffff !important;
   border-color: #e4e4e7 !important;
 }
 
-.performance-consumer[data-performance-mode="C152"] > div > div.space-y-6 > section:first-child > div > div:first-child {
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:first-child {
   display: none;
 }
 
-.performance-consumer[data-performance-mode="C152"] > div > div.space-y-6 > section:first-child > div > div:last-child {
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child {
   width: 100%;
   min-width: 0;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.performance-consumer[data-performance-mode="C152"] > div > div.space-y-6 > section:first-child > div > div:last-child > div {
+.performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child > div {
   border-color: #e4e4e7 !important;
   background: #fafafa !important;
 }
 
 @media (min-width: 1024px) {
-  .performance-consumer[data-performance-mode="C152"] > div > div.space-y-6 > section:first-child > div > div:last-child {
+  .performance-workspace[data-performance-mode="C152"] [data-performance-section="reference"] > div > div:last-child {
     grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 }
