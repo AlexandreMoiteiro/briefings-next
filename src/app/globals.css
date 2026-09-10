@@ -151,6 +151,14 @@ textarea {
   border-color: #e4e4e7 !important;
 }
 
+.performance-workspace [data-performance-section="weather"] [class*="border-sky-"] {
+  border-color: #e4e4e7 !important;
+}
+
+.performance-workspace [data-performance-section="weather"] [class*="bg-sky-"] {
+  background: #fafafa !important;
+}
+
 .performance-workspace [data-performance-title] {
   color: transparent !important;
   font-size: 0 !important;
@@ -207,7 +215,6 @@ textarea {
 .navlog-consumer h2[data-navlog-display-label],
 .navlog-consumer h3[data-navlog-display-label],
 .navlog-consumer button[data-navlog-display-label] {
-  color: transparent !important;
   font-size: 0 !important;
   line-height: 0 !important;
 }
@@ -234,7 +241,7 @@ textarea {
 .navlog-consumer button[data-navlog-display-label]::after {
   content: attr(data-navlog-display-label);
   display: inline;
-  color: currentColor;
+  color: inherit;
   font-size: 0.75rem;
   font-weight: 600;
   line-height: 1rem;
