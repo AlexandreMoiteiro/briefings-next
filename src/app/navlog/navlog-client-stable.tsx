@@ -107,9 +107,7 @@ function decorateRouteWorkspace(root: HTMLElement) {
   if (!section) return false;
 
   section.dataset.navlogRouteWorkspace = "true";
-  if (routeHeading) {
-    routeHeading.textContent = "Saved routes, route builder and working route";
-  }
+  routeHeading.textContent = "Saved routes, route builder and working route";
 
   const grid = Array.from(section.querySelectorAll("div.grid")).find((candidate) => {
     const text = normalize(candidate.textContent);
@@ -123,43 +121,48 @@ function decorateRouteWorkspace(root: HTMLElement) {
   if (!grid) return false;
   grid.dataset.navlogRouteGrid = "true";
 
-  let savedCard: HTMLElement | null = null;
+  const cards = Array.from(grid.children).filter(
+    (child): child is HTMLElement => child instanceof HTMLElement
+  );
+  const buildCard = cards.find((card) =>
+    normalize(card.textContent).includes("create the working route")
+  );
+  const savedCard = cards.find((card) =>
+    normalize(card.textContent).includes("load or manage supabase routes")
+  );
+  const currentCard = cards.find((card) =>
+    normalize(card.textContent).includes("current map/table route")
+  );
 
-  Array.from(grid.children).forEach((child) => {
-    if (!(child instanceof HTMLElement)) return;
-    const text = normalize(child.textContent);
+  if (buildCard) buildCard.dataset.navlogRouteCard = "build";
+  if (currentCard) currentCard.dataset.navlogRouteCard = "current";
 
-    if (text.includes("create the working route")) {
-      child.dataset.navlogRouteCard = "build";
-    }
+  if (!savedCard) return false;
+  savedCard.dataset.navlogRouteCard = "saved";
 
-    if (text.includes("load or manage supabase routes")) {
-      child.dataset.navlogRouteCard = "saved";
-      savedCard = child;
-      const heading = child.querySelector("h3");
-      if (heading) heading.textContent = "Choose, save or update routes";
-    }
+  const savedHeading = savedCard.querySelector("h3");
+  if (savedHeading) savedHeading.textContent = "Choose, save or update routes";
 
-    if (text.includes("current map/table route")) {
-      child.dataset.navlogRouteCard = "current";
-    }
+  Array.from(savedCard.querySelectorAll("button")).forEach((button) => {
+    const text = normalize(button.textContent);
+    if (text === "load") button.textContent = "Browse routes";
+    if (text === "manage") button.textContent = "Save / edit";
+    if (text === "load into map/table") button.textContent = "Use route";
   });
 
-  if (savedCard) {
-    const searchInput = savedCard.querySelector(
-      'input[placeholder="Search saved routes..."]'
-    );
-    const loadPanel = searchInput?.closest("div.mt-4") as HTMLElement | null;
-    const savedList = loadPanel
-      ? (Array.from(loadPanel.querySelectorAll("div")).find((element) =>
-          element.className.includes("max-h-80")
-        ) as HTMLElement | undefined)
-      : undefined;
+  const searchInput = savedCard.querySelector(
+    'input[placeholder="Search saved routes..."]'
+  );
+  const loadPanel = searchInput?.closest("div.mt-4") as HTMLElement | null;
+  const savedList = loadPanel
+    ? (Array.from(loadPanel.querySelectorAll("div")).find((element) =>
+        element.className.includes("max-h-80")
+      ) as HTMLElement | undefined)
+    : undefined;
 
-    if (savedList) savedList.dataset.navlogSavedList = "true";
-  }
+  if (savedList) savedList.dataset.navlogSavedList = "true";
 
-  return Boolean(savedCard);
+  return true;
 }
 
 export function NavlogClientStable() {
@@ -194,7 +197,11 @@ export function NavlogClientStable() {
       }
 
       attempt += 1;
-      if (attempt < 24 && (!select || !routeWorkspaceReady)) {
+      const minimumDecorationPasses = attempt < 10;
+      if (
+        attempt < 24 &&
+        (minimumDecorationPasses || !select || !routeWorkspaceReady)
+      ) {
         syncTimerRef.current = window.setTimeout(syncUi, 120);
       }
     };
