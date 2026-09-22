@@ -1109,10 +1109,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                       <div className="flex flex-wrap items-center gap-2">
                         <p className="text-sm font-semibold text-zinc-950">Open route library</p>
                         <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-                          Community
+                          Community suggestions
                         </span>
                       </div>
-                      <p className="mt-0.5 text-xs text-zinc-500">Anyone can contribute routes. Before using one, check it against the weather, NOTAMs, altitudes, timings and other conditions applicable to your flight.</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">These are route suggestions shared by other users, not validated flight plans. Anyone can contribute. Before using one, check the route, altitudes and timings against the weather, NOTAMs and all other conditions applicable to your flight.</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-white">
                       {perfectRoutes.length} saved
