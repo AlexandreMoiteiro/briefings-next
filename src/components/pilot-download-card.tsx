@@ -39,7 +39,7 @@ export function PilotDownloadCard({
         </label>
 
         <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs leading-5 text-zinc-600">
-          Use your real name. This helps keep PDF exports available to everyone and protects the service from abuse. Deliberately false names may cause PDF export access to be blocked on this device.
+          Use your real name for PDF downloads. False names may temporarily disable PDF export.
         </div>
       </div>
     </section>
