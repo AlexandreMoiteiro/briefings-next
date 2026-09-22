@@ -752,7 +752,7 @@ export function NavlogMap({
                           lat: node.lat,
                           lon: node.lon,
                           alt: node.alt,
-                          src: node.src,
+                          src: node.src as NavlogPoint["src"],
                           routes: "",
                           remarks: "",
                         })
