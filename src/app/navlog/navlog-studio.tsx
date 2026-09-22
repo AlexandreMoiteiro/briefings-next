@@ -224,30 +224,18 @@ function ComposerTab({
 
 function AlternateStartButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   const help =
-    "Marks this waypoint as the start of the alternate segment. The waypoint is highlighted in light blue. HOLD MAX shows the maximum time you may remain at that point before leaving for the alternate while still preserving fuel for the alternate plus the 45 min final reserve. Green means the planned Time over fits inside that margin, amber means the planned Time over exceeds it, and red means the alternate + reserve fuel is already insufficient. In the calculated NavLog, HM shows this maximum time and MIN in the EFOB column shows the minimum fuel required at the marker. Planning aid only: verify the minima applicable to the flight.";
+    "Marks this waypoint as the start of the alternate segment. In the NavLog, HOLD MAX XX min is the maximum waiting time available here before leaving for the alternate while preserving alternate trip fuel plus the 45 min final reserve. HM repeats that time in the NavLog and MIN in EFOB shows the minimum fuel that must remain at this point. Green means the planned Time over fits, amber means it exceeds the available margin, and red means alternate + reserve fuel is insufficient. Check the operational minima that apply to the flight.";
 
   return (
-    <span className="group relative inline-flex">
-      <button
-        type="button"
-        onClick={onClick}
-        title={help}
-        aria-label={`${active ? "Unset" : "Start"} alternate. ${help}`}
-        className="rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700"
-      >
-        {active ? "Unset alternate" : "Start alternate"}
-      </button>
-      <span
-        role="tooltip"
-        className="pointer-events-none absolute bottom-full right-0 z-[1000] mb-2 hidden w-96 max-w-[80vw] rounded-xl border border-zinc-700 bg-zinc-950 px-3 py-3 text-left text-[11px] font-normal leading-4 text-white shadow-xl group-hover:block group-focus-within:block"
-      >
-        <strong className="mb-1 block text-xs">How alternate planning appears in the NavLog</strong>
-        The marked waypoint turns light blue. <strong>HOLD MAX XX min</strong> is the maximum time available before you must leave for the alternate while preserving the alternate trip fuel + 45 min final reserve.
-        <span className="mt-1.5 block text-zinc-300">Green = planned Time over fits; amber = planned Time over is too long; red = alternate + reserve fuel is already insufficient.</span>
-        <span className="mt-1.5 block text-zinc-300">In the calculated NavLog, <strong className="text-white">HM</strong> repeats the maximum time and <strong className="text-white">MIN</strong> in EFOB shows the minimum fuel required at this point.</span>
-        <span className="mt-1.5 block text-zinc-400">Planning aid — always verify the operational minima applicable to the flight.</span>
-      </span>
-    </span>
+    <button
+      type="button"
+      onClick={onClick}
+      title={help}
+      aria-label={`${active ? "Unset" : "Start"} alternate. ${help}`}
+      className="rounded-lg border border-sky-200 px-2 py-1 text-xs font-medium text-sky-700"
+    >
+      {active ? "Unset alternate" : "Start alternate"}
+    </button>
   );
 }
 
