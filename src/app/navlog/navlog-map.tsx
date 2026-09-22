@@ -699,9 +699,7 @@ export function NavlogMap({
                   >
                     Add to route
                   </button>
-                  <div className="text-[11px] text-zinc-500">
-                    You can add the same point more than once.
-                  </div>
+
                 </div>
               </Popup>
 
