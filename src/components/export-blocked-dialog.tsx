@@ -60,13 +60,13 @@ export function ExportBlockedDialog({
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-red-600">
-              PDF export blocked
+              PDF export unavailable
             </p>
             <h2
               id="export-blocked-title"
               className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950"
             >
-              This device has been blocked
+              PDF export is unavailable
             </h2>
           </div>
           <button
@@ -80,10 +80,10 @@ export function ExportBlockedDialog({
 
         <div className="mt-5 space-y-3 text-sm leading-6 text-zinc-700">
           <p className="font-semibold text-red-800">
-            PDF export is not available on this device.
+            PDF export is currently unavailable.
           </p>
           <p>
-            A real user name is required for PDF downloads to help protect the service from abuse.
+            A real name is required for PDF downloads.
           </p>
           <p>
             If you believe this was a mistake, you can request access again below.
@@ -92,7 +92,7 @@ export function ExportBlockedDialog({
 
         {sent ? (
           <div className="mt-5 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
-            Your request was sent. PDF export will remain unavailable until the request has been reviewed.
+            Request sent. PDF export will remain unavailable until it is reviewed.
           </div>
         ) : (
           <div className="mt-5 space-y-4">
@@ -119,7 +119,7 @@ export function ExportBlockedDialog({
                 rows={4}
                 maxLength={2000}
                 className="w-full resize-y rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-zinc-950"
-                placeholder="Explain why you would like this device to be unblocked."
+                placeholder="Tell us why access should be restored."
               />
               <span className="block text-right text-[11px] text-zinc-400">
                 {message.length}/2000
