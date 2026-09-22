@@ -178,11 +178,15 @@ function ComposerTab({
   active,
   label,
   description,
+  badge,
+  featured = false,
   onClick,
 }: {
   active: boolean;
   label: string;
   description: string;
+  badge?: string | number;
+  featured?: boolean;
   onClick: () => void;
 }) {
   return (
@@ -191,11 +195,27 @@ function ComposerTab({
       onClick={onClick}
       className={[
         "min-w-0 rounded-xl px-3 py-2.5 text-left transition",
-        active ? "bg-zinc-950 text-white" : "text-zinc-600 hover:bg-zinc-100",
+        active
+          ? "bg-zinc-950 text-white shadow-sm"
+          : featured
+            ? "bg-white text-zinc-950 ring-1 ring-inset ring-zinc-300 shadow-sm hover:bg-zinc-50"
+            : "text-zinc-600 hover:bg-zinc-100",
       ].join(" ")}
     >
-      <span className="block text-sm font-semibold">{label}</span>
-      <span className={active ? "block text-[11px] text-zinc-300" : "block text-[11px] text-zinc-400"}>
+      <span className="flex items-center justify-between gap-2">
+        <span className="block text-sm font-semibold">{label}</span>
+        {badge !== undefined ? (
+          <span
+            className={[
+              "rounded-full px-2 py-0.5 text-[10px] font-bold",
+              active ? "bg-white/15 text-white" : "bg-zinc-950 text-white",
+            ].join(" ")}
+          >
+            {badge}
+          </span>
+        ) : null}
+      </span>
+      <span className={active ? "block text-[11px] text-zinc-300" : "block text-[11px] text-zinc-500"}>
         {description}
       </span>
     </button>
@@ -245,7 +265,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [perfectRoutes, setPerfectRoutes] = useState<PerfectRoute[]>([]);
   const [dataError, setDataError] = useState<string | null>(null);
 
-  const [composerMode, setComposerMode] = useState<ComposerMode>("text");
+  const [composerMode, setComposerMode] = useState<ComposerMode>("saved");
   const [reviewMode, setReviewMode] = useState<ReviewMode>("waypoints");
   const [showLayers, setShowLayers] = useState(false);
   const [showPerformance, setShowPerformance] = useState(false);
@@ -515,10 +535,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       );
       setSelectedRouteId(created.id);
       setRouteSaveName(created.name);
-      setRouteSaveStatus("Saved route created.");
+      setRouteSaveStatus("Route saved.");
     } catch (error) {
       console.error(error);
-      setRouteSaveStatus("Could not create the saved route.");
+      setRouteSaveStatus("Could not save the route.");
     } finally {
       setRouteSaveBusy(false);
     }
@@ -549,10 +569,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       );
       setSelectedRouteId(updated.id);
       setRouteSaveName(updated.name);
-      setRouteSaveStatus("Saved route updated.");
+      setRouteSaveStatus("Route updated.");
     } catch (error) {
       console.error(error);
-      setRouteSaveStatus("Could not update the saved route.");
+      setRouteSaveStatus("Could not update the route.");
     } finally {
       setRouteSaveBusy(false);
     }
@@ -572,10 +592,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       setPerfectRoutes(remaining);
       setSelectedRouteId(remaining[0]?.id ?? "");
       setRouteSaveName(remaining[0]?.name ?? "");
-      setRouteSaveStatus("Saved route deleted.");
+      setRouteSaveStatus("Route deleted.");
     } catch (error) {
       console.error(error);
-      setRouteSaveStatus("Could not delete the saved route.");
+      setRouteSaveStatus("Could not delete the route.");
     } finally {
       setRouteSaveBusy(false);
     }
@@ -837,11 +857,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }, [calculation.nodes, routeWaypoints]);
 
   const tocTodHelp =
-    "TOC/TOD is inserted automatically when altitude changes. +X NM FROM the previous waypoint means the TOC/TOD lies X NM after that waypoint. -Y NM TO the next waypoint means Y NM remain from the TOC/TOD to that next waypoint. This makes the calculated climb/descent point easy to locate on the map and in the printed NavLog.";
+    "TOC/TOD is added automatically when altitude changes. +X NM FROM means the calculated point is X NM after the previous waypoint. -Y NM TO means Y NM remain to the next waypoint.";
   const timeOverHelp =
-    "Time over is extra time associated with this waypoint, useful for local work such as circuits or touch-and-go practice at another aerodrome, or a planned wait. It is added after arrival at the point. In the calculated NavLog it appears as +XX:XX over in time and +X(Y) over in fuel; it reduces EFOB and is included in both Flight time and Block time.";
+    "Time added at this point for circuits, touch-and-go practice, local work or a planned wait. The NavLog shows it as +XX:XX over and adds the related fuel burn before calculating the next EFOB.";
   const globalWindHelp =
-    "When Global wind is enabled, the outgoing leg from this waypoint uses the Route wind set at the top of the page. Turn it off when a particular leg needs its own forecast wind, for example because wind changes with area or altitude.";
+    "Uses the Route wind for the leg leaving this waypoint. Turn it off only when that leg needs a different forecast wind.";
 
   return (
     <div className="navlog-studio space-y-5">
@@ -1037,7 +1057,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Route studio</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Compose the route, then work directly on the map</h2>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Build your route</h2>
             </div>
             <div className="grid grid-cols-5 gap-px overflow-hidden rounded-xl bg-zinc-200 text-center text-xs">
               <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">WP</span><strong>{routeWaypoints.length}</strong></div>
@@ -1049,9 +1069,16 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
 
           <div className="mt-4 grid gap-1 rounded-2xl bg-zinc-50 p-1 md:grid-cols-3">
-            <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type Item 15 style routing" onClick={() => setComposerMode("text")} />
-            <ComposerTab active={composerMode === "search"} label="Find point" description="Search AD, VFR, VOR and IFR points" onClick={() => setComposerMode("search")} />
-            <ComposerTab active={composerMode === "saved"} label="Saved routes" description="Load, save or update Supabase routes" onClick={() => setComposerMode("saved")} />
+            <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type an Item 15 route" onClick={() => setComposerMode("text")} />
+            <ComposerTab active={composerMode === "search"} label="Find point" description="Search navigation points" onClick={() => setComposerMode("search")} />
+            <ComposerTab
+              active={composerMode === "saved"}
+              label="Saved routes"
+              description="Open your route library"
+              badge={perfectRoutes.length}
+              featured
+              onClick={() => setComposerMode("saved")}
+            />
           </div>
 
           {composerMode === "text" ? (
@@ -1089,7 +1116,16 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <div className="mt-4 space-y-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div>
-                  <input value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search saved routes…" className="h-11 w-full rounded-xl border border-zinc-200 px-3 text-sm outline-none focus:border-zinc-500" />
+                  <div className="mb-3 flex items-end justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-zinc-950">Route library</p>
+                      <p className="mt-0.5 text-xs text-zinc-500">Load a saved route, or save the route currently on the map.</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-white">
+                      {perfectRoutes.length} saved
+                    </span>
+                  </div>
+                  <input value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search routes…" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
                   <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-zinc-200">
                     {filteredPerfectRoutes.length === 0 ? (
                       <p className="p-4 text-sm text-zinc-500">No saved routes match.</p>
@@ -1174,7 +1210,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
         <div className="border-t border-zinc-200 bg-white px-4 py-3">
           {routeWaypoints.length === 0 ? (
-            <p className="text-sm text-zinc-500">No working route yet. Use route text, find a point, load a saved route or add points directly on the map.</p>
+            <p className="text-sm text-zinc-500">Route is empty.</p>
           ) : (
             <div className="flex items-center gap-2 overflow-x-auto pb-1">
               {routeWaypoints.map((waypoint, index) => (
@@ -1207,20 +1243,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <button type="button" onClick={clearWorkingRoute} disabled={routeWaypoints.length === 0} className="rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-red-600 disabled:opacity-30">Clear route</button>
             <button type="button" onClick={exportNavlogPdf} disabled={calculation.legs.length === 0} className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white disabled:bg-zinc-300">Export NavLog PDF</button>
           </div>
-        </div>
-
-        <div className="border-b border-zinc-200 bg-zinc-50/70 px-4 py-3">
-          <details className="group">
-            <summary className="cursor-pointer list-none text-xs font-semibold text-zinc-700">
-              How Time over, Global wind, TOC/TOD and alternate planning appear in the NavLog <span className="text-zinc-400 group-open:hidden">＋</span><span className="hidden text-zinc-400 group-open:inline">−</span>
-            </summary>
-            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600"><strong className="block text-zinc-900">Time over</strong>{timeOverHelp}</div>
-              <div className="rounded-xl border border-zinc-200 bg-white p-3 text-xs leading-5 text-zinc-600"><strong className="block text-zinc-900">Global wind</strong>{globalWindHelp}</div>
-              <div className="rounded-xl border border-indigo-200 bg-indigo-50/60 p-3 text-xs leading-5 text-indigo-800"><strong className="block">TOC / TOD</strong>{tocTodHelp}</div>
-              <div className="rounded-xl border border-sky-200 bg-sky-50 p-3 text-xs leading-5 text-sky-900"><strong className="block">Start alternate</strong>Blue marks the alternate start. HOLD MAX is the waiting margin before departure to the alternate; HM repeats it in the NavLog and MIN in EFOB is the fuel that must remain for alternate + 45 min final reserve.</div>
-            </div>
-          </details>
         </div>
 
         {!windConfirmed && calculation.legs.length > 0 ? (
