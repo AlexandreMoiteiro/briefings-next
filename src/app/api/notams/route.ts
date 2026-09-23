@@ -3,7 +3,7 @@ import type { NotamApiResponse, PlotNotam } from "@/lib/notams";
 
 const DEFAULT_BASE_URL = "https://notac.aero/api/v1";
 const MAX_PORTUGAL_PAGES = 30;
-const NOTAM_CACHE_SECONDS = 60 * 60 * 24;
+const NOTAM_CACHE_SECONDS = 60 * 60 * 12;
 
 type NotacReading = {
   short?: unknown;
@@ -183,7 +183,7 @@ export async function GET() {
     return NextResponse.json(response, {
       headers: {
         "Cache-Control":
-          "public, s-maxage=86400, stale-while-revalidate=3600",
+          "public, s-maxage=43200, stale-while-revalidate=3600",
       },
     });
   } catch (error) {
