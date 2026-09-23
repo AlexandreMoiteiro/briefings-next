@@ -8,6 +8,7 @@ import {
   ImageOverlay,
   MapContainer,
   Marker,
+  Pane,
   Polygon,
   Popup,
   Polyline,
@@ -304,6 +305,23 @@ function shouldDrawNotamArea(notam: PlotNotam) {
     notam.radiusNm > NOTAM_AREA_MIN_RADIUS_NM &&
     notam.radiusNm <= NOTAM_AREA_MAX_RADIUS_NM
   );
+}
+
+function polygonFootprint(points: ParsedCoordinatePoint[]) {
+  if (!points.length) return 0;
+
+  const lats = points.map((point) => point.lat);
+  const lons = points.map((point) => point.lon);
+  const latSpan = Math.max(...lats) - Math.min(...lats);
+  const lonSpan = Math.max(...lons) - Math.min(...lons);
+
+  return Math.max(0.000001, latSpan * lonSpan);
+}
+
+function notamPolygonPane(points: ParsedCoordinatePoint[]) {
+  return polygonFootprint(points) >= 0.8
+    ? "notam-broad"
+    : "notam-area";
 }
 
 function getNotamPolygonPoints(notam: PlotNotam) {
@@ -651,7 +669,14 @@ export function CoordinateLeafletMap({
     [notams]
   );
   const notamPolygonShapes = useMemo(
-    () => notamSpatial.filter((item) => item.polygonPoints.length >= 3),
+    () =>
+      notamSpatial
+        .filter((item) => item.polygonPoints.length >= 3)
+        .sort(
+          (a, b) =>
+            polygonFootprint(b.polygonPoints) -
+            polygonFootprint(a.polygonPoints)
+        ),
     [notamSpatial]
   );
   const notamAreaShapes = useMemo(
@@ -659,7 +684,8 @@ export function CoordinateLeafletMap({
       notamSpatial
         .filter((item) => item.polygonPoints.length < 3)
         .map((item) => item.notam)
-        .filter(shouldDrawNotamArea),
+        .filter(shouldDrawNotamArea)
+        .sort((a, b) => b.radiusNm - a.radiusNm),
     [notamSpatial]
   );
   const notamMarkerGroups = useMemo(
@@ -834,11 +860,16 @@ export function CoordinateLeafletMap({
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
 
+          <Pane name="notam-broad" style={{ zIndex: 330 }} />
+          <Pane name="notam-area" style={{ zIndex: 370 }} />
+          <Pane name="custom-area" style={{ zIndex: 430 }} />
+
           {showNotams ? (
             <>
               {notamPolygonShapes.map(({ notam, polygonPoints }) => (
                 <Polygon
                   key={`notam-polygon-${notam.id}`}
+                  pane={notamPolygonPane(polygonPoints)}
                   positions={closePolygon(polygonPoints).map((point) => [
                     point.lat,
                     point.lon,
@@ -864,6 +895,7 @@ export function CoordinateLeafletMap({
               {notamAreaShapes.map((notam) => (
                 <Circle
                   key={`area-${notam.id}`}
+                  pane="notam-area"
                   center={[notam.latitude, notam.longitude]}
                   radius={notam.radiusNm * 1852}
                   pathOptions={{
@@ -929,6 +961,7 @@ export function CoordinateLeafletMap({
               <div key={area.id}>
                 {area.points.length >= 3 ? (
                   <Polygon
+                    pane="custom-area"
                     positions={closePolygon(area.points).map((point) => [
                       point.lat,
                       point.lon,
@@ -937,6 +970,7 @@ export function CoordinateLeafletMap({
                   />
                 ) : area.points.length >= 2 ? (
                   <Polyline
+                    pane="custom-area"
                     positions={area.points.map((point) => [
                       point.lat,
                       point.lon,
@@ -945,6 +979,7 @@ export function CoordinateLeafletMap({
                   />
                 ) : (
                   <CircleMarker
+                    pane="custom-area"
                     center={[area.points[0].lat, area.points[0].lon]}
                     radius={8}
                     pathOptions={{
