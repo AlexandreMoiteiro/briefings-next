@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteNavigation } from "@/components/site-navigation";
+import { NotamMapAnnouncement } from "@/components/notam-map-announcement";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -24,6 +25,8 @@ export function AppShell({ children }: AppShellProps) {
       <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-9">
         {children}
       </main>
+
+      <NotamMapAnnouncement />
 
       <footer className="mt-auto border-t border-zinc-200 bg-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
