@@ -183,7 +183,7 @@ function formatNotamTime(value: string | null) {
   if (!value) return "Permanent / not specified";
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "UTC",
@@ -661,10 +661,13 @@ export function CoordinateLeafletMap({
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("light");
+  const [showAirspace, setShowAirspace] = useState(true);
   const showLightMap = mapSourceMode === "light";
   const showStreetMap = mapSourceMode === "street";
   const showTopoMap = mapSourceMode === "topo";
   const showVfrChart = mapSourceMode === "vfr-chart";
+  const showAirspaceLayer =
+    !showVfrChart && showAirspace && Boolean(openAipTilesUrl);
 
   const notamSpatial = useMemo(
     () =>
@@ -771,7 +774,7 @@ export function CoordinateLeafletMap({
         {([
           ["light", "Light"],
           ["street", "Street"],
-          ["topo", openAipTilesUrl ? "Topo + airspace" : "Topo"],
+          ["topo", "Topo"],
           ["vfr-chart", "VFR"],
         ] as Array<[MapSourceMode, string]>).map(([mode, label]) => {
           const disabled = mode === "vfr-chart" && !hasVfrChartOverlay;
@@ -795,6 +798,20 @@ export function CoordinateLeafletMap({
             </button>
           );
         })}
+
+        {!showVfrChart && openAipTilesUrl ? (
+          <>
+            <span className="mx-0.5 h-6 w-px self-center bg-zinc-200" />
+            <label className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-zinc-600">
+              <input
+                type="checkbox"
+                checked={showAirspace}
+                onChange={(event) => setShowAirspace(event.target.checked)}
+              />
+              Airspace
+            </label>
+          </>
+        ) : null}
       </div>
 
       {showNotams && notams.length ? (
@@ -819,7 +836,7 @@ export function CoordinateLeafletMap({
         onClick={toggleFullscreen}
         className="absolute right-3 top-3 z-[10000] rounded-xl bg-white/95 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
       >
-        {expanded ? "Fechar" : "Fullscreen"}
+        {expanded ? "Exit fullscreen" : "Fullscreen"}
       </button>
 
       <div className={expanded ? "h-screen w-screen" : "h-[640px] w-full"}>
@@ -832,10 +849,10 @@ export function CoordinateLeafletMap({
         >
           {showLightMap ? (
             <TileLayer
-              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
-              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-              subdomains="abcd"
-              maxZoom={20}
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              className="notam-map-light-base"
+              maxZoom={19}
             />
           ) : null}
 
@@ -876,7 +893,7 @@ export function CoordinateLeafletMap({
             />
           ) : null}
 
-          {showTopoMap && openAipTilesUrl ? (
+          {showAirspaceLayer ? (
             <TileLayer
               attribution="openAIP"
               url={openAipTilesUrl}
@@ -1059,6 +1076,11 @@ export function CoordinateLeafletMap({
           background: rgba(2, 6, 23, 0.92);
           border-color: rgba(2, 6, 23, 0.92);
           color: #ffffff;
+        }
+
+        .notam-map-light-base {
+          filter: grayscale(1) saturate(0.15) brightness(1.1) contrast(0.82);
+          opacity: 0.82;
         }
 
         .area-map-notam-marker {
