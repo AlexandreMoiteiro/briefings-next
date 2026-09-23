@@ -20,7 +20,7 @@ import type { PlotNotam } from "@/lib/notams";
 import { parseCoordinateAreaInput } from "@/lib/coordinate-area-parser";
 import type { CoordinateMapArea, ParsedCoordinatePoint } from "./area-map-client";
 
-type MapSourceMode = "standard" | "vfr-chart";
+type MapSourceMode = "light" | "street" | "topo" | "vfr-chart";
 
 type CoordinateLeafletMapProps = {
   areas: CoordinateMapArea[];
@@ -430,6 +430,12 @@ function NotamDetails({ notam }: { notam: PlotNotam }) {
           <strong className="text-zinc-700">Vertical:</strong>{" "}
           {notamVerticalRange(notam)}
         </span>
+        {notam.schedule ? (
+          <span>
+            <strong className="text-zinc-700">Schedule:</strong>{" "}
+            {notam.schedule}
+          </span>
+        ) : null}
         {notam.radiusNm > 0 ? (
           <span>
             <strong className="text-zinc-700">Q-line radius:</strong>{" "}
@@ -654,10 +660,10 @@ export function CoordinateLeafletMap({
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>(
-    hasVfrChartOverlay ? "vfr-chart" : "standard"
-  );
-  const showStandardMap = mapSourceMode === "standard";
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("light");
+  const showLightMap = mapSourceMode === "light";
+  const showStreetMap = mapSourceMode === "street";
+  const showTopoMap = mapSourceMode === "topo";
   const showVfrChart = mapSourceMode === "vfr-chart";
 
   const notamSpatial = useMemo(
@@ -761,26 +767,34 @@ export function CoordinateLeafletMap({
           : "relative overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm"
       }
     >
-      <div className="absolute left-3 top-3 z-[10000] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 text-xs font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200">
-        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
-          <input
-            type="radio"
-            name="area-map-source"
-            checked={mapSourceMode === "standard"}
-            onChange={() => setMapSourceMode("standard")}
-          />
-          OpenTopo + OpenAIP
-        </label>
-        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
-          <input
-            type="radio"
-            name="area-map-source"
-            disabled={!hasVfrChartOverlay}
-            checked={mapSourceMode === "vfr-chart"}
-            onChange={() => setMapSourceMode("vfr-chart")}
-          />
-          VFR map
-        </label>
+      <div className="absolute left-3 top-3 z-[10000] flex flex-wrap gap-1 rounded-2xl bg-white/95 p-1.5 text-xs font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200">
+        {([
+          ["light", "Light"],
+          ["street", "Street"],
+          ["topo", openAipTilesUrl ? "Topo + airspace" : "Topo"],
+          ["vfr-chart", "VFR"],
+        ] as Array<[MapSourceMode, string]>).map(([mode, label]) => {
+          const disabled = mode === "vfr-chart" && !hasVfrChartOverlay;
+          const active = mapSourceMode === mode;
+
+          return (
+            <button
+              key={mode}
+              type="button"
+              disabled={disabled}
+              onClick={() => setMapSourceMode(mode)}
+              className={[
+                "rounded-xl px-2.5 py-1.5 transition",
+                active
+                  ? "bg-zinc-950 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+                disabled ? "cursor-not-allowed opacity-35" : "",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
       </div>
 
       {showNotams && notams.length ? (
@@ -816,7 +830,24 @@ export function CoordinateLeafletMap({
           scrollWheelZoom
           className="h-full w-full"
         >
-          {showStandardMap ? (
+          {showLightMap ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors &copy; CARTO'
+              url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
+              subdomains="abcd"
+              maxZoom={20}
+            />
+          ) : null}
+
+          {showStreetMap ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={19}
+            />
+          ) : null}
+
+          {showTopoMap ? (
             <TileLayer
               attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
@@ -845,7 +876,7 @@ export function CoordinateLeafletMap({
             />
           ) : null}
 
-          {showStandardMap && openAipTilesUrl ? (
+          {showTopoMap && openAipTilesUrl ? (
             <TileLayer
               attribution="openAIP"
               url={openAipTilesUrl}
