@@ -16,6 +16,7 @@ import {
   useMapEvents,
 } from "react-leaflet";
 import type { PlotNotam } from "@/lib/notams";
+import { parseCoordinateAreaInput } from "@/lib/coordinate-area-parser";
 import type { CoordinateMapArea, ParsedCoordinatePoint } from "./area-map-client";
 
 type MapSourceMode = "standard" | "vfr-chart";
@@ -218,11 +219,23 @@ function shouldDrawNotamArea(notam: PlotNotam) {
   );
 }
 
+function getNotamPolygonPoints(notam: PlotNotam) {
+  const isAreaNotice =
+    notam.qCode.toUpperCase().startsWith("QR") ||
+    ["AIRSPACE", "TFR"].includes(notam.category.toUpperCase());
+
+  if (!isAreaNotice || !notam.text) return [];
+
+  const parsed = parseCoordinateAreaInput(notam.text);
+  if (parsed.errors.length || parsed.points.length < 3) return [];
+
+  return parsed.points;
+}
+
 function groupNotamMarkers(notams: PlotNotam[]) {
   const groups = new Map<string, NotamMarkerGroup>();
 
   for (const notam of notams) {
-    if (shouldDrawNotamArea(notam)) continue;
 
     const latKey = notam.latitude.toFixed(2);
     const lonKey = notam.longitude.toFixed(2);
@@ -517,13 +530,38 @@ export function CoordinateLeafletMap({
   const showStandardMap = mapSourceMode === "standard";
   const showVfrChart = mapSourceMode === "vfr-chart";
 
-  const notamAreaShapes = useMemo(
-    () => notams.filter(shouldDrawNotamArea),
+  const notamSpatial = useMemo(
+    () =>
+      notams.map((notam) => ({
+        notam,
+        polygonPoints: getNotamPolygonPoints(notam),
+      })),
     [notams]
   );
+  const notamPolygonShapes = useMemo(
+    () => notamSpatial.filter((item) => item.polygonPoints.length >= 3),
+    [notamSpatial]
+  );
+  const notamAreaShapes = useMemo(
+    () =>
+      notamSpatial
+        .filter((item) => item.polygonPoints.length < 3)
+        .map((item) => item.notam)
+        .filter(shouldDrawNotamArea),
+    [notamSpatial]
+  );
   const notamMarkerGroups = useMemo(
-    () => groupNotamMarkers(notams),
-    [notams]
+    () =>
+      groupNotamMarkers(
+        notamSpatial
+          .filter(
+            (item) =>
+              item.polygonPoints.length < 3 &&
+              !shouldDrawNotamArea(item.notam)
+          )
+          .map((item) => item.notam)
+      ),
+    [notamSpatial]
   );
 
   const drawableAreas = useMemo(() => {
@@ -669,6 +707,31 @@ export function CoordinateLeafletMap({
 
           {showNotams ? (
             <>
+              {notamPolygonShapes.map(({ notam, polygonPoints }) => (
+                <Polygon
+                  key={`notam-polygon-${notam.id}`}
+                  positions={closePolygon(polygonPoints).map((point) => [
+                    point.lat,
+                    point.lon,
+                  ])}
+                  pathOptions={{
+                    color: "#ea580c",
+                    weight: 2,
+                    fillColor: "#fb923c",
+                    fillOpacity: 0.11,
+                  }}
+                >
+                  <Popup>
+                    <div className="max-w-[320px]">
+                      <div className="mb-2 rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-orange-800">
+                        Limits parsed from NOTAM coordinates
+                      </div>
+                      <NotamDetails notam={notam} />
+                    </div>
+                  </Popup>
+                </Polygon>
+              ))}
+
               {notamAreaShapes.map((notam) => (
                 <Circle
                   key={`area-${notam.id}`}
