@@ -267,11 +267,18 @@ export function AreaMapWorkspace() {
         return;
       }
 
-      setLiveNotams(result.notices);
+      const visibleNotices =
+        parsed.points.length === 0
+          ? result.notices.filter((notam) =>
+              notam.affectedFir.toUpperCase().startsWith("LP")
+            )
+          : result.notices;
+
+      setLiveNotams(visibleNotices);
       setNotamsStatus(
         result.truncated
-          ? `${result.plotted} plotted · more notices exist in this area`
-          : `${result.plotted} plotted`
+          ? `${visibleNotices.length} plotted · more notices exist in this area`
+          : `${visibleNotices.length} plotted`
       );
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
