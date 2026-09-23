@@ -24,12 +24,12 @@ export const navigationItems = [
     details: ["Mission", "Weather & NOTAM", "Final PDF"],
   },
   {
-    title: "Area Map",
-    href: "/area-map",
-    eyebrow: "Utility · NOTAM / GAMET",
+    title: "NOTAM Map",
+    href: "/notam-map",
+    eyebrow: "Utility · Portugal NOTAMs",
     group: "utility",
-    description: "Plot coordinate areas, choose what is visible and export the map.",
-    details: ["GAMET coordinates", "Saved areas", "PDF map"],
+    description: "See active Portuguese NOTAMs on the aviation map, grouped and colour-coded.",
+    details: ["Active NOTAMs", "12 h snapshot", "Custom area overlay"],
   },
   {
     title: "Aviation Map",
