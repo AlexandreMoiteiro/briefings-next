@@ -1,5 +1,5 @@
-import { AreaMapWorkspace } from "./area-map-workspace";
+import { redirect } from "next/navigation";
 
 export default function AreaMapPage() {
-  return <AreaMapWorkspace />;
+  redirect("/notam-map");
 }
