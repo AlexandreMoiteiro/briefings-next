@@ -29,7 +29,7 @@ export const navigationItems = [
     eyebrow: "Utility · Portugal NOTAMs",
     group: "utility",
     description: "See active Portuguese NOTAMs on the aviation map, grouped and colour-coded.",
-    details: ["Active NOTAMs", "12 h snapshot", "Custom area overlay"],
+    details: ["7-day view", "Colour-coded NOTAMs", "Custom area overlay"],
   },
   {
     title: "Aviation Map",
