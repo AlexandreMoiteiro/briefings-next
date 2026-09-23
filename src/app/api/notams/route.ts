@@ -3,7 +3,7 @@ import type { NotamApiResponse, PlotNotam } from "@/lib/notams";
 
 const DEFAULT_BASE_URL = "https://notac.aero/api/v1";
 const MAX_PORTUGAL_PAGES = 30;
-const MAX_BBOX_PAGES = 20;
+const NOTAM_CACHE_SECONDS = 60 * 60 * 24;
 
 type NotacReading = {
   short?: unknown;
@@ -43,28 +43,6 @@ function text(value: unknown) {
 function finiteNumber(value: unknown) {
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
-}
-
-function parseBbox(value: string | null) {
-  if (!value) return null;
-  const parts = value.split(",").map((part) => Number(part.trim()));
-  if (parts.length !== 4 || parts.some((part) => !Number.isFinite(part))) {
-    return null;
-  }
-
-  const [minLon, minLat, maxLon, maxLat] = parts;
-  if (
-    minLon < -180 ||
-    maxLon > 180 ||
-    minLat < -90 ||
-    maxLat > 90 ||
-    minLon >= maxLon ||
-    minLat >= maxLat
-  ) {
-    return null;
-  }
-
-  return { minLon, minLat, maxLon, maxLat };
 }
 
 function normalizeNotam(row: NotacResult): PlotNotam | null {
@@ -108,19 +86,7 @@ function normalizeNotam(row: NotacResult): PlotNotam | null {
   };
 }
 
-export async function GET(request: Request) {
-  const url = new URL(request.url);
-  const scope = url.searchParams.get("scope")?.trim().toLowerCase() || "";
-  const portugalScope = scope === "portugal";
-  const bbox = portugalScope ? null : parseBbox(url.searchParams.get("bbox"));
-
-  if (!portugalScope && !bbox) {
-    return NextResponse.json(
-      { error: "Invalid bbox." },
-      { status: 400 }
-    );
-  }
-
+export async function GET() {
   const provider = (process.env.NOTAM_PROVIDER?.trim().toLowerCase() || "notac");
   if (provider !== "notac") {
     return NextResponse.json(
@@ -148,31 +114,20 @@ export async function GET(request: Request) {
     });
   }
 
-  const providerQuery = portugalScope
-    ? "status=active&sort=location&country_code=PT"
-    : `status=active&sort=priority&bbox=${encodeURIComponent(
-        [
-          bbox!.minLon,
-          bbox!.minLat,
-          bbox!.maxLon,
-          bbox!.maxLat,
-        ].join(",")
-      )}`;
-
-  const maxPages = portugalScope ? MAX_PORTUGAL_PAGES : MAX_BBOX_PAGES;
+  const providerQuery = "status=active&sort=location&country_code=PT";
   let nextUrl: string | null = `${baseUrl}/notam/?${providerQuery}`;
   const notices: PlotNotam[] = [];
   let providerTotal = 0;
   let page = 0;
 
   try {
-    while (nextUrl && page < maxPages) {
+    while (nextUrl && page < MAX_PORTUGAL_PAGES) {
       const response = await fetch(nextUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
-        next: { revalidate: portugalScope ? 300 : 120 },
+        next: { revalidate: NOTAM_CACHE_SECONDS },
       });
 
       if (!response.ok) {
@@ -205,8 +160,14 @@ export async function GET(request: Request) {
       page += 1;
     }
 
+    const portugalNotices = notices.filter((notice) => {
+      const location = notice.locationCode.toUpperCase();
+      const fir = notice.affectedFir.toUpperCase();
+      return location.startsWith("LP") || fir.startsWith("LP");
+    });
+
     const unique = Array.from(
-      new Map(notices.map((notice) => [notice.id, notice])).values()
+      new Map(portugalNotices.map((notice) => [notice.id, notice])).values()
     );
 
     const response: NotamApiResponse = {
@@ -221,9 +182,8 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": portugalScope
-          ? "public, s-maxage=300, stale-while-revalidate=600"
-          : "public, s-maxage=120, stale-while-revalidate=240",
+        "Cache-Control":
+          "public, s-maxage=86400, stale-while-revalidate=86400",
       },
     });
   } catch (error) {
