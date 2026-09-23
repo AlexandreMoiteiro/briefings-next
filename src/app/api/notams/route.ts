@@ -32,7 +32,6 @@ type NotacResult = {
 };
 
 type NotacPage = {
-  count?: unknown;
   next?: unknown;
   results?: unknown;
 };
@@ -85,6 +84,42 @@ function normalizeNotam(row: NotacResult): PlotNotam | null {
     minimumFl: text(row.minimum_fl),
     maximumFl: text(row.maximum_fl),
   };
+}
+
+function validityWindow() {
+  const now = new Date();
+  const utcDayStart = new Date(
+    Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate())
+  );
+
+  const from = new Date(utcDayStart);
+  from.setUTCDate(from.getUTCDate() - 1);
+
+  const to = new Date(utcDayStart);
+  to.setUTCDate(to.getUTCDate() + 8);
+
+  return {
+    validFrom: from.toISOString(),
+    validTo: to.toISOString(),
+  };
+}
+
+function feedQuery(
+  filter: { countryCode?: string; fir?: string },
+  validFrom: string,
+  validTo: string
+) {
+  const params = new URLSearchParams({
+    status: "any",
+    sort: "location",
+    valid_from: validFrom,
+    valid_to: validTo,
+  });
+
+  if (filter.countryCode) params.set("country_code", filter.countryCode);
+  if (filter.fir) params.set("fir", filter.fir);
+
+  return params.toString();
 }
 
 async function fetchNotamFeed({
@@ -181,22 +216,23 @@ export async function GET() {
   }
 
   try {
+    const { validFrom, validTo } = validityWindow();
     const [countryFeed, firFeed] = await Promise.all([
       fetchNotamFeed({
         baseUrl,
         token,
-        query: "status=active&sort=location&country_code=PT",
+        query: feedQuery({ countryCode: "PT" }, validFrom, validTo),
       }),
       fetchNotamFeed({
         baseUrl,
         token,
-        query: "status=active&sort=location&fir=LPPC,LPPO",
+        query: feedQuery({ fir: "LPPC,LPPO" }, validFrom, validTo),
       }),
     ]);
 
-    const combined = [...countryFeed.notices, ...firFeed.notices].filter(
-      belongsToPortugal
-    );
+    const combined = [...countryFeed.notices, ...firFeed.notices]
+      .filter(belongsToPortugal)
+      .filter((notice) => notice.status.toLowerCase() !== "cancelled");
 
     const unique = Array.from(
       new Map(combined.map((notice) => [notice.id, notice])).values()
