@@ -205,17 +205,27 @@ const NOTAM_AREA_MIN_RADIUS_NM = 5;
 const NOTAM_AREA_MAX_RADIUS_NM = 25;
 
 const NOTAM_THEME_LEGEND = [
-  { key: "restriction", label: "TFR / UAS", color: "#dc2626", fill: "#ef4444" },
+  { key: "restriction", label: "TFR / drone", color: "#dc2626", fill: "#ef4444" },
   { key: "airspace", label: "Airspace", color: "#ea580c", fill: "#fb923c" },
   { key: "runway", label: "Runway", color: "#be123c", fill: "#fb7185" },
   { key: "ground", label: "Taxiway / apron", color: "#b45309", fill: "#f59e0b" },
+  { key: "lighting", label: "Lighting", color: "#a16207", fill: "#eab308" },
   { key: "navaid", label: "NAVAID / GPS", color: "#1d4ed8", fill: "#3b82f6" },
   { key: "obstacle", label: "Obstacle", color: "#7e22ce", fill: "#a855f7" },
   { key: "ops", label: "Procedure / ATC", color: "#0e7490", fill: "#06b6d4" },
+  { key: "service", label: "Fuel / service", color: "#15803d", fill: "#22c55e" },
   { key: "other", label: "Other", color: "#52525b", fill: "#71717a" },
 ] as const;
 
 type NotamTheme = (typeof NOTAM_THEME_LEGEND)[number];
+type NotamThemeKey = NotamTheme["key"];
+
+function themeByKey(key: NotamThemeKey): NotamTheme {
+  return (
+    NOTAM_THEME_LEGEND.find((theme) => theme.key === key) ??
+    NOTAM_THEME_LEGEND[NOTAM_THEME_LEGEND.length - 1]
+  );
+}
 
 function notamTheme(notam: PlotNotam): NotamTheme {
   const category = notam.category.toUpperCase();
@@ -224,14 +234,16 @@ function notamTheme(notam: PlotNotam): NotamTheme {
   if (
     category.includes("TFR") ||
     category.includes("UAS") ||
+    category.includes("DRONE") ||
     qCode.startsWith("QRT") ||
-    qCode.startsWith("QRD")
+    qCode.startsWith("QRD") ||
+    qCode.startsWith("QWU")
   ) {
-    return NOTAM_THEME_LEGEND[0];
+    return themeByKey("restriction");
   }
 
   if (category.includes("AIRSPACE") || qCode.startsWith("QR")) {
-    return NOTAM_THEME_LEGEND[1];
+    return themeByKey("airspace");
   }
 
   if (
@@ -239,36 +251,44 @@ function notamTheme(notam: PlotNotam): NotamTheme {
     category.includes("RWY") ||
     qCode.startsWith("QMR")
   ) {
-    return NOTAM_THEME_LEGEND[2];
+    return themeByKey("runway");
   }
 
   if (category.includes("TAXI") || category.includes("APRON")) {
-    return NOTAM_THEME_LEGEND[3];
+    return themeByKey("ground");
+  }
+
+  if (category.includes("LIGHTING")) {
+    return themeByKey("lighting");
   }
 
   if (
     category.includes("NAVAID") ||
     category.includes("GPS") ||
     qCode.startsWith("QNV") ||
-    qCode.startsWith("QNM")
+    qCode.startsWith("QNM") ||
+    qCode.startsWith("QND")
   ) {
-    return NOTAM_THEME_LEGEND[4];
+    return themeByKey("navaid");
   }
 
   if (category.includes("OBSTACLE")) {
-    return NOTAM_THEME_LEGEND[5];
+    return themeByKey("obstacle");
   }
 
   if (
     category.includes("PROCEDURE") ||
     category.includes("ATC") ||
-    category.includes("COMMS") ||
-    category.includes("LIGHTING")
+    category.includes("COMMS")
   ) {
-    return NOTAM_THEME_LEGEND[6];
+    return themeByKey("ops");
   }
 
-  return NOTAM_THEME_LEGEND[7];
+  if (category.includes("FUEL") || category.includes("SERVICE")) {
+    return themeByKey("service");
+  }
+
+  return themeByKey("other");
 }
 
 type NotamMarkerGroup = {
@@ -287,9 +307,14 @@ function shouldDrawNotamArea(notam: PlotNotam) {
 }
 
 function getNotamPolygonPoints(notam: PlotNotam) {
+  const category = notam.category.toUpperCase();
+  const qCode = notam.qCode.toUpperCase();
   const isAreaNotice =
-    notam.qCode.toUpperCase().startsWith("QR") ||
-    ["AIRSPACE", "TFR"].includes(notam.category.toUpperCase());
+    qCode.startsWith("QR") ||
+    qCode.startsWith("QWU") ||
+    ["AIRSPACE", "TFR", "DRONE", "UAS"].some((value) =>
+      category.includes(value)
+    );
 
   if (!isAreaNotice || !notam.text) return [];
 
