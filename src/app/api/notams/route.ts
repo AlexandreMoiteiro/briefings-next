@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { NotamApiResponse, PlotNotam } from "@/lib/notams";
 
 const DEFAULT_BASE_URL = "https://notac.aero/api/v1";
-const MAX_PORTUGAL_PAGES = 30;
+const MAX_PAGES_PER_FEED = 30;
 const NOTAM_CACHE_SECONDS = 60 * 60 * 12;
+const PORTUGUESE_FIRS = new Set(["LPPC", "LPPO"]);
 
 type NotacReading = {
   short?: unknown;
@@ -86,8 +87,70 @@ function normalizeNotam(row: NotacResult): PlotNotam | null {
   };
 }
 
+async function fetchNotamFeed({
+  baseUrl,
+  token,
+  query,
+}: {
+  baseUrl: string;
+  token: string;
+  query: string;
+}) {
+  let nextUrl: string | null = `${baseUrl}/notam/?${query}`;
+  const notices: PlotNotam[] = [];
+  let page = 0;
+  let truncated = false;
+
+  while (nextUrl && page < MAX_PAGES_PER_FEED) {
+    const response = await fetch(nextUrl, {
+      headers: {
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json",
+      },
+      next: { revalidate: NOTAM_CACHE_SECONDS },
+    });
+
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.warn(
+        "NOTAM provider request failed",
+        response.status,
+        detail.slice(0, 500)
+      );
+      throw new Error(`provider:${response.status}`);
+    }
+
+    const payload = (await response.json()) as NotacPage;
+    const results = Array.isArray(payload.results)
+      ? (payload.results as NotacResult[])
+      : [];
+
+    for (const row of results) {
+      const notice = normalizeNotam(row);
+      if (notice) notices.push(notice);
+    }
+
+    nextUrl =
+      typeof payload.next === "string" && payload.next ? payload.next : null;
+    page += 1;
+  }
+
+  if (nextUrl) truncated = true;
+
+  return { notices, truncated };
+}
+
+function belongsToPortugal(notice: PlotNotam) {
+  const location = notice.locationCode.toUpperCase();
+  const fir = notice.affectedFir.toUpperCase();
+
+  return location.startsWith("LP") || PORTUGUESE_FIRS.has(fir);
+}
+
 export async function GET() {
-  const provider = (process.env.NOTAM_PROVIDER?.trim().toLowerCase() || "notac");
+  const provider =
+    process.env.NOTAM_PROVIDER?.trim().toLowerCase() || "notac";
+
   if (provider !== "notac") {
     return NextResponse.json(
       { error: `Unsupported NOTAM provider: ${provider}` },
@@ -96,7 +159,9 @@ export async function GET() {
   }
 
   const token = process.env.NOTAC_API_TOKEN?.trim();
-  const baseUrl = (process.env.NOTAM_API_BASE_URL?.trim() || DEFAULT_BASE_URL).replace(/\/$/, "");
+  const baseUrl = (
+    process.env.NOTAM_API_BASE_URL?.trim() || DEFAULT_BASE_URL
+  ).replace(/\/$/, "");
 
   if (!token) {
     const response: NotamApiResponse = {
@@ -109,74 +174,41 @@ export async function GET() {
       fetchedAt: new Date().toISOString(),
       message: "Live NOTAM source is not configured yet.",
     };
+
     return NextResponse.json(response, {
       headers: { "Cache-Control": "no-store" },
     });
   }
 
-  const providerQuery = "status=active&sort=location&country_code=PT";
-  let nextUrl: string | null = `${baseUrl}/notam/?${providerQuery}`;
-  const notices: PlotNotam[] = [];
-  let providerTotal = 0;
-  let page = 0;
-
   try {
-    while (nextUrl && page < MAX_PORTUGAL_PAGES) {
-      const response = await fetch(nextUrl, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          Accept: "application/json",
-        },
-        next: { revalidate: NOTAM_CACHE_SECONDS },
-      });
+    const [countryFeed, firFeed] = await Promise.all([
+      fetchNotamFeed({
+        baseUrl,
+        token,
+        query: "status=active&sort=location&country_code=PT",
+      }),
+      fetchNotamFeed({
+        baseUrl,
+        token,
+        query: "status=active&sort=location&fir=LPPC,LPPO",
+      }),
+    ]);
 
-      if (!response.ok) {
-        const detail = await response.text().catch(() => "");
-        console.warn("NOTAM provider request failed", response.status, detail.slice(0, 500));
-        return NextResponse.json(
-          {
-            error: "Could not load live NOTAMs.",
-            providerStatus: response.status,
-          },
-          { status: 502 }
-        );
-      }
-
-      const payload = (await response.json()) as NotacPage;
-      if (page === 0) {
-        providerTotal = Math.max(0, finiteNumber(payload.count) ?? 0);
-      }
-
-      const results = Array.isArray(payload.results)
-        ? (payload.results as NotacResult[])
-        : [];
-
-      for (const row of results) {
-        const notice = normalizeNotam(row);
-        if (notice) notices.push(notice);
-      }
-
-      nextUrl = typeof payload.next === "string" && payload.next ? payload.next : null;
-      page += 1;
-    }
-
-    const portugalNotices = notices.filter((notice) => {
-      const location = notice.locationCode.toUpperCase();
-      const fir = notice.affectedFir.toUpperCase();
-      return location.startsWith("LP") || fir.startsWith("LP");
-    });
+    const combined = [...countryFeed.notices, ...firFeed.notices].filter(
+      belongsToPortugal
+    );
 
     const unique = Array.from(
-      new Map(portugalNotices.map((notice) => [notice.id, notice])).values()
+      new Map(combined.map((notice) => [notice.id, notice])).values()
     );
 
     const response: NotamApiResponse = {
       configured: true,
       provider: "NOTAC",
       notices: unique,
-      total: providerTotal,
+      total: unique.length,
       plotted: unique.length,
-      truncated: Boolean(nextUrl),
+      truncated: countryFeed.truncated || firFeed.truncated,
       fetchedAt: new Date().toISOString(),
     };
 
@@ -188,8 +220,16 @@ export async function GET() {
     });
   } catch (error) {
     console.error("NOTAM API failed", error);
+    const providerStatus =
+      error instanceof Error && error.message.startsWith("provider:")
+        ? Number(error.message.split(":")[1])
+        : undefined;
+
     return NextResponse.json(
-      { error: "Could not load live NOTAMs." },
+      {
+        error: "Could not load live NOTAMs.",
+        ...(providerStatus ? { providerStatus } : {}),
+      },
       { status: 502 }
     );
   }
