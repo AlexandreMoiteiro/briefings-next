@@ -66,12 +66,12 @@ function buildDayOptions() {
         ? "Today"
         : index === 1
           ? "Tomorrow"
-          : start.toLocaleDateString(undefined, { weekday: "short" });
+          : start.toLocaleDateString("en-GB", { weekday: "short" });
 
     return {
       key: dateKey(start),
       label,
-      dateLabel: start.toLocaleDateString(undefined, {
+      dateLabel: start.toLocaleDateString("en-GB", {
         day: "2-digit",
         month: "2-digit",
       }),
@@ -239,7 +239,7 @@ export function NotamMapWorkspace() {
                 <span
                   className={
                     active
-                      ? "mt-0.5 block text-[11px] text-amber-300"
+                      ? "mt-0.5 block text-[11px] text-sky-300"
                       : "mt-0.5 block text-[11px] text-zinc-500"
                   }
                 >
