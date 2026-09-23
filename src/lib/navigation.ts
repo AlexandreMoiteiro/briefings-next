@@ -28,7 +28,7 @@ export const navigationItems = [
     href: "/notam-map",
     eyebrow: "Utility · Portugal NOTAMs",
     group: "utility",
-    description: "See active Portuguese NOTAMs on the aviation map, grouped and colour-coded.",
+    description: "See Portuguese NOTAMs by day on the aviation map, grouped and colour-coded.",
     details: ["7-day view", "Colour-coded NOTAMs", "Custom area overlay"],
   },
   {
