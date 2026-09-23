@@ -16,6 +16,12 @@ import {
   type AreaMapPdfSource,
 } from "@/lib/pdf/area-map-pdf";
 import { logUsageEvent } from "@/lib/usage-events";
+import {
+  bboxFromPoints,
+  bboxToQuery,
+  type NotamApiResponse,
+  type PlotNotam,
+} from "@/lib/notams";
 
 const CoordinateLeafletMap = dynamic(
   () =>
@@ -150,9 +156,18 @@ export function AreaMapWorkspace() {
   const [pdfSource, setPdfSource] = useState<AreaMapPdfSource>("vfr-chart");
   const [busy, setBusy] = useState(false);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [liveNotams, setLiveNotams] = useState<PlotNotam[]>([]);
+  const [showLiveNotams, setShowLiveNotams] = useState(true);
+  const [notamsBusy, setNotamsBusy] = useState(false);
+  const [notamsConfigured, setNotamsConfigured] = useState<boolean | null>(null);
+  const [notamsStatus, setNotamsStatus] = useState("");
 
   const parsed = useMemo(() => parseCoordinateAreaInput(input), [input]);
   const geoJson = useMemo(() => buildGeoJson(parsed.points), [parsed.points]);
+  const notamBboxQuery = useMemo(
+    () => bboxToQuery(bboxFromPoints(parsed.points)),
+    [parsed.points]
+  );
 
   const canSave =
     areaName.trim().length > 0 &&
@@ -203,6 +218,71 @@ export function AreaMapWorkspace() {
   useEffect(() => {
     void refreshSavedAreas();
   }, []);
+
+  useEffect(() => {
+    if (!showLiveNotams) return;
+
+    const controller = new AbortController();
+    const timeout = window.setTimeout(() => {
+      void refreshLiveNotams(controller.signal);
+    }, parsed.points.length ? 700 : 0);
+
+    return () => {
+      window.clearTimeout(timeout);
+      controller.abort();
+    };
+  }, [notamBboxQuery, showLiveNotams]);
+
+  async function refreshLiveNotams(signal?: AbortSignal) {
+    setNotamsBusy(true);
+    setNotamsStatus("");
+
+    try {
+      const response = await fetch(
+        `/api/notams?bbox=${encodeURIComponent(notamBboxQuery)}`,
+        {
+          method: "GET",
+          headers: { Accept: "application/json" },
+          cache: "no-store",
+          signal,
+        }
+      );
+
+      const data = (await response.json().catch(() => ({}))) as
+        | NotamApiResponse
+        | { error?: string };
+
+      if (!response.ok) {
+        throw new Error(
+          "error" in data && data.error ? data.error : "Could not load live NOTAMs."
+        );
+      }
+
+      const result = data as NotamApiResponse;
+      setNotamsConfigured(result.configured);
+
+      if (!result.configured) {
+        setLiveNotams([]);
+        setNotamsStatus(result.message || "Live NOTAMs are unavailable.");
+        return;
+      }
+
+      setLiveNotams(result.notices);
+      setNotamsStatus(
+        result.truncated
+          ? `${result.plotted} plotted · more notices exist in this area`
+          : `${result.plotted} plotted`
+      );
+    } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
+      console.error(error);
+      setNotamsStatus(
+        error instanceof Error ? error.message : "Could not load live NOTAMs."
+      );
+    } finally {
+      if (!signal?.aborted) setNotamsBusy(false);
+    }
+  }
 
   async function refreshSavedAreas() {
     setBusy(true);
@@ -608,16 +688,33 @@ export function AreaMapWorkspace() {
             title="Check the area on the map"
             description="The selected or draft area is highlighted. Saved areas stay hidden unless you explicitly add them as reference overlays."
           />
-          <div className="flex flex-wrap gap-2 text-xs">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full bg-zinc-100 px-3 py-1.5 font-semibold text-zinc-600">
               {currentAreaLabel}
             </span>
             <span className="rounded-full bg-zinc-100 px-3 py-1.5 font-semibold text-zinc-600">
               {parsed.points.length} pt
             </span>
-            <span className="rounded-full bg-zinc-100 px-3 py-1.5 font-semibold text-zinc-600">
-              {visibleAreaIds.length} saved shown
-            </span>
+            <button
+              type="button"
+              onClick={() => setShowLiveNotams((value) => !value)}
+              className={[
+                "rounded-full border px-3 py-1.5 font-semibold transition",
+                showLiveNotams
+                  ? "border-orange-200 bg-orange-50 text-orange-800"
+                  : "border-zinc-200 bg-white text-zinc-500",
+              ].join(" ")}
+            >
+              Live NOTAMs · {showLiveNotams ? (notamsBusy ? "…" : liveNotams.length) : "off"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void refreshLiveNotams()}
+              disabled={notamsBusy || !showLiveNotams}
+              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-40"
+            >
+              Refresh
+            </button>
           </div>
         </div>
 
@@ -625,6 +722,8 @@ export function AreaMapWorkspace() {
           <CoordinateLeafletMap
             areas={mapAreas}
             selectedAreaId={selectedAreaId || "draft-area"}
+            notams={liveNotams}
+            showNotams={showLiveNotams}
           />
         </div>
 
@@ -634,7 +733,7 @@ export function AreaMapWorkspace() {
               <div>
                 <p className="text-sm font-semibold text-zinc-950">Map layers</p>
                 <p className="mt-0.5 text-xs text-zinc-500">
-                  Add saved areas only when you need them for comparison.
+                  Saved areas remain optional overlays. Live NOTAMs are a separate layer.
                 </p>
               </div>
               <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-zinc-600 ring-1 ring-zinc-200">
@@ -642,6 +741,30 @@ export function AreaMapWorkspace() {
               </span>
             </div>
           </summary>
+
+          <div className="mt-4 rounded-xl border border-orange-100 bg-orange-50/60 px-3 py-2.5 text-xs leading-5 text-orange-950">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span>
+                <strong>Live NOTAMs:</strong>{" "}
+                {notamsConfigured === false
+                  ? "source not configured"
+                  : notamsBusy
+                    ? "loading…"
+                    : notamsStatus || `${liveNotams.length} plotted`}
+              </span>
+              <label className="flex items-center gap-2 font-semibold">
+                <input
+                  type="checkbox"
+                  checked={showLiveNotams}
+                  onChange={(event) => setShowLiveNotams(event.target.checked)}
+                />
+                Show on map
+              </label>
+            </div>
+            <p className="mt-1 text-orange-800/80">
+              Convenience overlay only. Confirm NOTAM applicability and the official briefing for the flight.
+            </p>
+          </div>
 
           <div className="mt-4 flex flex-wrap gap-2">
             <button
