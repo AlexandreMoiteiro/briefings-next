@@ -17,8 +17,6 @@ import {
 } from "@/lib/pdf/area-map-pdf";
 import { logUsageEvent } from "@/lib/usage-events";
 import {
-  bboxFromPoints,
-  bboxToQuery,
   type NotamApiResponse,
   type PlotNotam,
 } from "@/lib/notams";
@@ -164,17 +162,6 @@ export function AreaMapWorkspace() {
 
   const parsed = useMemo(() => parseCoordinateAreaInput(input), [input]);
   const geoJson = useMemo(() => buildGeoJson(parsed.points), [parsed.points]);
-  const notamBboxQuery = useMemo(
-    () => bboxToQuery(bboxFromPoints(parsed.points)),
-    [parsed.points]
-  );
-  const notamRequestQuery = useMemo(
-    () =>
-      parsed.points.length
-        ? `bbox=${encodeURIComponent(notamBboxQuery)}`
-        : "scope=portugal",
-    [notamBboxQuery, parsed.points.length]
-  );
 
   const canSave =
     areaName.trim().length > 0 &&
@@ -232,13 +219,13 @@ export function AreaMapWorkspace() {
     const controller = new AbortController();
     const timeout = window.setTimeout(() => {
       void refreshLiveNotams(controller.signal);
-    }, parsed.points.length ? 700 : 0);
+    }, 0);
 
     return () => {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [notamRequestQuery, showLiveNotams]);
+  }, [showLiveNotams]);
 
   async function refreshLiveNotams(signal?: AbortSignal) {
     setNotamsBusy(true);
@@ -246,7 +233,7 @@ export function AreaMapWorkspace() {
 
     try {
       const response = await fetch(
-        `/api/notams?${notamRequestQuery}`,
+        "/api/notams",
         {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -714,14 +701,9 @@ export function AreaMapWorkspace() {
             >
               Live NOTAMs · {showLiveNotams ? (notamsBusy ? "…" : liveNotams.length) : "off"}
             </button>
-            <button
-              type="button"
-              onClick={() => void refreshLiveNotams()}
-              disabled={notamsBusy || !showLiveNotams}
-              className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-600 transition hover:bg-zinc-50 disabled:opacity-40"
-            >
-              Refresh
-            </button>
+            <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-500">
+              Portugal · updated daily
+            </span>
           </div>
         </div>
 
