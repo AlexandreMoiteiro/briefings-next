@@ -382,7 +382,7 @@ function notamMarkerIcon(group: NotamMarkerGroup) {
   );
   const background =
     colors.length <= 1
-      ? colors[0] || NOTAM_THEME_LEGEND[7].color
+      ? colors[0] || themeByKey("other").color
       : `conic-gradient(${colors
           .map(
             (color, index) =>
