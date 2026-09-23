@@ -307,22 +307,38 @@ function shouldDrawNotamArea(notam: PlotNotam) {
   );
 }
 
-function polygonFootprint(points: ParsedCoordinatePoint[]) {
+function polygonFootprintNm2(points: ParsedCoordinatePoint[]) {
   if (!points.length) return 0;
 
   const lats = points.map((point) => point.lat);
   const lons = points.map((point) => point.lon);
-  const latSpan = Math.max(...lats) - Math.min(...lats);
-  const lonSpan = Math.max(...lons) - Math.min(...lons);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const meanLat = ((minLat + maxLat) / 2) * (Math.PI / 180);
 
-  return Math.max(0.000001, latSpan * lonSpan);
+  const northSouthNm = Math.max(0.01, (maxLat - minLat) * 60);
+  const eastWestNm = Math.max(
+    0.01,
+    (maxLon - minLon) * 60 * Math.max(0.2, Math.cos(meanLat))
+  );
+
+  return northSouthNm * eastWestNm;
 }
 
-function notamPolygonPane(points: ParsedCoordinatePoint[]) {
-  return polygonFootprint(points) >= 0.8
-    ? "notam-broad"
-    : "notam-area";
-}
+type NotamShapeItem =
+  | {
+      kind: "polygon";
+      notam: PlotNotam;
+      polygonPoints: ParsedCoordinatePoint[];
+      footprintNm2: number;
+    }
+  | {
+      kind: "circle";
+      notam: PlotNotam;
+      footprintNm2: number;
+    };
 
 function getNotamPolygonPoints(notam: PlotNotam) {
   const category = notam.category.toUpperCase();
@@ -677,26 +693,31 @@ export function CoordinateLeafletMap({
       })),
     [notams]
   );
-  const notamPolygonShapes = useMemo(
-    () =>
-      notamSpatial
-        .filter((item) => item.polygonPoints.length >= 3)
-        .sort(
-          (a, b) =>
-            polygonFootprint(b.polygonPoints) -
-            polygonFootprint(a.polygonPoints)
-        ),
-    [notamSpatial]
-  );
-  const notamAreaShapes = useMemo(
-    () =>
-      notamSpatial
-        .filter((item) => item.polygonPoints.length < 3)
-        .map((item) => item.notam)
-        .filter(shouldDrawNotamArea)
-        .sort((a, b) => b.radiusNm - a.radiusNm),
-    [notamSpatial]
-  );
+  const notamShapeItems = useMemo<NotamShapeItem[]>(() => {
+    const items: NotamShapeItem[] = [];
+
+    for (const item of notamSpatial) {
+      if (item.polygonPoints.length >= 3) {
+        items.push({
+          kind: "polygon",
+          notam: item.notam,
+          polygonPoints: item.polygonPoints,
+          footprintNm2: polygonFootprintNm2(item.polygonPoints),
+        });
+        continue;
+      }
+
+      if (shouldDrawNotamArea(item.notam)) {
+        items.push({
+          kind: "circle",
+          notam: item.notam,
+          footprintNm2: Math.PI * item.notam.radiusNm * item.notam.radiusNm,
+        });
+      }
+    }
+
+    return items.sort((a, b) => b.footprintNm2 - a.footprintNm2);
+  }, [notamSpatial]);
   const notamMarkerGroups = useMemo(
     () =>
       groupNotamMarkers(
@@ -908,58 +929,65 @@ export function CoordinateLeafletMap({
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
 
-          <Pane name="notam-broad" style={{ zIndex: 330 }} />
-          <Pane name="notam-area" style={{ zIndex: 370 }} />
+          <Pane name="notam-shapes" style={{ zIndex: 370 }} />
           <Pane name="custom-area" style={{ zIndex: 430 }} />
 
           {showNotams ? (
             <>
-              {notamPolygonShapes.map(({ notam, polygonPoints }) => (
-                <Polygon
-                  key={`notam-polygon-${notam.id}`}
-                  pane={notamPolygonPane(polygonPoints)}
-                  positions={closePolygon(polygonPoints).map((point) => [
-                    point.lat,
-                    point.lon,
-                  ])}
-                  pathOptions={{
-                    color: notamTheme(notam).color,
-                    weight: 2,
-                    fillColor: notamTheme(notam).fill,
-                    fillOpacity: 0.11,
-                  }}
-                >
-                  <Popup>
-                    <div className="max-w-[320px]">
-                      <div className="mb-2 rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-orange-800">
-                        Limits parsed from NOTAM coordinates
-                      </div>
-                      <NotamDetails notam={notam} />
-                    </div>
-                  </Popup>
-                </Polygon>
-              ))}
+              {notamShapeItems.map((shape) => {
+                const notam = shape.notam;
 
-              {notamAreaShapes.map((notam) => (
-                <Circle
-                  key={`area-${notam.id}`}
-                  pane="notam-area"
-                  center={[notam.latitude, notam.longitude]}
-                  radius={notam.radiusNm * 1852}
-                  pathOptions={{
-                    color: notamTheme(notam).color,
-                    weight: 1.5,
-                    fillColor: notamTheme(notam).fill,
-                    fillOpacity: 0.07,
-                  }}
-                >
-                  <Popup>
-                    <div className="max-w-[320px]">
-                      <NotamDetails notam={notam} />
-                    </div>
-                  </Popup>
-                </Circle>
-              ))}
+                if (shape.kind === "polygon") {
+                  return (
+                    <Polygon
+                      key={`notam-polygon-${notam.id}`}
+                      pane="notam-shapes"
+                      bubblingMouseEvents={false}
+                      positions={closePolygon(shape.polygonPoints).map((point) => [
+                        point.lat,
+                        point.lon,
+                      ])}
+                      pathOptions={{
+                        color: notamTheme(notam).color,
+                        weight: 2,
+                        fillColor: notamTheme(notam).fill,
+                        fillOpacity: 0.11,
+                      }}
+                    >
+                      <Popup>
+                        <div className="max-w-[320px]">
+                          <div className="mb-2 rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-orange-800">
+                            Limits parsed from NOTAM coordinates
+                          </div>
+                          <NotamDetails notam={notam} />
+                        </div>
+                      </Popup>
+                    </Polygon>
+                  );
+                }
+
+                return (
+                  <Circle
+                    key={`area-${notam.id}`}
+                    pane="notam-shapes"
+                    bubblingMouseEvents={false}
+                    center={[notam.latitude, notam.longitude]}
+                    radius={notam.radiusNm * 1852}
+                    pathOptions={{
+                      color: notamTheme(notam).color,
+                      weight: 1.5,
+                      fillColor: notamTheme(notam).fill,
+                      fillOpacity: 0.07,
+                    }}
+                  >
+                    <Popup>
+                      <div className="max-w-[320px]">
+                        <NotamDetails notam={notam} />
+                      </div>
+                    </Popup>
+                  </Circle>
+                );
+              })}
 
               {notamMarkerGroups.map((group) => (
                 <Marker
