@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-const STORAGE_KEY = "briefings:notam-map-launch:v1";
+const STORAGE_KEY = "briefings:notam-map-launch:v2";
 const START_AT = Date.parse("2026-09-23T00:00:00+01:00");
 const END_AT = Date.parse("2026-09-30T23:59:59+01:00");
 
@@ -78,7 +78,7 @@ export function NotamMapAnnouncement() {
               The new NOTAM Map plots active Portuguese and Portuguese-FIR NOTAMs on the aviation chart, grouped and colour-coded for easier scanning.
             </p>
             <p className="mt-2 text-xs leading-5 text-zinc-500">
-              The snapshot refreshes every 12 hours. Always confirm the applicable NOTAM briefing before flight.
+              Choose a day to see the notices applicable to that date. Always confirm the applicable NOTAM briefing before flight.
             </p>
           </div>
 
