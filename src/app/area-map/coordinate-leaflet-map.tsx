@@ -200,6 +200,122 @@ function notamVerticalRange(notam: PlotNotam) {
   return lower || upper || "Not specified";
 }
 
+const NOTAM_AREA_MIN_RADIUS_NM = 5;
+const NOTAM_AREA_MAX_RADIUS_NM = 25;
+
+type NotamMarkerGroup = {
+  key: string;
+  latitude: number;
+  longitude: number;
+  notices: PlotNotam[];
+  broadAreaCount: number;
+};
+
+function shouldDrawNotamArea(notam: PlotNotam) {
+  return (
+    notam.radiusNm > NOTAM_AREA_MIN_RADIUS_NM &&
+    notam.radiusNm <= NOTAM_AREA_MAX_RADIUS_NM
+  );
+}
+
+function groupNotamMarkers(notams: PlotNotam[]) {
+  const groups = new Map<string, NotamMarkerGroup>();
+
+  for (const notam of notams) {
+    if (shouldDrawNotamArea(notam)) continue;
+
+    const latKey = notam.latitude.toFixed(2);
+    const lonKey = notam.longitude.toFixed(2);
+    const key = `${latKey}:${lonKey}`;
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.notices.push(notam);
+      if (notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM) {
+        existing.broadAreaCount += 1;
+      }
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      latitude: notam.latitude,
+      longitude: notam.longitude,
+      notices: [notam],
+      broadAreaCount:
+        notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM ? 1 : 0,
+    });
+  }
+
+  return Array.from(groups.values());
+}
+
+function notamMarkerIcon(group: NotamMarkerGroup) {
+  const count = group.notices.length;
+  const broad = group.broadAreaCount > 0;
+  const label = count > 1 ? String(count) : broad ? "A" : "N";
+
+  return L.divIcon({
+    className: "",
+    html: `<div class="area-map-notam-marker ${broad ? "area-map-notam-marker-broad" : ""}">
+      <span>${label}</span>
+    </div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function NotamDetails({ notam }: { notam: PlotNotam }) {
+  return (
+    <div className="space-y-1.5 border-b border-zinc-100 pb-2 last:border-0 last:pb-0">
+      <div>
+        <div className="text-sm font-semibold text-zinc-950">{notam.number}</div>
+        <div className="text-xs font-medium text-orange-700">
+          {notam.category}
+          {notam.locationCode ? ` · ${notam.locationCode}` : ""}
+        </div>
+      </div>
+      {notam.shortReading ? (
+        <p className="text-xs leading-5 text-zinc-800">{notam.shortReading}</p>
+      ) : null}
+      <div className="grid gap-0.5 text-[11px] text-zinc-500">
+        <span>
+          <strong className="text-zinc-700">Valid:</strong>{" "}
+          {formatNotamTime(notam.effectiveStart)} → {formatNotamTime(notam.effectiveEnd)}
+        </span>
+        <span>
+          <strong className="text-zinc-700">Vertical:</strong>{" "}
+          {notamVerticalRange(notam)}
+        </span>
+        {notam.radiusNm > 0 ? (
+          <span>
+            <strong className="text-zinc-700">Q-line radius:</strong>{" "}
+            {notam.radiusNm} NM
+            {notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM
+              ? " · broad-area reference"
+              : ""}
+          </span>
+        ) : null}
+        {notam.qCode ? (
+          <span>
+            <strong className="text-zinc-700">Q-code:</strong> {notam.qCode}
+          </span>
+        ) : null}
+      </div>
+      {notam.text ? (
+        <details>
+          <summary className="cursor-pointer text-[11px] font-semibold text-zinc-600">
+            Raw NOTAM
+          </summary>
+          <p className="mt-1 max-h-28 overflow-auto whitespace-pre-line rounded-lg bg-zinc-50 p-2 font-mono text-[10px] leading-4 text-zinc-600">
+            {notam.text}
+          </p>
+        </details>
+      ) : null}
+    </div>
+  );
+}
+
 function areaNameIcon(name: string, selected: boolean) {
   const safeName = escapeHtml(name.trim() || "Area");
 
@@ -401,6 +517,15 @@ export function CoordinateLeafletMap({
   const showStandardMap = mapSourceMode === "standard";
   const showVfrChart = mapSourceMode === "vfr-chart";
 
+  const notamAreaShapes = useMemo(
+    () => notams.filter(shouldDrawNotamArea),
+    [notams]
+  );
+  const notamMarkerGroups = useMemo(
+    () => groupNotamMarkers(notams),
+    [notams]
+  );
+
   const drawableAreas = useMemo(() => {
     const nonEmptyAreas = areas.filter((area) => area.points.length > 0);
 
@@ -542,88 +667,59 @@ export function CoordinateLeafletMap({
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
 
-          {showNotams
-            ? notams.map((notam) => {
-                const popup = (
+          {showNotams ? (
+            <>
+              {notamAreaShapes.map((notam) => (
+                <Circle
+                  key={`area-${notam.id}`}
+                  center={[notam.latitude, notam.longitude]}
+                  radius={notam.radiusNm * 1852}
+                  pathOptions={{
+                    color: "#ea580c",
+                    weight: 1.5,
+                    fillColor: "#fb923c",
+                    fillOpacity: 0.07,
+                  }}
+                >
                   <Popup>
-                    <div className="max-w-[320px] space-y-2">
-                      <div>
-                        <div className="text-sm font-semibold text-zinc-950">
-                          {notam.number}
-                        </div>
-                        <div className="text-xs font-medium text-orange-700">
-                          {notam.category}
-                          {notam.locationCode ? ` · ${notam.locationCode}` : ""}
-                        </div>
+                    <div className="max-w-[320px]">
+                      <NotamDetails notam={notam} />
+                    </div>
+                  </Popup>
+                </Circle>
+              ))}
+
+              {notamMarkerGroups.map((group) => (
+                <Marker
+                  key={`notam-group-${group.key}`}
+                  position={[group.latitude, group.longitude]}
+                  icon={notamMarkerIcon(group)}
+                >
+                  <Popup>
+                    <div className="max-h-[320px] w-[300px] max-w-[72vw] overflow-auto">
+                      <div className="mb-2 flex items-center justify-between gap-3 border-b border-zinc-200 pb-2">
+                        <strong className="text-sm text-zinc-950">
+                          {group.notices.length === 1
+                            ? "NOTAM"
+                            : `${group.notices.length} NOTAMs`}
+                        </strong>
+                        {group.broadAreaCount > 0 ? (
+                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-800">
+                            {group.broadAreaCount} broad area
+                          </span>
+                        ) : null}
                       </div>
-                      {notam.shortReading ? (
-                        <p className="text-sm leading-5 text-zinc-800">
-                          {notam.shortReading}
-                        </p>
-                      ) : null}
-                      {notam.text ? (
-                        <p className="max-h-32 overflow-auto whitespace-pre-line rounded-lg bg-zinc-50 p-2 font-mono text-[11px] leading-4 text-zinc-600">
-                          {notam.text}
-                        </p>
-                      ) : null}
-                      <div className="grid gap-1 text-[11px] text-zinc-500">
-                        <span>
-                          <strong className="text-zinc-700">Valid:</strong>{" "}
-                          {formatNotamTime(notam.effectiveStart)} → {formatNotamTime(notam.effectiveEnd)}
-                        </span>
-                        <span>
-                          <strong className="text-zinc-700">Vertical:</strong>{" "}
-                          {notamVerticalRange(notam)}
-                        </span>
-                        {notam.radiusNm > 0 ? (
-                          <span>
-                            <strong className="text-zinc-700">Q-line radius:</strong>{" "}
-                            {notam.radiusNm} NM
-                          </span>
-                        ) : null}
-                        {notam.qCode ? (
-                          <span>
-                            <strong className="text-zinc-700">Q-code:</strong>{" "}
-                            {notam.qCode}
-                          </span>
-                        ) : null}
+                      <div className="space-y-2">
+                        {group.notices.map((notam) => (
+                          <NotamDetails key={notam.id} notam={notam} />
+                        ))}
                       </div>
                     </div>
                   </Popup>
-                );
-
-                return notam.radiusNm > 0 ? (
-                  <Circle
-                    key={notam.id}
-                    center={[notam.latitude, notam.longitude]}
-                    radius={notam.radiusNm * 1852}
-                    pathOptions={{
-                      color: "#ea580c",
-                      weight: 2,
-                      fillColor: "#fb923c",
-                      fillOpacity: 0.12,
-                      dashArray: "5 4",
-                    }}
-                  >
-                    {popup}
-                  </Circle>
-                ) : (
-                  <CircleMarker
-                    key={notam.id}
-                    center={[notam.latitude, notam.longitude]}
-                    radius={7}
-                    pathOptions={{
-                      color: "#ffffff",
-                      weight: 2,
-                      fillColor: "#ea580c",
-                      fillOpacity: 0.95,
-                    }}
-                  >
-                    {popup}
-                  </CircleMarker>
-                );
-              })
-            : null}
+                </Marker>
+              ))}
+            </>
+          ) : null}
 
           {drawableAreas.map((area) => {
             const selected = Boolean(
@@ -705,6 +801,26 @@ export function CoordinateLeafletMap({
           background: rgba(2, 6, 23, 0.92);
           border-color: rgba(2, 6, 23, 0.92);
           color: #ffffff;
+        }
+
+        .area-map-notam-marker {
+          display: flex;
+          width: 28px;
+          height: 28px;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid #ffffff;
+          border-radius: 999px;
+          background: #ea580c;
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+          font-size: 10px;
+          font-weight: 800;
+          line-height: 1;
+        }
+
+        .area-map-notam-marker-broad {
+          background: #9a3412;
         }
       `}</style>
     </section>
