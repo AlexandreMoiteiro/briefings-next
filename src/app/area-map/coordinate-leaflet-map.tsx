@@ -3,16 +3,19 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L, { type LatLngBounds, type LatLngBoundsExpression } from "leaflet";
 import {
+  Circle,
   CircleMarker,
   ImageOverlay,
   MapContainer,
   Marker,
   Polygon,
+  Popup,
   Polyline,
   TileLayer,
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import type { PlotNotam } from "@/lib/notams";
 import type { CoordinateMapArea, ParsedCoordinatePoint } from "./area-map-client";
 
 type MapSourceMode = "standard" | "vfr-chart";
@@ -20,6 +23,8 @@ type MapSourceMode = "standard" | "vfr-chart";
 type CoordinateLeafletMapProps = {
   areas: CoordinateMapArea[];
   selectedAreaId?: string;
+  notams?: PlotNotam[];
+  showNotams?: boolean;
 };
 
 type VfrKmzOverlayItem = {
@@ -170,6 +175,29 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatNotamTime(value: string | null) {
+  if (!value) return "Permanent / not specified";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }) + " UTC";
+}
+
+function notamVerticalRange(notam: PlotNotam) {
+  const lower =
+    notam.lowerLimit ||
+    (notam.minimumFl ? `FL${notam.minimumFl}` : "");
+  const upper =
+    notam.upperLimit ||
+    (notam.maximumFl ? `FL${notam.maximumFl}` : "");
+
+  if (lower && upper) return `${lower} – ${upper}`;
+  return lower || upper || "Not specified";
 }
 
 function areaNameIcon(name: string, selected: boolean) {
@@ -362,6 +390,8 @@ function VfrKmzImageOverlay({
 export function CoordinateLeafletMap({
   areas,
   selectedAreaId,
+  notams = [],
+  showNotams = true,
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
@@ -511,6 +541,89 @@ export function CoordinateLeafletMap({
           ) : null}
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
+
+          {showNotams
+            ? notams.map((notam) => {
+                const popup = (
+                  <Popup>
+                    <div className="max-w-[320px] space-y-2">
+                      <div>
+                        <div className="text-sm font-semibold text-zinc-950">
+                          {notam.number}
+                        </div>
+                        <div className="text-xs font-medium text-orange-700">
+                          {notam.category}
+                          {notam.locationCode ? ` · ${notam.locationCode}` : ""}
+                        </div>
+                      </div>
+                      {notam.shortReading ? (
+                        <p className="text-sm leading-5 text-zinc-800">
+                          {notam.shortReading}
+                        </p>
+                      ) : null}
+                      {notam.text ? (
+                        <p className="max-h-32 overflow-auto whitespace-pre-line rounded-lg bg-zinc-50 p-2 font-mono text-[11px] leading-4 text-zinc-600">
+                          {notam.text}
+                        </p>
+                      ) : null}
+                      <div className="grid gap-1 text-[11px] text-zinc-500">
+                        <span>
+                          <strong className="text-zinc-700">Valid:</strong>{" "}
+                          {formatNotamTime(notam.effectiveStart)} → {formatNotamTime(notam.effectiveEnd)}
+                        </span>
+                        <span>
+                          <strong className="text-zinc-700">Vertical:</strong>{" "}
+                          {notamVerticalRange(notam)}
+                        </span>
+                        {notam.radiusNm > 0 ? (
+                          <span>
+                            <strong className="text-zinc-700">Q-line radius:</strong>{" "}
+                            {notam.radiusNm} NM
+                          </span>
+                        ) : null}
+                        {notam.qCode ? (
+                          <span>
+                            <strong className="text-zinc-700">Q-code:</strong>{" "}
+                            {notam.qCode}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
+                  </Popup>
+                );
+
+                return notam.radiusNm > 0 ? (
+                  <Circle
+                    key={notam.id}
+                    center={[notam.latitude, notam.longitude]}
+                    radius={notam.radiusNm * 1852}
+                    pathOptions={{
+                      color: "#ea580c",
+                      weight: 2,
+                      fillColor: "#fb923c",
+                      fillOpacity: 0.12,
+                      dashArray: "5 4",
+                    }}
+                  >
+                    {popup}
+                  </Circle>
+                ) : (
+                  <CircleMarker
+                    key={notam.id}
+                    center={[notam.latitude, notam.longitude]}
+                    radius={7}
+                    pathOptions={{
+                      color: "#ffffff",
+                      weight: 2,
+                      fillColor: "#ea580c",
+                      fillOpacity: 0.95,
+                    }}
+                  >
+                    {popup}
+                  </CircleMarker>
+                );
+              })
+            : null}
 
           {drawableAreas.map((area) => {
             const selected = Boolean(
