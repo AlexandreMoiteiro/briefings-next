@@ -168,6 +168,13 @@ export function AreaMapWorkspace() {
     () => bboxToQuery(bboxFromPoints(parsed.points)),
     [parsed.points]
   );
+  const notamRequestQuery = useMemo(
+    () =>
+      parsed.points.length
+        ? `bbox=${encodeURIComponent(notamBboxQuery)}`
+        : "scope=portugal",
+    [notamBboxQuery, parsed.points.length]
+  );
 
   const canSave =
     areaName.trim().length > 0 &&
@@ -231,7 +238,7 @@ export function AreaMapWorkspace() {
       window.clearTimeout(timeout);
       controller.abort();
     };
-  }, [notamBboxQuery, showLiveNotams]);
+  }, [notamRequestQuery, showLiveNotams]);
 
   async function refreshLiveNotams(signal?: AbortSignal) {
     setNotamsBusy(true);
@@ -239,7 +246,7 @@ export function AreaMapWorkspace() {
 
     try {
       const response = await fetch(
-        `/api/notams?bbox=${encodeURIComponent(notamBboxQuery)}`,
+        `/api/notams?${notamRequestQuery}`,
         {
           method: "GET",
           headers: { Accept: "application/json" },
@@ -267,18 +274,11 @@ export function AreaMapWorkspace() {
         return;
       }
 
-      const visibleNotices =
-        parsed.points.length === 0
-          ? result.notices.filter((notam) =>
-              notam.affectedFir.toUpperCase().startsWith("LP")
-            )
-          : result.notices;
-
-      setLiveNotams(visibleNotices);
+      setLiveNotams(result.notices);
       setNotamsStatus(
         result.truncated
-          ? `${visibleNotices.length} plotted · more notices exist in this area`
-          : `${visibleNotices.length} plotted`
+          ? `${result.notices.length} plotted · more notices exist in this area`
+          : `${result.notices.length} plotted`
       );
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
