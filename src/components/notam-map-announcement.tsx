@@ -36,6 +36,17 @@ export function NotamMapAnnouncement() {
     setOpen(true);
   }, [pathname]);
 
+  useEffect(() => {
+    if (!open) return;
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [open]);
+
   function dismiss() {
     try {
       window.localStorage.setItem(STORAGE_KEY, "seen");
@@ -48,50 +59,56 @@ export function NotamMapAnnouncement() {
   if (!open) return null;
 
   return (
-    <aside
-      role="dialog"
-      aria-label="New NOTAM Map"
-      className="fixed inset-x-4 bottom-4 z-[80] mx-auto max-w-md rounded-2xl border border-zinc-200 bg-white p-4 shadow-2xl sm:inset-x-auto sm:right-5 sm:mx-0"
-    >
-      <div className="flex items-start gap-3">
-        <div className="min-w-0 flex-1">
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-600">
-            New · NOTAM Map
-          </p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">
-            Portuguese NOTAMs, directly on the map
-          </h2>
-          <p className="mt-1.5 text-sm leading-5 text-zinc-600">
-            See active NOTAMs grouped and colour-coded on the aviation chart. The Portugal snapshot refreshes every 12 hours.
-          </p>
+    <div className="fixed inset-0 z-[90] flex items-center justify-center bg-zinc-950/45 p-4 backdrop-blur-[2px]">
+      <aside
+        role="dialog"
+        aria-modal="true"
+        aria-label="New NOTAM Map"
+        className="w-full max-w-lg rounded-3xl border border-zinc-200 bg-white p-5 shadow-2xl sm:p-6"
+      >
+        <div className="flex items-start gap-4">
+          <div className="min-w-0 flex-1">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-orange-600">
+              New · NOTAM Map
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight text-zinc-950">
+              Portuguese NOTAMs, directly on the map
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              The new NOTAM Map plots active Portuguese and Portuguese-FIR NOTAMs on the aviation chart, grouped and colour-coded for easier scanning.
+            </p>
+            <p className="mt-2 text-xs leading-5 text-zinc-500">
+              The snapshot refreshes every 12 hours. Always confirm the applicable NOTAM briefing before flight.
+            </p>
+          </div>
+
+          <button
+            type="button"
+            onClick={dismiss}
+            aria-label="Close"
+            className="shrink-0 rounded-xl border border-zinc-200 px-2.5 py-1.5 text-lg leading-none text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
+          >
+            ×
+          </button>
         </div>
 
-        <button
-          type="button"
-          onClick={dismiss}
-          aria-label="Close"
-          className="rounded-lg px-2 py-1 text-lg leading-none text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700"
-        >
-          ×
-        </button>
-      </div>
-
-      <div className="mt-4 flex items-center gap-2">
-        <Link
-          href="/notam-map"
-          onClick={dismiss}
-          className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-        >
-          Open NOTAM Map
-        </Link>
-        <button
-          type="button"
-          onClick={dismiss}
-          className="rounded-xl px-3 py-2.5 text-sm font-semibold text-zinc-500 transition hover:bg-zinc-100 hover:text-zinc-800"
-        >
-          Not now
-        </button>
-      </div>
-    </aside>
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <Link
+            href="/notam-map"
+            onClick={dismiss}
+            className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
+          >
+            Open NOTAM Map
+          </Link>
+          <button
+            type="button"
+            onClick={dismiss}
+            className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-600 transition hover:bg-zinc-50 hover:text-zinc-900"
+          >
+            Close
+          </button>
+        </div>
+      </aside>
+    </div>
   );
 }
