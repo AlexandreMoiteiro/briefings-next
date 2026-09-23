@@ -204,6 +204,73 @@ function notamVerticalRange(notam: PlotNotam) {
 const NOTAM_AREA_MIN_RADIUS_NM = 5;
 const NOTAM_AREA_MAX_RADIUS_NM = 25;
 
+const NOTAM_THEME_LEGEND = [
+  { key: "restriction", label: "TFR / UAS", color: "#dc2626", fill: "#ef4444" },
+  { key: "airspace", label: "Airspace", color: "#ea580c", fill: "#fb923c" },
+  { key: "runway", label: "Runway", color: "#be123c", fill: "#fb7185" },
+  { key: "ground", label: "Taxiway / apron", color: "#b45309", fill: "#f59e0b" },
+  { key: "navaid", label: "NAVAID / GPS", color: "#1d4ed8", fill: "#3b82f6" },
+  { key: "obstacle", label: "Obstacle", color: "#7e22ce", fill: "#a855f7" },
+  { key: "ops", label: "Procedure / ATC", color: "#0e7490", fill: "#06b6d4" },
+  { key: "other", label: "Other", color: "#52525b", fill: "#71717a" },
+] as const;
+
+type NotamTheme = (typeof NOTAM_THEME_LEGEND)[number];
+
+function notamTheme(notam: PlotNotam): NotamTheme {
+  const category = notam.category.toUpperCase();
+  const qCode = notam.qCode.toUpperCase();
+
+  if (
+    category.includes("TFR") ||
+    category.includes("UAS") ||
+    qCode.startsWith("QRT") ||
+    qCode.startsWith("QRD")
+  ) {
+    return NOTAM_THEME_LEGEND[0];
+  }
+
+  if (category.includes("AIRSPACE") || qCode.startsWith("QR")) {
+    return NOTAM_THEME_LEGEND[1];
+  }
+
+  if (
+    category.includes("RUNWAY") ||
+    category.includes("RWY") ||
+    qCode.startsWith("QMR")
+  ) {
+    return NOTAM_THEME_LEGEND[2];
+  }
+
+  if (category.includes("TAXI") || category.includes("APRON")) {
+    return NOTAM_THEME_LEGEND[3];
+  }
+
+  if (
+    category.includes("NAVAID") ||
+    category.includes("GPS") ||
+    qCode.startsWith("QNV") ||
+    qCode.startsWith("QNM")
+  ) {
+    return NOTAM_THEME_LEGEND[4];
+  }
+
+  if (category.includes("OBSTACLE")) {
+    return NOTAM_THEME_LEGEND[5];
+  }
+
+  if (
+    category.includes("PROCEDURE") ||
+    category.includes("ATC") ||
+    category.includes("COMMS") ||
+    category.includes("LIGHTING")
+  ) {
+    return NOTAM_THEME_LEGEND[6];
+  }
+
+  return NOTAM_THEME_LEGEND[7];
+}
+
 type NotamMarkerGroup = {
   key: string;
   latitude: number;
@@ -267,10 +334,22 @@ function notamMarkerIcon(group: NotamMarkerGroup) {
   const count = group.notices.length;
   const broad = group.broadAreaCount > 0;
   const label = count > 1 ? String(count) : broad ? "A" : "N";
+  const colors = Array.from(
+    new Set(group.notices.map((notam) => notamTheme(notam).color))
+  );
+  const background =
+    colors.length <= 1
+      ? colors[0] || NOTAM_THEME_LEGEND[7].color
+      : `conic-gradient(${colors
+          .map(
+            (color, index) =>
+              `${color} ${(index / colors.length) * 100}% ${((index + 1) / colors.length) * 100}%`
+          )
+          .join(", ")})`;
 
   return L.divIcon({
     className: "",
-    html: `<div class="area-map-notam-marker ${broad ? "area-map-notam-marker-broad" : ""}">
+    html: `<div class="area-map-notam-marker ${broad ? "area-map-notam-marker-broad" : ""}" style="background:${background}">
       <span>${label}</span>
     </div>`,
     iconSize: [30, 30],
@@ -279,13 +358,21 @@ function notamMarkerIcon(group: NotamMarkerGroup) {
 }
 
 function NotamDetails({ notam }: { notam: PlotNotam }) {
+  const theme = notamTheme(notam);
+
   return (
     <div className="space-y-1.5 border-b border-zinc-100 pb-2 last:border-0 last:pb-0">
       <div>
         <div className="text-sm font-semibold text-zinc-950">{notam.number}</div>
-        <div className="text-xs font-medium text-orange-700">
-          {notam.category}
-          {notam.locationCode ? ` · ${notam.locationCode}` : ""}
+        <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: theme.color }}>
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ background: theme.color }}
+          />
+          <span>
+            {notam.category}
+            {notam.locationCode ? ` · ${notam.locationCode}` : ""}
+          </span>
         </div>
       </div>
       {notam.shortReading ? (
@@ -645,6 +732,23 @@ export function CoordinateLeafletMap({
         </label>
       </div>
 
+      {showNotams && notams.length ? (
+        <details className="absolute bottom-3 left-3 z-[10000] max-w-[calc(100%-1.5rem)] rounded-xl bg-white/95 px-3 py-2 text-[11px] text-zinc-700 shadow-sm ring-1 ring-zinc-200">
+          <summary className="cursor-pointer font-semibold">NOTAM colours</summary>
+          <div className="mt-2 flex max-w-[520px] flex-wrap gap-x-3 gap-y-1.5">
+            {NOTAM_THEME_LEGEND.map((item) => (
+              <span key={item.key} className="flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ background: item.color }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
       <button
         type="button"
         onClick={toggleFullscreen}
@@ -715,9 +819,9 @@ export function CoordinateLeafletMap({
                     point.lon,
                   ])}
                   pathOptions={{
-                    color: "#ea580c",
+                    color: notamTheme(notam).color,
                     weight: 2,
-                    fillColor: "#fb923c",
+                    fillColor: notamTheme(notam).fill,
                     fillOpacity: 0.11,
                   }}
                 >
@@ -738,9 +842,9 @@ export function CoordinateLeafletMap({
                   center={[notam.latitude, notam.longitude]}
                   radius={notam.radiusNm * 1852}
                   pathOptions={{
-                    color: "#ea580c",
+                    color: notamTheme(notam).color,
                     weight: 1.5,
-                    fillColor: "#fb923c",
+                    fillColor: notamTheme(notam).fill,
                     fillOpacity: 0.07,
                   }}
                 >
@@ -874,7 +978,7 @@ export function CoordinateLeafletMap({
           justify-content: center;
           border: 2px solid #ffffff;
           border-radius: 999px;
-          background: #ea580c;
+          background: #52525b;
           color: #ffffff;
           box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
           font-size: 10px;
@@ -882,9 +986,6 @@ export function CoordinateLeafletMap({
           line-height: 1;
         }
 
-        .area-map-notam-marker-broad {
-          background: #9a3412;
-        }
       `}</style>
     </section>
   );
