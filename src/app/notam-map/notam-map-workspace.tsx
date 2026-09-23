@@ -35,16 +35,68 @@ type CoordinateMapArea = {
   isSelected?: boolean;
 };
 
-function formatSnapshotTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return date.toLocaleString(undefined, {
-    day: "2-digit",
-    month: "short",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "UTC",
-  }) + " UTC";
+type DayOption = {
+  key: string;
+  label: string;
+  dateLabel: string;
+  start: Date;
+  end: Date;
+};
+
+function dateKey(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function buildDayOptions() {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  return Array.from({ length: 7 }, (_, index): DayOption => {
+    const start = new Date(today);
+    start.setDate(start.getDate() + index);
+
+    const end = new Date(start);
+    end.setDate(end.getDate() + 1);
+
+    const label =
+      index === 0
+        ? "Today"
+        : index === 1
+          ? "Tomorrow"
+          : start.toLocaleDateString(undefined, { weekday: "short" });
+
+    return {
+      key: dateKey(start),
+      label,
+      dateLabel: start.toLocaleDateString(undefined, {
+        day: "2-digit",
+        month: "2-digit",
+      }),
+      start,
+      end,
+    };
+  });
+}
+
+function appliesOnDay(notam: PlotNotam, day: DayOption) {
+  const startsAt = notam.effectiveStart
+    ? new Date(notam.effectiveStart).getTime()
+    : Number.NEGATIVE_INFINITY;
+  const endsAt = notam.effectiveEnd
+    ? new Date(notam.effectiveEnd).getTime()
+    : Number.POSITIVE_INFINITY;
+
+  if (!Number.isFinite(startsAt) && startsAt !== Number.NEGATIVE_INFINITY) {
+    return false;
+  }
+  if (!Number.isFinite(endsAt) && endsAt !== Number.POSITIVE_INFINITY) {
+    return false;
+  }
+
+  return startsAt < day.end.getTime() && endsAt >= day.start.getTime();
 }
 
 export function NotamMapWorkspace() {
@@ -53,8 +105,22 @@ export function NotamMapWorkspace() {
   const [loading, setLoading] = useState(true);
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [status, setStatus] = useState("");
-  const [fetchedAt, setFetchedAt] = useState("");
   const [input, setInput] = useState("");
+  const dayOptions = useMemo(() => buildDayOptions(), []);
+  const [selectedDayKey, setSelectedDayKey] = useState(
+    () => buildDayOptions()[0]?.key ?? ""
+  );
+
+  const selectedDay =
+    dayOptions.find((day) => day.key === selectedDayKey) ?? dayOptions[0];
+
+  const visibleNotams = useMemo(
+    () =>
+      selectedDay
+        ? notams.filter((notam) => appliesOnDay(notam, selectedDay))
+        : notams,
+    [notams, selectedDay]
+  );
 
   const parsed = useMemo(() => parseCoordinateAreaInput(input), [input]);
 
@@ -97,13 +163,12 @@ export function NotamMapWorkspace() {
         throw new Error(
           "error" in data && data.error
             ? data.error
-            : "Could not load the NOTAM snapshot."
+            : "Could not load NOTAMs."
         );
       }
 
       const result = data as NotamApiResponse;
       setConfigured(result.configured);
-      setFetchedAt(result.fetchedAt || "");
 
       if (!result.configured) {
         setNotams([]);
@@ -112,18 +177,12 @@ export function NotamMapWorkspace() {
       }
 
       setNotams(result.notices);
-      setStatus(
-        result.truncated
-          ? `${result.notices.length} NOTAMs loaded · feed truncated`
-          : `${result.notices.length} active NOTAMs`
-      );
+      setStatus(result.truncated ? "Some NOTAMs could not be loaded." : "");
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       console.error(error);
       setStatus(
-        error instanceof Error
-          ? error.message
-          : "Could not load the NOTAM snapshot."
+        error instanceof Error ? error.message : "Could not load NOTAMs."
       );
     } finally {
       if (!signal?.aborted) setLoading(false);
@@ -142,34 +201,66 @@ export function NotamMapWorkspace() {
               NOTAM Map
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 sm:text-base">
-              Active Portuguese NOTAMs plotted on the aviation map, with areas and categories shown visually.
+              Portuguese and Portuguese-FIR NOTAMs plotted by day, with areas and categories shown visually.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="rounded-full bg-zinc-950 px-3 py-1.5 font-semibold text-white">
-              {loading ? "Loading…" : status || `${notams.length} NOTAMs`}
+              {loading
+                ? "Loading…"
+                : `${visibleNotams.length} NOTAM${visibleNotams.length === 1 ? "" : "s"}`}
             </span>
-            <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 font-semibold text-zinc-500">
-              Updated every 12 h
-            </span>
-            {fetchedAt ? (
-              <span className="rounded-full border border-zinc-200 bg-white px-3 py-1.5 font-medium text-zinc-500">
-                Snapshot {formatSnapshotTime(fetchedAt)}
-              </span>
-            ) : null}
           </div>
         </div>
       </header>
+
+      <section
+        aria-label="NOTAM day"
+        className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-sm"
+      >
+        <div className="grid min-w-[700px] grid-cols-7 gap-1">
+          {dayOptions.map((day) => {
+            const active = day.key === selectedDayKey;
+
+            return (
+              <button
+                key={day.key}
+                type="button"
+                onClick={() => setSelectedDayKey(day.key)}
+                className={[
+                  "rounded-xl px-3 py-2.5 text-center transition",
+                  active
+                    ? "bg-zinc-950 text-white shadow-sm"
+                    : "text-zinc-700 hover:bg-zinc-100",
+                ].join(" ")}
+              >
+                <span className="block text-sm font-semibold">{day.label}</span>
+                <span
+                  className={
+                    active
+                      ? "mt-0.5 block text-[11px] text-amber-300"
+                      : "mt-0.5 block text-[11px] text-zinc-500"
+                  }
+                >
+                  {day.dateLabel}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
 
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <div className="text-sm text-zinc-500">
             {configured === false ? (
               <span>{status}</span>
+            ) : status ? (
+              <span>{status}</span>
             ) : (
               <span>
-                Colours distinguish the main NOTAM categories. Multiple notices at the same location are grouped.
+                Showing NOTAMs whose validity overlaps the selected day. Check any published schedule in the NOTAM details.
               </span>
             )}
           </div>
@@ -187,12 +278,12 @@ export function NotamMapWorkspace() {
         <CoordinateLeafletMap
           areas={customAreas}
           selectedAreaId="custom-area"
-          notams={notams}
+          notams={visibleNotams}
           showNotams={showNotams}
         />
 
         <p className="mt-3 text-xs leading-5 text-zinc-500">
-          Map overlay for situational awareness. Confirm applicability, validity and operational details in the official briefing before flight.
+          Map overlay for situational awareness. Confirm applicability, validity, schedule and operational details in the official briefing before flight.
         </p>
       </section>
 
