@@ -75,7 +75,7 @@ export function NotamMapAnnouncement() {
               Portuguese NOTAMs, directly on the map
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              The new NOTAM Map plots active Portuguese and Portuguese-FIR NOTAMs on the aviation chart, grouped and colour-coded for easier scanning.
+              The new NOTAM Map plots Portuguese and Portuguese-FIR NOTAMs on the aviation chart, grouped and colour-coded for easier scanning.
             </p>
             <p className="mt-2 text-xs leading-5 text-zinc-500">
               Choose a day to see the notices applicable to that date. Always confirm the applicable NOTAM briefing before flight.
