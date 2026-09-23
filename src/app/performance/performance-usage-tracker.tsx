@@ -8,12 +8,12 @@ import {
   type ReactNode,
 } from "react";
 import { ExportBlockedDialog } from "@/components/export-blocked-dialog";
+import { PilotDownloadCard } from "@/components/pilot-download-card";
 import { PERFORMANCE_AERODROMES } from "@/lib/performance/aerodromes";
 import { checkExportAccess } from "@/lib/export-access";
 import { logUsageEvent } from "@/lib/usage-events";
 
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
-const SUCCESS_PATTERN = /performance pdf (?:generated|exported)/i;
 
 type PerformanceUsageTrackerProps = {
   aircraft:
@@ -201,15 +201,6 @@ function buildUsageEvent(
   };
 }
 
-function isC152ExportButton(button: HTMLButtonElement) {
-  const text = normalize(button.textContent);
-  return text.startsWith("export rvp.cfi.066.02") || text === "generating...";
-}
-
-function c152ExportButton(root: HTMLElement) {
-  return Array.from(root.querySelectorAll("button")).find(isC152ExportButton);
-}
-
 function isPerformanceDownloadButton(text: string) {
   return (
     text === "export pdf" ||
@@ -225,106 +216,16 @@ export function PerformanceUsageTracker({
   children,
 }: PerformanceUsageTrackerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const timerRef = useRef<number | null>(null);
-  const attemptRef = useRef(0);
   const [pilotName, setPilotName] = useState("");
   const [blockedDialogOpen, setBlockedDialogOpen] = useState(false);
 
   useEffect(() => {
     setPilotName(window.localStorage.getItem(PILOT_STORAGE_KEY) ?? "");
-
-    return () => {
-      if (timerRef.current !== null) {
-        window.clearInterval(timerRef.current);
-      }
-    };
   }, []);
 
   function updatePilotName(value: string) {
     setPilotName(value);
     window.localStorage.setItem(PILOT_STORAGE_KEY, value);
-  }
-
-  function finishSuccessfulAttempt(root: HTMLElement) {
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current);
-      timerRef.current = null;
-    }
-    attemptRef.current = 0;
-    void logUsageEvent(buildUsageEvent(root, aircraft, pilotName));
-  }
-
-  function startSuccessWatch() {
-    const root = rootRef.current;
-    if (!root) return;
-
-    if (timerRef.current !== null) {
-      window.clearInterval(timerRef.current);
-    }
-
-    const attempt = Date.now();
-    attemptRef.current = attempt;
-    const startedAt = Date.now();
-
-    if (aircraft === "Cessna 152") {
-      let sawGenerating = false;
-
-      timerRef.current = window.setInterval(() => {
-        if (attemptRef.current !== attempt) return;
-
-        const button = c152ExportButton(root);
-        const buttonText = normalize(button?.textContent);
-        if (buttonText === "generating...") sawGenerating = true;
-
-        const errorText = Array.from(root.querySelectorAll("p"))
-          .filter((element) => element.className.includes("text-red"))
-          .map((element) => element.textContent ?? "")
-          .join(" ")
-          .trim();
-
-        if (
-          sawGenerating &&
-          buttonText.startsWith("export rvp.cfi.066.02") &&
-          !errorText
-        ) {
-          finishSuccessfulAttempt(root);
-          return;
-        }
-
-        if (Date.now() - startedAt > 60_000) {
-          if (timerRef.current !== null) {
-            window.clearInterval(timerRef.current);
-            timerRef.current = null;
-          }
-          attemptRef.current = 0;
-        }
-      }, 250);
-      return;
-    }
-
-    let sawClearedStatus = !SUCCESS_PATTERN.test(root.textContent ?? "");
-
-    timerRef.current = window.setInterval(() => {
-      if (attemptRef.current !== attempt) return;
-
-      const text = root.textContent ?? "";
-      const successful = SUCCESS_PATTERN.test(text);
-
-      if (!successful) sawClearedStatus = true;
-
-      if (successful && sawClearedStatus) {
-        finishSuccessfulAttempt(root);
-        return;
-      }
-
-      if (Date.now() - startedAt > 30_000) {
-        if (timerRef.current !== null) {
-          window.clearInterval(timerRef.current);
-          timerRef.current = null;
-        }
-        attemptRef.current = 0;
-      }
-    }, 250);
   }
 
   function handleClickCapture(event: ReactMouseEvent<HTMLDivElement>) {
@@ -336,7 +237,14 @@ export function PerformanceUsageTracker({
 
     if (button.dataset.briefingsAccessAllowed === "1") {
       delete button.dataset.briefingsAccessAllowed;
-      window.setTimeout(startSuccessWatch, 50);
+
+      const root = rootRef.current;
+      if (root) {
+        // Queue the event before the PDF generator/download takes over. This is
+        // important on iOS/iPadOS, where opening or saving the PDF may
+        // background the page before a post-download callback can run.
+        void logUsageEvent(buildUsageEvent(root, aircraft, pilotName));
+      }
       return;
     }
 
@@ -366,30 +274,11 @@ export function PerformanceUsageTracker({
 
   return (
     <div ref={rootRef} onClickCapture={handleClickCapture} className="space-y-6">
-      <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
-          Pilot
-        </h2>
-        <p className="mt-1 text-sm leading-6 text-zinc-500">
-          Required for all Performance PDF downloads.
-        </p>
-        <label className="mt-4 block max-w-xl space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Pilot name <span className="text-red-600">*</span>
-          </span>
-          <input
-            value={pilotName}
-            onChange={(event) => updatePilotName(event.target.value)}
-            required
-            autoComplete="name"
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-zinc-500"
-            placeholder="Required for download"
-          />
-          <span className="block text-xs leading-5 text-zinc-500">
-            This tool is provided free and openly to everyone. To help keep it free, available to all and protected from abuse, enter your real name. Deliberately false names may result in this device being blocked from PDF exports.
-          </span>
-        </label>
-      </section>
+      <PilotDownloadCard
+        value={pilotName}
+        onChange={updatePilotName}
+        documentLabel="Performance"
+      />
 
       {children}
 

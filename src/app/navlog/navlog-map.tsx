@@ -569,7 +569,7 @@ export function NavlogMap({
             Route map
           </p>
           <p className="text-sm text-zinc-500">
-            Plot the calculated route and export a clean PDF using the selected map source.
+            Check the route, add points and export the map.
           </p>
         </div>
 
@@ -699,6 +699,7 @@ export function NavlogMap({
                   >
                     Add to route
                   </button>
+
                 </div>
               </Popup>
 
@@ -738,6 +739,26 @@ export function NavlogMap({
                     <div className="mt-1 text-xs text-zinc-500">
                       {node.calcDetail}
                     </div>
+                  ) : null}
+                  {node.src !== "CALC" ? (
+                    <button
+                      type="button"
+                      onClick={() =>
+                        onAddPoint({
+                          code: node.code,
+                          name: node.name,
+                          lat: node.lat,
+                          lon: node.lon,
+                          alt: node.alt,
+                          src: node.src as NavlogPoint["src"],
+                          routes: "",
+                          remarks: "",
+                        })
+                      }
+                      className="mt-2 rounded-lg bg-zinc-950 px-3 py-1.5 text-xs font-semibold text-white"
+                    >
+                      Add again to route
+                    </button>
                   ) : null}
                 </div>
               </Popup>

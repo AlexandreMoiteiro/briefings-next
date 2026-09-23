@@ -1,5 +1,5 @@
-import { AreaMapClient } from "./area-map-client";
+import { redirect } from "next/navigation";
 
 export default function AreaMapPage() {
-  return <AreaMapClient />;
+  redirect("/notam-map");
 }

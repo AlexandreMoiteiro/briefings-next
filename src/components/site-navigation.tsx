@@ -16,23 +16,36 @@ export function SiteNavigation({ mobile = false }: { mobile?: boolean }) {
           : "hidden items-center gap-1 lg:flex"
       }
     >
-      {navigationItems.map((item) => {
+      {navigationItems.map((item, index) => {
         const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        const startsUtilities =
+          item.group === "utility" &&
+          navigationItems[index - 1]?.group !== "utility";
 
         return (
-          <Link
+          <div
             key={item.href}
-            href={item.href}
-            aria-current={active ? "page" : undefined}
-            className={[
-              "rounded-xl px-3 py-2 text-sm font-medium transition",
-              active
-                ? "bg-zinc-950 text-white"
-                : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
-            ].join(" ")}
+            className={
+              startsUtilities
+                ? mobile
+                  ? "ml-2 border-l border-zinc-200 pl-2"
+                  : "ml-2 border-l border-zinc-200 pl-2"
+                : ""
+            }
           >
-            {item.title}
-          </Link>
+            <Link
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={[
+                "block rounded-xl px-3 py-2 text-sm font-medium transition",
+                active
+                  ? "bg-zinc-950 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+              ].join(" ")}
+            >
+              {item.title}
+            </Link>
+          </div>
         );
       })}
     </nav>

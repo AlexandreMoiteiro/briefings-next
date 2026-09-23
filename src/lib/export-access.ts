@@ -88,7 +88,7 @@ export async function submitExportUnblockRequest(input: {
   const pageUrl = typeof window !== "undefined" ? window.location.href : null;
 
   if (!pilotName) throw new Error("Enter your real name.");
-  if (message.length < 5) throw new Error("Write a short message to the admin.");
+  if (message.length < 5) throw new Error("Write a short message.");
 
   try {
     const response = await fetch("/api/unblock-request", {

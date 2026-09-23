@@ -26,7 +26,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Enter your real name." }, { status: 400 });
     }
     if (message.length < 5) {
-      return NextResponse.json({ error: "Write a short message to the admin." }, { status: 400 });
+      return NextResponse.json({ error: "Write a short message." }, { status: 400 });
     }
 
     const supabase = createPublicServerSupabase();

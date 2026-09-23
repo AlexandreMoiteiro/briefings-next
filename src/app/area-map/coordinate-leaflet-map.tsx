@@ -3,23 +3,30 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import L, { type LatLngBounds, type LatLngBoundsExpression } from "leaflet";
 import {
+  Circle,
   CircleMarker,
   ImageOverlay,
   MapContainer,
   Marker,
+  Pane,
   Polygon,
+  Popup,
   Polyline,
   TileLayer,
   useMap,
   useMapEvents,
 } from "react-leaflet";
+import type { PlotNotam } from "@/lib/notams";
+import { parseCoordinateAreaInput } from "@/lib/coordinate-area-parser";
 import type { CoordinateMapArea, ParsedCoordinatePoint } from "./area-map-client";
 
-type MapSourceMode = "standard" | "vfr-chart";
+type MapSourceMode = "light" | "street" | "topo" | "vfr-chart";
 
 type CoordinateLeafletMapProps = {
   areas: CoordinateMapArea[];
   selectedAreaId?: string;
+  notams?: PlotNotam[];
+  showNotams?: boolean;
 };
 
 type VfrKmzOverlayItem = {
@@ -170,6 +177,308 @@ function escapeHtml(value: string) {
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
+}
+
+function formatNotamTime(value: string | null) {
+  if (!value) return "Permanent / not specified";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "UTC",
+  }) + " UTC";
+}
+
+function notamVerticalRange(notam: PlotNotam) {
+  const lower =
+    notam.lowerLimit ||
+    (notam.minimumFl ? `FL${notam.minimumFl}` : "");
+  const upper =
+    notam.upperLimit ||
+    (notam.maximumFl ? `FL${notam.maximumFl}` : "");
+
+  if (lower && upper) return `${lower} – ${upper}`;
+  return lower || upper || "Not specified";
+}
+
+const NOTAM_AREA_MIN_RADIUS_NM = 5;
+const NOTAM_AREA_MAX_RADIUS_NM = 25;
+
+const NOTAM_THEME_LEGEND = [
+  { key: "restriction", label: "TFR / drone", color: "#dc2626", fill: "#ef4444" },
+  { key: "airspace", label: "Airspace", color: "#ea580c", fill: "#fb923c" },
+  { key: "runway", label: "Runway", color: "#be123c", fill: "#fb7185" },
+  { key: "ground", label: "Taxiway / apron", color: "#b45309", fill: "#f59e0b" },
+  { key: "lighting", label: "Lighting", color: "#a16207", fill: "#eab308" },
+  { key: "navaid", label: "NAVAID / GPS", color: "#1d4ed8", fill: "#3b82f6" },
+  { key: "obstacle", label: "Obstacle", color: "#7e22ce", fill: "#a855f7" },
+  { key: "ops", label: "Procedure / ATC", color: "#0e7490", fill: "#06b6d4" },
+  { key: "service", label: "Fuel / service", color: "#15803d", fill: "#22c55e" },
+  { key: "other", label: "Other", color: "#52525b", fill: "#71717a" },
+] as const;
+
+type NotamTheme = (typeof NOTAM_THEME_LEGEND)[number];
+type NotamThemeKey = NotamTheme["key"];
+
+function themeByKey(key: NotamThemeKey): NotamTheme {
+  return (
+    NOTAM_THEME_LEGEND.find((theme) => theme.key === key) ??
+    NOTAM_THEME_LEGEND[NOTAM_THEME_LEGEND.length - 1]
+  );
+}
+
+function notamTheme(notam: PlotNotam): NotamTheme {
+  const category = notam.category.toUpperCase();
+  const qCode = notam.qCode.toUpperCase();
+
+  if (
+    category.includes("TFR") ||
+    category.includes("UAS") ||
+    category.includes("DRONE") ||
+    qCode.startsWith("QRT") ||
+    qCode.startsWith("QRD") ||
+    qCode.startsWith("QWU")
+  ) {
+    return themeByKey("restriction");
+  }
+
+  if (category.includes("AIRSPACE") || qCode.startsWith("QR")) {
+    return themeByKey("airspace");
+  }
+
+  if (
+    category.includes("RUNWAY") ||
+    category.includes("RWY") ||
+    qCode.startsWith("QMR")
+  ) {
+    return themeByKey("runway");
+  }
+
+  if (category.includes("TAXI") || category.includes("APRON")) {
+    return themeByKey("ground");
+  }
+
+  if (category.includes("LIGHTING")) {
+    return themeByKey("lighting");
+  }
+
+  if (
+    category.includes("NAVAID") ||
+    category.includes("GPS") ||
+    qCode.startsWith("QNV") ||
+    qCode.startsWith("QNM") ||
+    qCode.startsWith("QND")
+  ) {
+    return themeByKey("navaid");
+  }
+
+  if (category.includes("OBSTACLE")) {
+    return themeByKey("obstacle");
+  }
+
+  if (
+    category.includes("PROCEDURE") ||
+    category.includes("ATC") ||
+    category.includes("COMMS")
+  ) {
+    return themeByKey("ops");
+  }
+
+  if (category.includes("FUEL") || category.includes("SERVICE")) {
+    return themeByKey("service");
+  }
+
+  return themeByKey("other");
+}
+
+type NotamMarkerGroup = {
+  key: string;
+  latitude: number;
+  longitude: number;
+  notices: PlotNotam[];
+  broadAreaCount: number;
+};
+
+function shouldDrawNotamArea(notam: PlotNotam) {
+  return (
+    notam.radiusNm > NOTAM_AREA_MIN_RADIUS_NM &&
+    notam.radiusNm <= NOTAM_AREA_MAX_RADIUS_NM
+  );
+}
+
+function polygonFootprintNm2(points: ParsedCoordinatePoint[]) {
+  if (!points.length) return 0;
+
+  const lats = points.map((point) => point.lat);
+  const lons = points.map((point) => point.lon);
+  const minLat = Math.min(...lats);
+  const maxLat = Math.max(...lats);
+  const minLon = Math.min(...lons);
+  const maxLon = Math.max(...lons);
+  const meanLat = ((minLat + maxLat) / 2) * (Math.PI / 180);
+
+  const northSouthNm = Math.max(0.01, (maxLat - minLat) * 60);
+  const eastWestNm = Math.max(
+    0.01,
+    (maxLon - minLon) * 60 * Math.max(0.2, Math.cos(meanLat))
+  );
+
+  return northSouthNm * eastWestNm;
+}
+
+type NotamShapeItem =
+  | {
+      kind: "polygon";
+      notam: PlotNotam;
+      polygonPoints: ParsedCoordinatePoint[];
+      footprintNm2: number;
+    }
+  | {
+      kind: "circle";
+      notam: PlotNotam;
+      footprintNm2: number;
+    };
+
+function getNotamPolygonPoints(notam: PlotNotam) {
+  const category = notam.category.toUpperCase();
+  const qCode = notam.qCode.toUpperCase();
+  const isAreaNotice =
+    qCode.startsWith("QR") ||
+    qCode.startsWith("QWU") ||
+    ["AIRSPACE", "TFR", "DRONE", "UAS"].some((value) =>
+      category.includes(value)
+    );
+
+  if (!isAreaNotice || !notam.text) return [];
+
+  const parsed = parseCoordinateAreaInput(notam.text);
+  if (parsed.errors.length || parsed.points.length < 3) return [];
+
+  return parsed.points;
+}
+
+function groupNotamMarkers(notams: PlotNotam[]) {
+  const groups = new Map<string, NotamMarkerGroup>();
+
+  for (const notam of notams) {
+
+    const latKey = notam.latitude.toFixed(2);
+    const lonKey = notam.longitude.toFixed(2);
+    const key = `${latKey}:${lonKey}`;
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.notices.push(notam);
+      if (notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM) {
+        existing.broadAreaCount += 1;
+      }
+      continue;
+    }
+
+    groups.set(key, {
+      key,
+      latitude: notam.latitude,
+      longitude: notam.longitude,
+      notices: [notam],
+      broadAreaCount:
+        notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM ? 1 : 0,
+    });
+  }
+
+  return Array.from(groups.values());
+}
+
+function notamMarkerIcon(group: NotamMarkerGroup) {
+  const count = group.notices.length;
+  const broad = group.broadAreaCount > 0;
+  const label = count > 1 ? String(count) : broad ? "A" : "N";
+  const colors = Array.from(
+    new Set(group.notices.map((notam) => notamTheme(notam).color))
+  );
+  const background =
+    colors.length <= 1
+      ? colors[0] || themeByKey("other").color
+      : `conic-gradient(${colors
+          .map(
+            (color, index) =>
+              `${color} ${(index / colors.length) * 100}% ${((index + 1) / colors.length) * 100}%`
+          )
+          .join(", ")})`;
+
+  return L.divIcon({
+    className: "",
+    html: `<div class="area-map-notam-marker ${broad ? "area-map-notam-marker-broad" : ""}" style="background:${background}">
+      <span>${label}</span>
+    </div>`,
+    iconSize: [30, 30],
+    iconAnchor: [15, 15],
+  });
+}
+
+function NotamDetails({ notam }: { notam: PlotNotam }) {
+  const theme = notamTheme(notam);
+
+  return (
+    <div className="space-y-1.5 border-b border-zinc-100 pb-2 last:border-0 last:pb-0">
+      <div>
+        <div className="text-sm font-semibold text-zinc-950">{notam.number}</div>
+        <div className="flex items-center gap-1.5 text-xs font-medium" style={{ color: theme.color }}>
+          <span
+            className="inline-block h-2 w-2 rounded-full"
+            style={{ background: theme.color }}
+          />
+          <span>
+            {notam.category}
+            {notam.locationCode ? ` · ${notam.locationCode}` : ""}
+          </span>
+        </div>
+      </div>
+      {notam.shortReading ? (
+        <p className="text-xs leading-5 text-zinc-800">{notam.shortReading}</p>
+      ) : null}
+      <div className="grid gap-0.5 text-[11px] text-zinc-500">
+        <span>
+          <strong className="text-zinc-700">Valid:</strong>{" "}
+          {formatNotamTime(notam.effectiveStart)} → {formatNotamTime(notam.effectiveEnd)}
+        </span>
+        <span>
+          <strong className="text-zinc-700">Vertical:</strong>{" "}
+          {notamVerticalRange(notam)}
+        </span>
+        {notam.schedule ? (
+          <span>
+            <strong className="text-zinc-700">Schedule:</strong>{" "}
+            {notam.schedule}
+          </span>
+        ) : null}
+        {notam.radiusNm > 0 ? (
+          <span>
+            <strong className="text-zinc-700">Q-line radius:</strong>{" "}
+            {notam.radiusNm} NM
+            {notam.radiusNm > NOTAM_AREA_MAX_RADIUS_NM
+              ? " · broad-area reference"
+              : ""}
+          </span>
+        ) : null}
+        {notam.qCode ? (
+          <span>
+            <strong className="text-zinc-700">Q-code:</strong> {notam.qCode}
+          </span>
+        ) : null}
+      </div>
+      {notam.text ? (
+        <details>
+          <summary className="cursor-pointer text-[11px] font-semibold text-zinc-600">
+            Raw NOTAM
+          </summary>
+          <p className="mt-1 max-h-28 overflow-auto whitespace-pre-line rounded-lg bg-zinc-50 p-2 font-mono text-[10px] leading-4 text-zinc-600">
+            {notam.text}
+          </p>
+        </details>
+      ) : null}
+    </div>
+  );
 }
 
 function areaNameIcon(name: string, selected: boolean) {
@@ -362,14 +671,66 @@ function VfrKmzImageOverlay({
 export function CoordinateLeafletMap({
   areas,
   selectedAreaId,
+  notams = [],
+  showNotams = true,
 }: CoordinateLeafletMapProps) {
   const rootRef = useRef<HTMLElement | null>(null);
   const [expanded, setExpanded] = useState(false);
-  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>(
-    hasVfrChartOverlay ? "vfr-chart" : "standard"
-  );
-  const showStandardMap = mapSourceMode === "standard";
+  const [mapSourceMode, setMapSourceMode] = useState<MapSourceMode>("light");
+  const [showAirspace, setShowAirspace] = useState(true);
+  const showLightMap = mapSourceMode === "light";
+  const showStreetMap = mapSourceMode === "street";
+  const showTopoMap = mapSourceMode === "topo";
   const showVfrChart = mapSourceMode === "vfr-chart";
+  const showAirspaceLayer =
+    !showVfrChart && showAirspace && Boolean(openAipTilesUrl);
+
+  const notamSpatial = useMemo(
+    () =>
+      notams.map((notam) => ({
+        notam,
+        polygonPoints: getNotamPolygonPoints(notam),
+      })),
+    [notams]
+  );
+  const notamShapeItems = useMemo<NotamShapeItem[]>(() => {
+    const items: NotamShapeItem[] = [];
+
+    for (const item of notamSpatial) {
+      if (item.polygonPoints.length >= 3) {
+        items.push({
+          kind: "polygon",
+          notam: item.notam,
+          polygonPoints: item.polygonPoints,
+          footprintNm2: polygonFootprintNm2(item.polygonPoints),
+        });
+        continue;
+      }
+
+      if (shouldDrawNotamArea(item.notam)) {
+        items.push({
+          kind: "circle",
+          notam: item.notam,
+          footprintNm2: Math.PI * item.notam.radiusNm * item.notam.radiusNm,
+        });
+      }
+    }
+
+    return items.sort((a, b) => b.footprintNm2 - a.footprintNm2);
+  }, [notamSpatial]);
+  const notamMarkerGroups = useMemo(
+    () =>
+      groupNotamMarkers(
+        notamSpatial
+          .filter(
+            (item) =>
+              item.polygonPoints.length < 3 &&
+              !shouldDrawNotamArea(item.notam)
+          )
+          .map((item) => item.notam)
+      ),
+    [notamSpatial]
+  );
 
   const drawableAreas = useMemo(() => {
     const nonEmptyAreas = areas.filter((area) => area.points.length > 0);
@@ -430,34 +791,73 @@ export function CoordinateLeafletMap({
           : "relative overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm"
       }
     >
-      <div className="absolute left-3 top-3 z-[10000] flex flex-wrap gap-2 rounded-2xl bg-white/95 p-2 text-xs font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200">
-        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
-          <input
-            type="radio"
-            name="area-map-source"
-            checked={mapSourceMode === "standard"}
-            onChange={() => setMapSourceMode("standard")}
-          />
-          OpenTopo + OpenAIP
-        </label>
-        <label className="flex items-center gap-1.5 rounded-xl px-2 py-1">
-          <input
-            type="radio"
-            name="area-map-source"
-            disabled={!hasVfrChartOverlay}
-            checked={mapSourceMode === "vfr-chart"}
-            onChange={() => setMapSourceMode("vfr-chart")}
-          />
-          VFR map
-        </label>
+      <div className="absolute left-3 top-3 z-[10000] flex flex-wrap gap-1 rounded-2xl bg-white/95 p-1.5 text-xs font-semibold text-zinc-700 shadow-sm ring-1 ring-zinc-200">
+        {([
+          ["light", "Light"],
+          ["street", "Street"],
+          ["topo", "Topo"],
+          ["vfr-chart", "VFR"],
+        ] as Array<[MapSourceMode, string]>).map(([mode, label]) => {
+          const disabled = mode === "vfr-chart" && !hasVfrChartOverlay;
+          const active = mapSourceMode === mode;
+
+          return (
+            <button
+              key={mode}
+              type="button"
+              disabled={disabled}
+              onClick={() => setMapSourceMode(mode)}
+              className={[
+                "rounded-xl px-2.5 py-1.5 transition",
+                active
+                  ? "bg-zinc-950 text-white"
+                  : "text-zinc-600 hover:bg-zinc-100 hover:text-zinc-950",
+                disabled ? "cursor-not-allowed opacity-35" : "",
+              ].join(" ")}
+            >
+              {label}
+            </button>
+          );
+        })}
+
+        {!showVfrChart && openAipTilesUrl ? (
+          <>
+            <span className="mx-0.5 h-6 w-px self-center bg-zinc-200" />
+            <label className="flex items-center gap-1.5 rounded-xl px-2 py-1.5 text-zinc-600">
+              <input
+                type="checkbox"
+                checked={showAirspace}
+                onChange={(event) => setShowAirspace(event.target.checked)}
+              />
+              Airspace
+            </label>
+          </>
+        ) : null}
       </div>
+
+      {showNotams && notams.length ? (
+        <details className="absolute bottom-3 left-3 z-[10000] max-w-[calc(100%-1.5rem)] rounded-xl bg-white/95 px-3 py-2 text-[11px] text-zinc-700 shadow-sm ring-1 ring-zinc-200">
+          <summary className="cursor-pointer font-semibold">NOTAM colours</summary>
+          <div className="mt-2 flex max-w-[520px] flex-wrap gap-x-3 gap-y-1.5">
+            {NOTAM_THEME_LEGEND.map((item) => (
+              <span key={item.key} className="flex items-center gap-1.5">
+                <span
+                  className="h-2.5 w-2.5 rounded-full"
+                  style={{ background: item.color }}
+                />
+                {item.label}
+              </span>
+            ))}
+          </div>
+        </details>
+      ) : null}
 
       <button
         type="button"
         onClick={toggleFullscreen}
         className="absolute right-3 top-3 z-[10000] rounded-xl bg-white/95 px-3 py-2 text-sm font-semibold text-zinc-950 shadow-sm ring-1 ring-zinc-200 transition hover:bg-white"
       >
-        {expanded ? "Fechar" : "Fullscreen"}
+        {expanded ? "Exit fullscreen" : "Fullscreen"}
       </button>
 
       <div className={expanded ? "h-screen w-screen" : "h-[640px] w-full"}>
@@ -468,7 +868,24 @@ export function CoordinateLeafletMap({
           scrollWheelZoom
           className="h-full w-full"
         >
-          {showStandardMap ? (
+          {showLightMap ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              className="notam-map-light-base"
+              maxZoom={19}
+            />
+          ) : null}
+
+          {showStreetMap ? (
+            <TileLayer
+              attribution='&copy; OpenStreetMap contributors'
+              url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+              maxZoom={19}
+            />
+          ) : null}
+
+          {showTopoMap ? (
             <TileLayer
               attribution='Map data: &copy; OpenStreetMap contributors, SRTM | Map style: &copy; OpenTopoMap'
               url="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png"
@@ -497,7 +914,7 @@ export function CoordinateLeafletMap({
             />
           ) : null}
 
-          {showStandardMap && openAipTilesUrl ? (
+          {showAirspaceLayer ? (
             <TileLayer
               attribution="openAIP"
               url={openAipTilesUrl}
@@ -511,6 +928,98 @@ export function CoordinateLeafletMap({
           ) : null}
 
           <FitToAreas areas={drawableAreas} expanded={expanded} />
+
+          <Pane name="notam-shapes" style={{ zIndex: 370 }} />
+          <Pane name="custom-area" style={{ zIndex: 430 }} />
+
+          {showNotams ? (
+            <>
+              {notamShapeItems.map((shape) => {
+                const notam = shape.notam;
+
+                if (shape.kind === "polygon") {
+                  return (
+                    <Polygon
+                      key={`notam-polygon-${notam.id}`}
+                      pane="notam-shapes"
+                      bubblingMouseEvents={false}
+                      positions={closePolygon(shape.polygonPoints).map((point) => [
+                        point.lat,
+                        point.lon,
+                      ])}
+                      pathOptions={{
+                        color: notamTheme(notam).color,
+                        weight: 2,
+                        fillColor: notamTheme(notam).fill,
+                        fillOpacity: 0.11,
+                      }}
+                    >
+                      <Popup>
+                        <div className="max-w-[320px]">
+                          <div className="mb-2 rounded-lg bg-orange-50 px-2 py-1 text-[10px] font-semibold uppercase tracking-wide text-orange-800">
+                            Limits parsed from NOTAM coordinates
+                          </div>
+                          <NotamDetails notam={notam} />
+                        </div>
+                      </Popup>
+                    </Polygon>
+                  );
+                }
+
+                return (
+                  <Circle
+                    key={`area-${notam.id}`}
+                    pane="notam-shapes"
+                    bubblingMouseEvents={false}
+                    center={[notam.latitude, notam.longitude]}
+                    radius={notam.radiusNm * 1852}
+                    pathOptions={{
+                      color: notamTheme(notam).color,
+                      weight: 1.5,
+                      fillColor: notamTheme(notam).fill,
+                      fillOpacity: 0.07,
+                    }}
+                  >
+                    <Popup>
+                      <div className="max-w-[320px]">
+                        <NotamDetails notam={notam} />
+                      </div>
+                    </Popup>
+                  </Circle>
+                );
+              })}
+
+              {notamMarkerGroups.map((group) => (
+                <Marker
+                  key={`notam-group-${group.key}`}
+                  position={[group.latitude, group.longitude]}
+                  icon={notamMarkerIcon(group)}
+                >
+                  <Popup>
+                    <div className="max-h-[320px] w-[300px] max-w-[72vw] overflow-auto">
+                      <div className="mb-2 flex items-center justify-between gap-3 border-b border-zinc-200 pb-2">
+                        <strong className="text-sm text-zinc-950">
+                          {group.notices.length === 1
+                            ? "NOTAM"
+                            : `${group.notices.length} NOTAMs`}
+                        </strong>
+                        {group.broadAreaCount > 0 ? (
+                          <span className="rounded-full bg-orange-50 px-2 py-0.5 text-[10px] font-semibold text-orange-800">
+                            {group.broadAreaCount} broad area
+                          </span>
+                        ) : null}
+                      </div>
+                      <div className="space-y-2">
+                        {group.notices.map((notam) => (
+                          <NotamDetails key={notam.id} notam={notam} />
+                        ))}
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </>
+          ) : null}
 
           {drawableAreas.map((area) => {
             const selected = Boolean(
@@ -528,6 +1037,7 @@ export function CoordinateLeafletMap({
               <div key={area.id}>
                 {area.points.length >= 3 ? (
                   <Polygon
+                    pane="custom-area"
                     positions={closePolygon(area.points).map((point) => [
                       point.lat,
                       point.lon,
@@ -536,6 +1046,7 @@ export function CoordinateLeafletMap({
                   />
                 ) : area.points.length >= 2 ? (
                   <Polyline
+                    pane="custom-area"
                     positions={area.points.map((point) => [
                       point.lat,
                       point.lon,
@@ -544,6 +1055,7 @@ export function CoordinateLeafletMap({
                   />
                 ) : (
                   <CircleMarker
+                    pane="custom-area"
                     center={[area.points[0].lat, area.points[0].lon]}
                     radius={8}
                     pathOptions={{
@@ -593,6 +1105,28 @@ export function CoordinateLeafletMap({
           border-color: rgba(2, 6, 23, 0.92);
           color: #ffffff;
         }
+
+        .notam-map-light-base {
+          filter: grayscale(1) saturate(0.15) brightness(1.1) contrast(0.82);
+          opacity: 0.82;
+        }
+
+        .area-map-notam-marker {
+          display: flex;
+          width: 28px;
+          height: 28px;
+          align-items: center;
+          justify-content: center;
+          border: 2px solid #ffffff;
+          border-radius: 999px;
+          background: #52525b;
+          color: #ffffff;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+          font-size: 10px;
+          font-weight: 800;
+          line-height: 1;
+        }
+
       `}</style>
     </section>
   );

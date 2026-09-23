@@ -1,0 +1,45 @@
+.shell {
+  min-width: 0;
+}
+
+/* Saved routes is a primary planning shortcut, not a secondary tab. */
+.shell :global(section > div.border-b > div.mt-4.grid.gap-1.rounded-2xl.bg-zinc-50.p-1 > button:last-child) {
+  border: 1px solid #f59e0b !important;
+  background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%) !important;
+  color: #78350f !important;
+  box-shadow: 0 8px 24px rgba(180, 83, 9, 0.12);
+}
+
+.shell :global(section > div.border-b > div.mt-4.grid.gap-1.rounded-2xl.bg-zinc-50.p-1 > button:last-child:hover) {
+  border-color: #d97706 !important;
+  background: linear-gradient(135deg, #ffedd5 0%, #fde68a 100%) !important;
+}
+
+.shell :global(section > div.border-b > div.mt-4.grid.gap-1.rounded-2xl.bg-zinc-50.p-1 > button:last-child span:last-child) {
+  color: #92400e !important;
+}
+
+.shell :global(section > div.border-b > div.mt-4.grid.gap-1.rounded-2xl.bg-zinc-50.p-1 > button:last-child[class~="bg-zinc-950"]) {
+  border-color: #92400e !important;
+  background: linear-gradient(135deg, #b45309 0%, #92400e 100%) !important;
+  color: #ffffff !important;
+  box-shadow: 0 10px 28px rgba(146, 64, 14, 0.26);
+}
+
+.shell :global(section > div.border-b > div.mt-4.grid.gap-1.rounded-2xl.bg-zinc-50.p-1 > button:last-child[class~="bg-zinc-950"] span:last-child) {
+  color: #fef3c7 !important;
+}
+
+/*
+ * Route markers are intentionally slightly below reference markers. Once a
+ * point has been added to the route, its reference marker therefore remains
+ * clickable and the user can choose Add to route again as many times as the
+ * route requires.
+ */
+.shell :global(.leaflet-marker-icon.navlog-map-icon) {
+  z-index: 650 !important;
+}
+
+.shell :global(.leaflet-marker-icon.navlog-map-icon:has(div[style*="2.5px"])) {
+  z-index: 640 !important;
+}
