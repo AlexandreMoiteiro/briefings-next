@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import type { NotamApiResponse, PlotNotam } from "@/lib/notams";
 
 const DEFAULT_BASE_URL = "https://notac.aero/api/v1";
-const MAX_PAGES = 4;
+const MAX_PORTUGAL_PAGES = 30;
+const MAX_BBOX_PAGES = 20;
 
 type NotacReading = {
   short?: unknown;
@@ -109,8 +110,11 @@ function normalizeNotam(row: NotacResult): PlotNotam | null {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const bbox = parseBbox(url.searchParams.get("bbox"));
-  if (!bbox) {
+  const scope = url.searchParams.get("scope")?.trim().toLowerCase() || "";
+  const portugalScope = scope === "portugal";
+  const bbox = portugalScope ? null : parseBbox(url.searchParams.get("bbox"));
+
+  if (!portugalScope && !bbox) {
     return NextResponse.json(
       { error: "Invalid bbox." },
       { status: 400 }
@@ -144,26 +148,31 @@ export async function GET(request: Request) {
     });
   }
 
-  const bboxParam = [
-    bbox.minLon,
-    bbox.minLat,
-    bbox.maxLon,
-    bbox.maxLat,
-  ].join(",");
+  const providerQuery = portugalScope
+    ? "status=active&sort=location&country_code=PT"
+    : `status=active&sort=priority&bbox=${encodeURIComponent(
+        [
+          bbox!.minLon,
+          bbox!.minLat,
+          bbox!.maxLon,
+          bbox!.maxLat,
+        ].join(",")
+      )}`;
 
-  let nextUrl: string | null = `${baseUrl}/notam/?status=active&sort=priority&bbox=${encodeURIComponent(bboxParam)}`;
+  const maxPages = portugalScope ? MAX_PORTUGAL_PAGES : MAX_BBOX_PAGES;
+  let nextUrl: string | null = `${baseUrl}/notam/?${providerQuery}`;
   const notices: PlotNotam[] = [];
   let providerTotal = 0;
   let page = 0;
 
   try {
-    while (nextUrl && page < MAX_PAGES) {
+    while (nextUrl && page < maxPages) {
       const response = await fetch(nextUrl, {
         headers: {
           Authorization: `Bearer ${token}`,
           Accept: "application/json",
         },
-        next: { revalidate: 60 },
+        next: { revalidate: portugalScope ? 300 : 120 },
       });
 
       if (!response.ok) {
@@ -212,7 +221,9 @@ export async function GET(request: Request) {
 
     return NextResponse.json(response, {
       headers: {
-        "Cache-Control": "public, s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control": portugalScope
+          ? "public, s-maxage=300, stale-while-revalidate=600"
+          : "public, s-maxage=120, stale-while-revalidate=240",
       },
     });
   } catch (error) {
