@@ -8,6 +8,14 @@ export const navigationItems = [
     details: ["Local PDF generation", "Ordered sections", "File previews"],
   },
   {
+    title: "Meteorology",
+    href: "/meteorology",
+    eyebrow: "Official weather sources",
+    description:
+      "Open aviation weather products from IPMA, AEMET and international WAFS/AWC sources in one place.",
+    details: ["Official sources", "METAR / TAF / SIGMET", "Live / cache status"],
+  },
+  {
     title: "NavLog",
     href: "/navlog",
     eyebrow: "Navigation",
