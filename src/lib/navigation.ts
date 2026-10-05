@@ -10,10 +10,10 @@ export const navigationItems = [
   {
     title: "Meteorology",
     href: "/meteorology",
-    eyebrow: "Official weather sources",
+    eyebrow: "AEMET weather",
     description:
-      "Open aviation weather products from IPMA, AEMET and international WAFS/AWC sources in one place.",
-    details: ["Official sources", "METAR / TAF / SIGMET", "Live / cache status"],
+      "A first meteorology module focused only on AEMET aviation and OpenData products.",
+    details: ["AEMET only", "Official sources", "Preview build"],
   },
   {
     title: "NavLog",
