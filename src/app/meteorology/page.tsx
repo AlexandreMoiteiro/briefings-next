@@ -73,8 +73,8 @@ export default function MeteorologyPage() {
               </h1>
               <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600 md:text-lg">
                 First version of the meteorology module focused exclusively on
-                Spain&apos;s official meteorological service. No IPMA or WAFS
-                content is included in this preview.
+                Spain&apos;s official meteorological service and its aviation
+                and OpenData products.
               </p>
             </div>
 
@@ -258,9 +258,8 @@ export default function MeteorologyPage() {
             Deliberately limited
           </h2>
           <p className="mt-4 text-sm leading-6 text-zinc-600">
-            For now this branch is only about AEMET. IPMA and WAFS have been
-            removed from the meteorology preview so we can get one provider
-            right before adding another.
+            For now this branch is only about AEMET, so we can get one
+            provider and its data flow right before expanding the module.
           </p>
 
           <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
