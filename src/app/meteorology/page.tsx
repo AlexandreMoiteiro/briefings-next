@@ -20,8 +20,8 @@ function Image({chart}:{chart:Chart}) {
 export default function MeteorologyPage(){
   const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true);
   const [fl,setFl]=useState("020"),[sigPath,setSigPath]=useState(""),[windPath,setWindPath]=useState("");
-  const [compare,setCompare]=useState(false),[compareA,setCompareA]=useState(""),[compareB,setCompareB]=useState("");
-  const [full,setFull]=useState<FullMode>(null),[intro,setIntro]=useState(false);
+  const [compare,setCompare]=useState(false);
+  const [full,setFull]=useState<FullMode>(null);
   const [now]=useState(()=>Date.now());
   useEffect(()=>{
     let active=true;
@@ -29,7 +29,6 @@ export default function MeteorologyPage(){
       .then(async r=>{const x=await r.json() as Data;if(!r.ok)throw new Error(x.error||"Weather charts unavailable.");return x;})
       .then(x=>{if(active){setData(x);setLoading(false);}})
       .catch(e=>{if(active){setError(e instanceof Error?e.message:"Weather charts unavailable.");setLoading(false);}});
-    try{if(localStorage.getItem("briefings-aemet-feature-v2")!=="seen")setIntro(true);}catch{setIntro(true);}
     return()=>{active=false;};
   },[]);
   useEffect(()=>{
@@ -43,10 +42,22 @@ export default function MeteorologyPage(){
   const winds=(data?.wind||[]).filter(c=>c.fl===fl).slice().sort((a,b)=>a.validAt.localeCompare(b.validAt));
   const sig=sigwx.find(c=>c.path===sigPath)||currentChart(sigwx,now,6);
   const wind=winds.find(c=>c.path===windPath)||currentChart(winds,now,3);
-  const all=[...sigwx,...(data?.wind||[])].sort((a,b)=>a.validAt.localeCompare(b.validAt));
-  const first=all.find(c=>c.path===compareA)||sig||all[0];
-  const second=all.find(c=>c.path===compareB)||wind||all.find(c=>c.path!==first?.path);
-  const ordered=[first,second].filter((c):c is Chart=>Boolean(c)).sort((a,b)=>Date.parse(a.validAt)-Date.parse(b.validAt));
+  // Compare only the two latest SIGWX images already available.
+  const ordered=sigwx.slice(-2);
+  // Keep the comparison current while it is displayed, including full-screen.
+  useEffect(()=>{
+    if(!compare && full!=="both")return;
+    const refresh=async()=>{
+      try{
+        const response=await fetch("/api/meteorology/charts",{cache:"no-store"});
+        if(response.ok)setData(await response.json() as Data);
+      }catch{/* Retain last valid charts while offline. */}
+    };
+    const interval=window.setInterval(refresh,60000);
+    const onVisible=()=>{if(document.visibilityState==="visible")void refresh();};
+    document.addEventListener("visibilitychange",onVisible);
+    return()=>{window.clearInterval(interval);document.removeEventListener("visibilitychange",onVisible);};
+  },[compare,full]);
   const optionList=(items:Chart[])=>items.map(c=><option key={c.path} value={c.path}>{chartName(c)} · {fmt(c.validAt)}</option>);
   const select=(items:Chart[],selected:Chart|undefined,change:(p:string)=>void,label:string)=><label className="block min-w-0 flex-1 text-xs font-semibold text-zinc-700">{label}
     <select className="mt-1 w-full rounded-xl border border-zinc-300 bg-white p-2 text-sm font-normal" value={selected?.path||""} onChange={e=>change(e.target.value)}>{optionList(items)}</select>
@@ -67,7 +78,6 @@ export default function MeteorologyPage(){
       <p className="p-8 text-center text-sm text-zinc-500">No chart available.</p>}
     {c&&<p className="mt-3 text-xs text-zinc-500">Valid: {fmt(c.validAt)} · © AEMET</p>}
   </section>;
-  const dismiss=()=>{setIntro(false);try{localStorage.setItem("briefings-aemet-feature-v2","seen");}catch{}};
   const fullCharts=full==="both"?ordered:full==="sigwx"?(sig?[sig]:[]):(wind?[wind]:[]);
   return <div className="space-y-5">
     <header className="rounded-3xl border border-zinc-200 bg-white p-6">
@@ -85,11 +95,7 @@ export default function MeteorologyPage(){
       </div>
       {!compare?<div className="grid gap-4 lg:grid-cols-2">{panel("sigwx",sig)}{panel("wind",wind)}</div>:
       <div className="space-y-3">
-        <div className="grid gap-3 sm:grid-cols-2">
-          {select(all,first,setCompareA,"First selection")}
-          {select(all,second,setCompareB,"Second selection")}
-        </div>
-        <p className="text-xs text-zinc-500">Charts are arranged by validity: earlier on the left, later on the right.</p>
+        <p className="text-xs text-zinc-500">The two latest available SIGWX charts · earlier validity on the left, later validity on the right · automatically refreshed.</p>
         <div className="grid grid-cols-2 gap-3">{ordered.map(c=><section key={c.path} className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-3">
           <div className="mb-2 text-xs font-semibold">{chartName(c)} · {fmt(c.validAt)}</div>
           <button type="button" onClick={()=>setFull("both")} className="w-full cursor-zoom-in"><Image chart={c}/></button>
@@ -104,13 +110,6 @@ export default function MeteorologyPage(){
         </div>)}
       </div>
     </div>}
-    {intro&&<div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" role="dialog" aria-modal="true" aria-label="New feature">
-      <div className="w-full max-w-md rounded-3xl bg-white p-7 shadow-2xl">
-        <h2 className="text-xl font-bold">New: AEMET Weather Charts</h2>
-        <p className="mt-3 text-sm leading-6 text-zinc-700">Following user requests, I have added AEMET charts directly to Briefings because the AEMET website is currently not reliably accessible to everyone.</p>
-        <p className="mt-2 text-xs text-zinc-500">All charts © AEMET.</p>
-        <button type="button" onClick={dismiss} className="mt-5 w-full rounded-xl bg-zinc-900 px-4 py-3 font-semibold text-white">Got it</button>
-      </div>
-    </div>}
+
   </div>;
 }
