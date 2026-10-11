@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteNavigation } from "@/components/site-navigation";
 import { NotamMapAnnouncement } from "@/components/notam-map-announcement";
+import { PageOpenTracker } from "@/components/page-open-tracker";
 
 type AppShellProps = {
   children: React.ReactNode;
@@ -26,6 +27,7 @@ export function AppShell({ children }: AppShellProps) {
         {children}
       </main>
 
+      <PageOpenTracker />
       <NotamMapAnnouncement />
 
       <footer className="mt-auto border-t border-zinc-200 bg-white">
@@ -35,8 +37,10 @@ export function AppShell({ children }: AppShellProps) {
             <Link href="/feedback" className="font-medium text-zinc-700 transition hover:text-zinc-950">
               Suggestions & questions
             </Link>
-            <Link href="/admin" className="text-zinc-400 transition hover:text-zinc-700">
-              Admin
+            <Link href="/admin" aria-label="Admin dashboard"
+              title="Admin"
+              className="text-[10px] font-normal text-zinc-300 opacity-50 transition hover:text-zinc-600 hover:opacity-100">
+              ·
             </Link>
           </div>
         </div>
