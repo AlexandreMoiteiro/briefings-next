@@ -332,7 +332,8 @@ export default function AdminUsagePage() {
       });
       if(!response.ok){
         if(silent && response.status===401){setRememberedSession(false);return;}
-        throw new Error(response.status===401?"Invalid or expired admin session.":"Could not load usage events.");
+        if(response.status===401)setRememberedSession(false);
+        throw new Error(response.status===401?"Admin session expired. Please enter your code again.":"Could not load usage events.");
       }
       const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[];pageOpensError?:string};
       setRows((result.rows??[]).map(row=>({...row,summary:asRecord(row.summary),payload:asRecord(row.payload)})));
@@ -357,7 +358,14 @@ export default function AdminUsagePage() {
     setUnlocked(false);setRememberedSession(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
   }
 
-  useEffect(()=>{void loadEvents(undefined,true);},[]);
+  useEffect(()=>{
+    let live=true;
+    fetch("/api/admin/session?check=1",{credentials:"same-origin",cache:"no-store"})
+      .then(response=>{if(live)setRememberedSession(response.ok);})
+      .catch(()=>{if(live)setRememberedSession(false);})
+      .finally(()=>{if(live)setCheckingSession(false);});
+    return()=>{live=false;};
+  },[]);
 
   const filteredRows = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -431,6 +439,12 @@ export default function AdminUsagePage() {
             Sign in on this device. Your secure session stays available for 30 days.
           </p>
 
+          {rememberedSession ? (
+            <button type="button" onClick={()=>void loadEvents()} disabled={busy}
+              className="mt-6 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
+              {busy?"Opening dashboard…":"Enter Admin"}
+            </button>
+          ) : (
           <form onSubmit={handleUnlock} className="mt-6 space-y-3">
             <label className="block space-y-1.5">
               <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
@@ -453,6 +467,7 @@ export default function AdminUsagePage() {
               {busy ? "Loading..." : "Open admin"}
             </button>
           </form>
+          )}
 
           {errorMessage ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
