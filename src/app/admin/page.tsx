@@ -2,7 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 
 const UsageEventMap = dynamic(
   () =>
@@ -42,7 +41,6 @@ type Metric = {
   detail?: string;
 };
 
-const ADMIN_CODE_STORAGE_KEY = "briefings_admin_usage_code";
 const EVENT_LIMIT = 500;
 
 function asRecord(value: unknown): JsonRecord {
@@ -308,7 +306,7 @@ function PerformanceAerodromes({ payload }: { payload: JsonRecord }) {
 }
 
 export default function AdminUsagePage() {
-  const [adminCode, setAdminCode] = useState("");
+  const [unlocked, setUnlocked] = useState(false);
   const [inputCode, setInputCode] = useState("");
   const [rows, setRows] = useState<UsageEventRow[]>([]);
   const [pageOpens, setPageOpens] = useState<DailyPageOpens[]>([]);
@@ -320,74 +318,40 @@ export default function AdminUsagePage() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  async function loadEvents(code = adminCode) {
-    if (!supabase) {
-      setErrorMessage("Supabase is not configured.");
-      return;
-    }
-
-    if (!code.trim()) {
-      setErrorMessage("Enter the admin code.");
-      return;
-    }
-
+  async function loadEvents(code?:string){
     setBusy(true);
     setErrorMessage("");
-
-    const { data, error } = await supabase.rpc("get_app_usage_events_admin", {
-      p_admin_code: code.trim(),
-      p_limit: EVENT_LIMIT,
-    });
-
-    setBusy(false);
-
-    if (error) {
-      setRows([]);
-      setErrorMessage("Invalid admin code or could not load usage events.");
-      return;
-    }
-
-    const { data: daily, error: dailyError } = await supabase.rpc("get_page_open_counts_admin", {
-      p_admin_code: code.trim(),
-      p_days: 30,
-    });
-    setPageOpens(dailyError ? [] : ((daily ?? []) as DailyPageOpens[]));
-    setPageOpensError(dailyError ? "Daily page counts are currently unavailable." : "");
-
-    setRows(
-      ((data ?? []) as UsageEventRow[]).map((row) => ({
-        ...row,
-        summary: asRecord(row.summary),
-        payload: asRecord(row.payload),
-      }))
-    );
-    setAdminCode(code.trim());
-    window.sessionStorage.setItem(ADMIN_CODE_STORAGE_KEY, code.trim());
+    try{
+      const response=await fetch("/api/admin/session",{
+        method:code?"POST":"GET",
+        credentials:"same-origin",
+        cache:"no-store",
+        ...(code?{headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}:{})
+      });
+      if(!response.ok)throw new Error(response.status===401?"Invalid or expired admin session.":"Could not load usage events.");
+      const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[];pageOpensError?:string};
+      setRows((result.rows??[]).map(row=>({...row,summary:asRecord(row.summary),payload:asRecord(row.payload)})));
+      setPageOpens(result.pageOpens??[]);
+      setPageOpensError(result.pageOpensError??"");
+      setUnlocked(true);
+      setInputCode("");
+    }catch(err){
+      setRows([]);setPageOpens([]);setUnlocked(false);
+      setErrorMessage(err instanceof Error?err.message:"Unable to load admin dashboard.");
+    }finally{setBusy(false);}
   }
 
-  function handleUnlock(event: React.FormEvent<HTMLFormElement>) {
+  function handleUnlock(event:React.FormEvent<HTMLFormElement>){
     event.preventDefault();
-    void loadEvents(inputCode);
+    void loadEvents(inputCode.trim());
   }
 
-  function handleLogout() {
-    setAdminCode("");
-    setInputCode("");
-    setRows([]);
-    setPageOpens([]);
-    setExpandedRowId("");
-    window.sessionStorage.removeItem(ADMIN_CODE_STORAGE_KEY);
+  function handleLogout(){
+    void fetch("/api/admin/session",{method:"DELETE",credentials:"same-origin"});
+    setUnlocked(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
   }
 
-  useEffect(() => {
-    const savedCode = window.sessionStorage.getItem(ADMIN_CODE_STORAGE_KEY);
-
-    if (savedCode) {
-      setAdminCode(savedCode);
-      setInputCode(savedCode);
-      void loadEvents(savedCode);
-    }
-  }, []);
+  useEffect(()=>{void loadEvents();},[]);
 
   const filteredRows = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -444,7 +408,7 @@ export default function AdminUsagePage() {
     };
   }, [rows]);
 
-  if (!adminCode) {
+  if (!unlocked) {
     return (
       <main className="min-h-screen bg-zinc-50 px-6 py-16">
         <section className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -455,7 +419,7 @@ export default function AdminUsagePage() {
             Usage dashboard
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-600">
-            Enter your admin code to view anonymous usage events created by the
+            Enter your admin code once on this device to view usage events created by the
             app.
           </p>
 
