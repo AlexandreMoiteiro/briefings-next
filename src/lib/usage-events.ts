@@ -7,8 +7,10 @@ export type UsageEventInput = {
     | "briefing_export"
     | "area_map_save"
     | "area_map_update"
-    | "area_map_pdf_export";
-  module: "navlog" | "performance" | "briefing" | "area-map";
+    | "area_map_pdf_export"
+    | "meteorology_open"
+    | "notam_map_open";
+  module: "navlog" | "performance" | "briefing" | "area-map" | "meteorology" | "notam-map";
   title?: string;
   aircraftType?: string;
   registration?: string;
