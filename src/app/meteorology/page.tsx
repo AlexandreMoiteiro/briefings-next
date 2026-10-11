@@ -49,6 +49,68 @@ function ReportPanel({title,report,loading}: {title:"METAR"|"TAF";report?:Report
     </div>
   </div>;
 }
+type ChartEntry = {name:string;path:string;validAt:string;runAt?:string;fl?:string};
+type ChartResult = {sigwx:ChartEntry[];wind:ChartEntry[];error?:string};
+function ChartExplorer() {
+  const [charts,setCharts]=useState<ChartResult|null>(null);
+  const [error,setError]=useState("");
+  const [loading,setLoading]=useState(true);
+  const [fl,setFl]=useState("020");
+  const [selectedSig,setSelectedSig]=useState("");
+  const [selectedWind,setSelectedWind]=useState("");
+  useEffect(()=>{
+    let active=true;
+    fetch("/api/meteorology/charts",{cache:"no-store"})
+      .then(async r=>{const data=await r.json() as ChartResult;if(!r.ok)throw Error(data.error||"Fonte indisponível");return data;})
+      .then(data=>{if(active){setCharts(data);setLoading(false);}})
+      .catch(e=>{if(active){setError(e instanceof Error?e.message:"Erro de consulta");setLoading(false);}});
+    return ()=>{active=false;};
+  },[]);
+  const sigwx=charts?.sigwx||[];
+  const wind=(charts?.wind||[]).filter(x=>x.fl===fl);
+  const sig=sigwx.find(x=>x.path===selectedSig)||sigwx[sigwx.length-1];
+  const win=wind.find(x=>x.path===selectedWind)||wind[0];
+  const format=(x:string)=>new Date(x).toLocaleString("pt-PT",{timeZone:"UTC",day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"})+" UTC";
+  const panel=(name:string,item:ChartEntry|undefined)=>(
+    <div className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+      <div className="border-b border-zinc-200 bg-zinc-50 px-4 py-3 font-semibold">{name}</div>
+      {item?<div className="space-y-3 p-3">
+        <p className="text-sm font-medium">Validade: {format(item.validAt)}{item.fl?" · FL"+item.fl:""}</p>
+        {/* Images are streamed by the server; no private Supabase key reaches the browser. */}
+        <img src={"/api/meteorology/charts?image="+encodeURIComponent(item.path)} alt={name+" AEMET válido "+format(item.validAt)} className="h-auto w-full" />
+        <p className="text-xs text-zinc-500">Fonte: © AEMET · Carta original. Confirma a validade impressa na carta.</p>
+      </div>:<div className="p-8 text-center text-sm text-zinc-500">Sem carta disponível para esta seleção.</div>}
+    </div>
+  );
+  if(loading)return <p className="text-sm text-zinc-600">A consultar as cartas guardadas…</p>;
+  if(error)return <p className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">{error}</p>;
+  return <div className="grid gap-4 lg:grid-cols-2">
+    <div className="space-y-3">
+      <label className="block text-sm font-semibold">SIGWX · validade UTC
+        <select className="mt-1 w-full rounded-xl border border-zinc-300 p-2" value={sig?.path||""} onChange={e=>setSelectedSig(e.target.value)}>
+          {sigwx.map(x=><option key={x.path} value={x.path}>{format(x.validAt)}</option>)}
+        </select>
+      </label>
+      {panel("SIGWX Low-Level · SFC–FL150",sig)}
+    </div>
+    <div className="space-y-3">
+      <div className="grid grid-cols-2 gap-2">
+        <label className="block text-sm font-semibold">Nível de voo
+          <select className="mt-1 w-full rounded-xl border border-zinc-300 p-2" value={fl} onChange={e=>{setFl(e.target.value);setSelectedWind("");}}>
+            {["020","050","100","150"].map(level=><option key={level} value={level}>FL{level}</option>)}
+          </select>
+        </label>
+        <label className="block text-sm font-semibold">Validade UTC
+          <select className="mt-1 w-full rounded-xl border border-zinc-300 p-2" value={win?.path||""} onChange={e=>setSelectedWind(e.target.value)}>
+            {wind.map(x=><option key={x.path} value={x.path}>{format(x.validAt)}</option>)}
+          </select>
+        </label>
+      </div>
+      {panel("Wind & Temperature · HARM",win)}
+    </div>
+  </div>;
+}
+
 export default function MeteorologyPage() {
  const [section,setSection]=useState<Section>("reports");
  const [icao,setIcao]=useState("LPPT");
@@ -99,13 +161,8 @@ export default function MeteorologyPage() {
    </div>
    {section==="charts"&&<div className="space-y-4">
      <Information title="Cartas aeronáuticas da AEMET"
-       description="Integração direta prevista: SIGWX Low-Level SFC–FL150 e cartas de vento/temperatura sobre a Península Ibérica. Sem links externos como substituto das imagens.">
-       <p className="mt-3 text-sm text-amber-800">O acesso AMA é distinto da API OpenData. A obtenção autorizada das imagens ainda está por validar.</p>
-     </Information>
-     <div className="grid gap-4 lg:grid-cols-2">
-       <ProductDisplay title="SIGWX Low-Level" subtitle="Não é apresentada uma carta antiga, genérica ou de outra região como se fosse a SIGWX atual da AEMET."/>
-       <ProductDisplay title="Wind & Temperature" subtitle="O seletor de FL e a validade serão ativados quando tivermos acesso autorizado aos produtos reais da AEMET."/>
-     </div>
+       description="Cartas originais guardadas temporariamente na Supabase, com indicação da validade UTC e do nível de voo. Fonte: © AEMET." />
+     <ChartExplorer />
    </div>}
    {section==="spc"&&<Information title="Surface Pressure Charts"
       description="As cartas de superfície do IPMA / Met Office serão mostradas aqui com validade UTC e ciclos. As condições de acesso e republicação estão em verificação.">
