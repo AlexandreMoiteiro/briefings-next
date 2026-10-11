@@ -21,6 +21,7 @@ export function AemetAnnouncement(){
         In response to requests from fellow pilots, I have introduced direct access to AEMET SIGWX and Wind & Temperature charts.
         This provides a more reliable way to consult these products when the AEMET website is difficult to access.
       </p>
+      <p className="mt-3 text-sm leading-6 text-zinc-700">If you notice an error, have a suggestion, or have any questions, please use the <strong>Send Message</strong> tab to get in touch with me. Your feedback helps improve Briefings for everyone.</p>
       <p className="mt-3 text-xs text-zinc-500">Official chart source: © AEMET.</p>
       <button type="button" onClick={dismiss}
         className="mt-5 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800">Continue to Briefings</button>
