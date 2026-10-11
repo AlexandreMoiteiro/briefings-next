@@ -81,8 +81,8 @@ export default function MeteorologyPage(){
   const fullCharts=full==="both"?ordered:full==="sigwx"?(sig?[sig]:[]):(wind?[wind]:[]);
   return <div className="space-y-5">
     <header className="rounded-3xl border border-zinc-200 bg-white p-6">
-      <div className="flex items-center gap-2"><span className="text-xs font-bold uppercase tracking-widest text-zinc-500">Briefings · Flight preparation</span><span className="rounded-full bg-amber-100 px-2 py-1 text-xs font-bold text-amber-800">PREVIEW</span></div>
-      <h1 className="mt-3 text-3xl font-semibold">AEMET Weather Charts</h1>
+      
+      <h1 className="text-3xl font-semibold">AEMET Weather Charts</h1>
     </header>
     {loading?<p className="text-sm">Loading charts…</p>:error?<p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{error}</p>:
     <div className="space-y-4">
