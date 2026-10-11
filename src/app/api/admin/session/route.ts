@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import { clearAdminSession, fetchAdminUsage, readAdminCode, setAdminSession } from "@/lib/admin-session";
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
-export async function GET(){
+export async function GET(request:Request){
   const code=await readAdminCode();
   if(!code)return NextResponse.json({error:"Unauthorized"},{status:401});
+  if(new URL(request.url).searchParams.get("check")==="1")return NextResponse.json({remembered:true},{headers:{"Cache-Control":"no-store"}});
   try{return NextResponse.json(await fetchAdminUsage(code),{headers:{"Cache-Control":"no-store"}});}
   catch{await clearAdminSession();return NextResponse.json({error:"Session expired"},{status:401});}
 }
