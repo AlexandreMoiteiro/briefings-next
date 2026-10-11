@@ -526,7 +526,7 @@ export function BriefingBuilderClient() {
             </h1>
 
             <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              Build a structured briefing package: mission details, weather charts, NOTAM documents, performance/M&B, FPL and route file pairs with previews and ordering.
+              Build a pre-flight briefing package following the Sevenair briefing structure, as specified in the Procedures Manual, RVP.PR.02.09 — PRE-FLIGHT BRIEFING PACKAGE.
             </p>
           </div>
 
@@ -789,7 +789,7 @@ export function BriefingBuilderClient() {
 
                     <label className="mt-4 flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-zinc-300 bg-zinc-50 px-6 py-8 text-center transition hover:border-zinc-400 hover:bg-zinc-100">
                       <span className="text-sm font-semibold text-zinc-950">
-                        Adicionar a {target.shortLabel}
+                        Add to {target.shortLabel}
                       </span>
                       <span className="mt-1 text-sm text-zinc-500">
                         PDF, PNG, JPG, JPEG ou GIF
@@ -1025,7 +1025,7 @@ export function BriefingBuilderClient() {
                 onClick={addRoute}
                 className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-medium text-zinc-700 transition hover:bg-zinc-50 hover:text-zinc-950"
               >
-                + Adicionar rota
+                + Add route
               </button>
             </section>
           ) : null}
