@@ -318,7 +318,7 @@ export default function AdminUsagePage() {
   const [busy, setBusy] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  async function loadEvents(code?:string){
+  async function loadEvents(code?:string, silent=false){
     setBusy(true);
     setErrorMessage("");
     try{
@@ -328,7 +328,10 @@ export default function AdminUsagePage() {
         cache:"no-store",
         ...(code?{headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}:{})
       });
-      if(!response.ok)throw new Error(response.status===401?"Invalid or expired admin session.":"Could not load usage events.");
+      if(!response.ok){
+        if(silent && response.status===401)return;
+        throw new Error(response.status===401?"Invalid or expired admin session.":"Could not load usage events.");
+      }
       const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[];pageOpensError?:string};
       setRows((result.rows??[]).map(row=>({...row,summary:asRecord(row.summary),payload:asRecord(row.payload)})));
       setPageOpens(result.pageOpens??[]);
@@ -351,7 +354,7 @@ export default function AdminUsagePage() {
     setUnlocked(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
   }
 
-  useEffect(()=>{void loadEvents();},[]);
+  useEffect(()=>{void loadEvents(undefined,true);},[]);
 
   const filteredRows = useMemo(() => {
     const searchText = search.trim().toLowerCase();
