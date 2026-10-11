@@ -10,10 +10,10 @@ export const navigationItems = [
   {
     title: "Meteorology",
     href: "/meteorology",
-    eyebrow: "AEMET weather",
+    eyebrow: "Iberian aviation weather",
     description:
-      "A first meteorology module focused only on AEMET aviation and OpenData products.",
-    details: ["AEMET only", "Official sources", "Preview build"],
+      "Low-level AEMET charts, SPC, aerodrome METAR/TAF and LPPC area weather.",
+    details: ["AEMET charts", "SPC", "METAR / TAF", "LPPC"],
   },
   {
     title: "NavLog",

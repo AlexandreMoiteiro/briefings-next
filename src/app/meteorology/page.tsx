@@ -1,280 +1,228 @@
-const productGroups = [
-  {
-    title: "Aerodrome weather",
-    description: "Operational text products for departure, destination and alternates.",
-    products: ["METAR / SPECI", "TAF"],
-    access: "AMA",
-  },
-  {
-    title: "En-route weather",
-    description: "Hazard and area information used during route preparation.",
-    products: ["SIGMET", "GAMET / AIRMET"],
-    access: "AMA",
-  },
-  {
-    title: "Charts",
-    description: "Graphical forecast products and upper-air information.",
-    products: ["Significant weather", "Wind / temperature"],
-    access: "AMA",
-  },
-  {
-    title: "Public meteorology",
-    description: "AEMET public datasets that can be evaluated for direct integration.",
-    products: ["OpenData API", "Public observations / forecasts"],
-    access: "OpenData",
-  },
-] as const;
+"use client";
 
-function ExternalLink({
-  href,
-  children,
-  primary = false,
-}: {
-  href: string;
-  children: React.ReactNode;
-  primary?: boolean;
-}) {
+import { useEffect, useState } from "react";
+import { PERFORMANCE_AERODROMES } from "@/lib/performance/aerodromes";
+
+type Tab = "charts" | "spc" | "airports" | "lppc";
+type Report = { status: "available" | "missing" | "error"; raw: string; note?: string };
+type WeatherResponse = {
+  icao: string;
+  source: string;
+  checkedAt: string;
+  metar: Report;
+  taf: Report;
+};
+
+const TABS: {id: Tab; label: string; sub: string}[] = [
+  {id:"charts", label:"SIGWX & Wind / Temp", sub:"AEMET"},
+  {id:"spc", label:"SPC", sub:"Met Office / IPMA"},
+  {id:"airports", label:"METAR / TAF", sub:"Performance aerodromes"},
+  {id:"lppc", label:"GAMET / SIGMET", sub:"LPPC FIR"}
+];
+const AIRPORTS = Object.entries(PERFORMANCE_AERODROMES)
+  .map(([icao, airport]) => ({icao, name:airport.name}))
+  .sort((a,b) => a.icao.localeCompare(b.icao));
+
+function External({href, children, primary=false}: {href:string; children:React.ReactNode; primary?:boolean}) {
   return (
-    <a
-      href={href}
-      target="_blank"
-      rel="noreferrer"
-      className={
-        primary
-          ? "inline-flex items-center gap-1 rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-zinc-800"
-          : "inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:border-zinc-300 hover:bg-zinc-50"
-      }
-    >
-      {children}
-      <span aria-hidden="true">↗</span>
+    <a href={href} target="_blank" rel="noopener noreferrer"
+       className={primary
+        ? "inline-flex items-center justify-center gap-2 rounded-xl bg-sky-700 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-sky-800"
+        : "inline-flex items-center justify-center gap-2 rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-800 transition hover:bg-zinc-50"}>
+      {children} <span aria-hidden="true">↗</span>
     </a>
   );
 }
-
-export default function MeteorologyPage() {
+function Product({eyebrow, title, description, children}: {
+  eyebrow:string; title:string; description:string; children:React.ReactNode
+}) {
   return (
-    <div className="space-y-8">
-      <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-        <div className="px-6 py-7 md:px-8 md:py-9">
-          <div className="flex flex-wrap items-center gap-3">
-            <p className="text-sm font-medium text-zinc-500">Meteorology</p>
-            <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-semibold text-violet-700 ring-1 ring-inset ring-violet-200">
-              PREVIEW
-            </span>
-            <span className="rounded-full bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-200">
-              AEMET ONLY
-            </span>
-          </div>
+    <article className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm md:p-6">
+      <p className="text-xs font-bold uppercase tracking-[.15em] text-sky-700">{eyebrow}</p>
+      <h3 className="mt-2 text-xl font-semibold text-zinc-950">{title}</h3>
+      <p className="mt-2 text-sm leading-6 text-zinc-600">{description}</p>
+      <div className="mt-5">{children}</div>
+    </article>
+  );
+}
+function ReportPanel({name,report,loading}: {name:"METAR"|"TAF";report?:Report;loading:boolean}) {
+  return (
+    <section className="overflow-hidden rounded-2xl border border-zinc-200 bg-white">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-zinc-200 bg-zinc-50 px-4 py-3">
+        <h3 className="font-semibold text-zinc-900">{name}</h3>
+        <span className="text-xs font-medium text-zinc-500">
+          {loading ? "A consultar" : !report ? "Sem consulta" :
+           report.status === "available" ? "Mensagem encontrada" :
+           report.status === "missing" ? "Sem mensagem disponível" : "Fonte indisponível"}
+        </span>
+      </div>
+      <div className="min-h-36 p-4">
+        {loading ? <p className="text-sm text-zinc-500">A obter dados da fonte meteorológica…</p> :
+         report?.status === "available" ?
+         <pre className="whitespace-pre-wrap break-words font-mono text-sm leading-7 text-zinc-900">{report.raw}</pre> :
+         <p className="text-sm leading-6 text-zinc-600">
+           {report?.note || "Seleciona um aeródromo para consultar as mensagens."}
+         </p>}
+      </div>
+    </section>
+  );
+}
+export default function MeteorologyPage() {
+  const [tab,setTab] = useState<Tab>("charts");
+  const [icao,setIcao] = useState("LPPT");
+  const [revision,setRevision] = useState(0);
+  const [weather,setWeather] = useState<WeatherResponse|null>(null);
+  const [loading,setLoading] = useState(false);
 
-          <div className="mt-5 grid gap-8 lg:grid-cols-[1.4fr_0.6fr] lg:items-end">
+  useEffect(() => {
+    if (tab !== "airports") return;
+    const abort = new AbortController();
+    const load = async () => {
+      setLoading(true);
+      setWeather(null);
+      try {
+        const response = await fetch("/api/meteorology/observations?icao=" + encodeURIComponent(icao),{
+          signal:abort.signal, cache:"no-store"
+        });
+        if (!response.ok) throw new Error("Não foi possível consultar as mensagens.");
+        const data = await response.json() as WeatherResponse;
+        if (!abort.signal.aborted) setWeather(data);
+      } catch(error) {
+        if (!abort.signal.aborted) {
+          const note = error instanceof Error ? error.message : "Serviço temporariamente indisponível.";
+          setWeather({
+            icao,source:"MET Norway",checkedAt:new Date().toISOString(),
+            metar:{status:"error",raw:"",note},taf:{status:"error",raw:"",note}
+          });
+        }
+      } finally {
+        if (!abort.signal.aborted) setLoading(false);
+      }
+    };
+    void load();
+    return () => abort.abort();
+  },[icao,revision,tab]);
+
+  return (
+    <div className="space-y-7">
+      <header className="rounded-3xl border border-zinc-200 bg-white px-6 py-7 shadow-sm md:px-8 md:py-9">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="text-xs font-bold uppercase tracking-[.18em] text-zinc-500">Briefings / Meteorology</p>
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-900">PREVIEW ONLY</span>
+        </div>
+        <h1 className="mt-4 text-4xl font-semibold tracking-tight text-zinc-950 md:text-5xl">Aviation weather · Iberia</h1>
+        <p className="mt-3 max-w-3xl text-sm leading-7 text-zinc-600 md:text-base">
+          SIGWX low-level e vento/temperatura da AEMET, cartas SPC, mensagens dos aeródromos
+          autorizados no módulo Performance e meteorologia de área LPPC. Sem cartas NOAA.
+        </p>
+      </header>
+
+      <nav aria-label="Meteorology sections" className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+        {TABS.map(item=>(
+          <button key={item.id} type="button" onClick={()=>setTab(item.id)}
+            aria-current={tab===item.id?"page":undefined}
+            className={tab===item.id
+              ? "rounded-2xl border border-sky-700 bg-sky-700 px-4 py-3 text-left text-white shadow-sm"
+              : "rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-left text-zinc-800 transition hover:border-sky-300"}>
+            <span className="block text-sm font-semibold">{item.label}</span>
+            <span className={tab===item.id?"mt-1 block text-xs text-sky-100":"mt-1 block text-xs text-zinc-500"}>{item.sub}</span>
+          </button>
+        ))}
+      </nav>
+
+      {tab==="charts" && <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Product eyebrow="AEMET · Península e Baleares" title="SIGWX Low Level · SFC–FL150"
+            description="Carta oficial de tempo significativo de baixa cota da AEMET, com ciclos 00/06/12/18 UTC. É o produto espanhol para a Península, não a carta WAFS de alta altitude.">
+            <External primary href="https://ama.aemet.es/">Consultar SIGWX no AMA</External>
+          </Product>
+          <Product eyebrow="AEMET · Península Ibérica" title="Wind & Temperature"
+            description="Cartas AEMET de vento e temperatura em altitude. Os níveis e períodos disponíveis dependem dos produtos publicados no AMA.">
+            <External primary href="https://ama.aemet.es/">Consultar Wind / Temp no AMA</External>
+          </Product>
+        </div>
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm leading-6 text-amber-950">
+          <strong>Integração em validação:</strong> a chave AEMET OpenData não dá, por si só, acesso
+          às cartas aeronáuticas do AMA. As imagens não são apresentadas como se estivessem
+          integradas: requerem uma interface autorizada ou um endereço público estável confirmado.
+          A aplicação não copia cartas históricas como se fossem atuais.
+        </div>
+      </div>}
+
+      {tab==="spc" && <div className="grid gap-4 lg:grid-cols-2">
+        <Product eyebrow="Met Office · Europa e Atlântico" title="Surface Pressure Charts (SPC)"
+          description="Análise e cartas de previsão à superfície, com isóbaras, centros de pressão e frentes. A página oficial disponibiliza previsões até cinco dias, com horas de validade próprias.">
+          <External primary href="https://weather.metoffice.gov.uk/maps-and-charts/surface-pressure">Abrir SPC do Met Office</External>
+        </Product>
+        <Product eyebrow="IPMA · Portugal" title="Cartas de superfície / Selfbriefing"
+          description="Alternativa portuguesa para os produtos meteorológicos aeronáuticos de superfície. O acesso e a redistribuição dependem das condições do serviço Selfbriefing.">
+          <External href="https://www.ipma.pt/pt/produtoseservicos/index.jsp?page=selfbriefing.xml">Abrir IPMA Selfbriefing</External>
+        </Product>
+      </div>}
+
+      {tab==="airports" && <div className="space-y-4">
+        <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm md:p-6">
+          <div className="flex flex-wrap items-end justify-between gap-4">
             <div>
-              <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 md:text-6xl">
-                AEMET
-              </h1>
-              <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600 md:text-lg">
-                First version of the meteorology module focused exclusively on
-                Spain&apos;s official meteorological service and its aviation
-                and OpenData products.
+              <p className="text-xs font-bold uppercase tracking-[.15em] text-sky-700">Live reports</p>
+              <h2 className="mt-2 text-2xl font-semibold text-zinc-900">METAR / TAF</h2>
+              <p className="mt-2 max-w-xl text-sm leading-6 text-zinc-600">
+                A lista é importada diretamente dos aeródromos admitidos em Performance.
+                Uma mensagem ausente não é substituída por uma previsão numérica.
               </p>
             </div>
-
-            <div className="flex flex-wrap gap-2 lg:justify-end">
-              <ExternalLink href="https://ama.aemet.es/en/" primary>
-                Open Aviation AMA
-              </ExternalLink>
-              <ExternalLink href="https://opendata.aemet.es/">
-                OpenData
-              </ExternalLink>
+            <div className="flex flex-wrap items-end gap-2">
+              <label className="block">
+                <span className="mb-1 block text-xs font-semibold text-zinc-500">Aeródromo</span>
+                <select className="min-w-56 rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm"
+                  value={icao} onChange={event=>setIcao(event.target.value)}>
+                  {AIRPORTS.map(ap=><option key={ap.icao} value={ap.icao}>{ap.icao} · {ap.name}</option>)}
+                </select>
+              </label>
+              <button type="button" onClick={()=>setRevision(n=>n+1)}
+                className="rounded-xl border border-zinc-300 bg-zinc-50 px-4 py-2.5 text-sm font-semibold hover:bg-zinc-100">
+                Atualizar
+              </button>
             </div>
           </div>
-        </div>
-
-        <div className="grid gap-px bg-zinc-200 md:grid-cols-3">
-          <div className="bg-zinc-50 px-6 py-5 md:px-8">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Provider
-            </p>
-            <p className="mt-2 text-lg font-semibold text-zinc-950">AEMET</p>
-          </div>
-          <div className="bg-zinc-50 px-6 py-5 md:px-8">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Aviation portal
-            </p>
-            <p className="mt-2 text-lg font-semibold text-zinc-950">
-              AMA · restricted access
-            </p>
-          </div>
-          <div className="bg-zinc-50 px-6 py-5 md:px-8">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Public data
-            </p>
-            <p className="mt-2 text-lg font-semibold text-zinc-950">
-              AEMET OpenData
-            </p>
-          </div>
-        </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-2">
-        <article className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm md:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Aviation
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-                AMA
-              </h2>
-            </div>
-            <span className="rounded-full bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 ring-1 ring-inset ring-amber-200">
-              Restricted
-            </span>
-          </div>
-
-          <p className="mt-4 text-sm leading-6 text-zinc-600">
-            The official AEMET aviation portal remains the reference for
-            aviation-specific products. This preview does not attempt to bypass
-            its authentication or mirror restricted content.
+          <p className="mt-4 text-xs text-zinc-500">
+            Fonte: MET Norway Tafmetar (OPMET recebido de várias origens).
+            {weather?.checkedAt ? " · Consulta: "+new Date(weather.checkedAt).toLocaleString("pt-PT",{timeZone:"UTC"})+" UTC" : ""}
+            {" · "}{AIRPORTS.length} aeródromos no módulo Performance.
           </p>
-
-          <div className="mt-6">
-            <ExternalLink href="https://ama.aemet.es/en/" primary>
-              Open AMA
-            </ExternalLink>
-          </div>
-        </article>
-
-        <article className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm md:p-7">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-                Public API
-              </p>
-              <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-                OpenData
-              </h2>
-            </div>
-            <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-200">
-              Integrable
-            </span>
-          </div>
-
-          <p className="mt-4 text-sm leading-6 text-zinc-600">
-            This is the part we can integrate directly into Briefings where the
-            required datasets are exposed by AEMET. The next technical step is
-            to connect the API with an AEMET OpenData key.
-          </p>
-
-          <div className="mt-6">
-            <ExternalLink href="https://opendata.aemet.es/">
-              Open AEMET OpenData
-            </ExternalLink>
-          </div>
-        </article>
-      </section>
-
-      <section>
-        <div className="mb-4">
-          <p className="text-sm font-medium text-zinc-500">AEMET catalogue</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-            Products to organise here
-          </h2>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-            The interface is already separated by product type so we can add
-            each product only after confirming how AEMET allows it to be
-            retrieved.
-          </p>
+        </section>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <ReportPanel name="METAR" report={weather?.metar} loading={loading}/>
+          <ReportPanel name="TAF" report={weather?.taf} loading={loading}/>
         </div>
+        <p className="text-sm leading-6 text-zinc-600">
+          Nem todos os aeródromos em Performance possuem METAR e/ou TAF (por exemplo, LPSO).
+          A ausência de mensagem significa apenas que a fonte não devolveu um relatório atual;
+          não confirma por si só se o serviço existe no aeródromo.
+        </p>
+      </div>}
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {productGroups.map((group) => (
-            <article
-              key={group.title}
-              className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
-                  {group.title}
-                </h3>
-                <span className="rounded-full bg-zinc-100 px-2 py-1 text-[11px] font-semibold text-zinc-600">
-                  {group.access}
-                </span>
-              </div>
-
-              <p className="mt-3 text-sm leading-6 text-zinc-500">
-                {group.description}
-              </p>
-
-              <div className="mt-5 space-y-2">
-                {group.products.map((product) => (
-                  <div
-                    key={product}
-                    className="rounded-2xl border border-zinc-200 bg-zinc-50 px-3.5 py-3 text-sm font-medium text-zinc-700"
-                  >
-                    {product}
-                  </div>
-                ))}
-              </div>
-            </article>
-          ))}
+      {tab==="lppc" && <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Product eyebrow="Portugal · LPPC FIR" title="SIGMET"
+            description="Mensagens de fenómenos meteorológicos significativos publicadas pelo serviço meteorológico aeronáutico responsável. Consultar validade e região afetada antes do voo.">
+            <External primary href="https://www.ipma.pt/pt/produtoseservicos/index.jsp?page=selfbriefing.xml">Consultar SIGMET · IPMA</External>
+          </Product>
+          <Product eyebrow="Portugal · voo a baixa altura" title="GAMET / Area forecast"
+            description="A disponibilidade de GAMET para a área LPPC e um acesso automatizável ainda têm de ser confirmados com o IPMA. Não se apresentam mensagens fictícias.">
+            <External href="https://www.ipma.pt/pt/produtoseservicos/index.jsp?page=selfbriefing.xml">Ver produtos disponíveis · IPMA</External>
+          </Product>
         </div>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
-        <article className="rounded-3xl border border-zinc-200 bg-zinc-950 p-6 text-white shadow-sm md:p-7">
-          <p className="text-sm font-medium text-zinc-400">Implementation</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight">
-            First AEMET integration
-          </h2>
-
-          <div className="mt-6 space-y-4">
-            {[
-              ["1", "Connect AEMET OpenData", "Store the API key only on the Vercel server side."],
-              ["2", "Inspect available datasets", "Use only products that AEMET exposes for automated retrieval."],
-              ["3", "Add live product cards", "Show source, issue time and retrieval time with every product."],
-              ["4", "Add cache fallback", "If AEMET is unavailable, clearly mark the last valid copy as cached."],
-            ].map(([step, title, description]) => (
-              <div
-                key={step}
-                className="grid grid-cols-[2rem_1fr] gap-3 rounded-2xl border border-white/10 bg-white/5 p-4"
-              >
-                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white text-sm font-semibold text-zinc-950">
-                  {step}
-                </div>
-                <div>
-                  <p className="font-semibold text-white">{title}</p>
-                  <p className="mt-1 text-sm leading-6 text-zinc-300">
-                    {description}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
-        </article>
-
-        <article className="rounded-3xl border border-dashed border-zinc-300 bg-zinc-50 p-6 md:p-7">
-          <p className="text-sm font-medium text-zinc-500">Scope</p>
-          <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
-            Deliberately limited
-          </h2>
-          <p className="mt-4 text-sm leading-6 text-zinc-600">
-            For now this branch is only about AEMET, so we can get one
-            provider and its data flow right before expanding the module.
-          </p>
-
-          <div className="mt-6 rounded-2xl border border-zinc-200 bg-white p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Production
-            </p>
-            <p className="mt-2 text-sm font-semibold text-zinc-950">
-              Unchanged
-            </p>
-            <p className="mt-1 text-sm leading-6 text-zinc-500">
-              This remains a separate preview branch and deployment.
-            </p>
-          </div>
-        </article>
-      </section>
+        <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm leading-6 text-zinc-600">
+          O Selfbriefing exige condições de acesso próprias. Os avisos operacionais devem ser
+          confirmados na fonte oficial e com a respetiva validade; a ausência nesta página
+          não significa ausência de SIGMET em vigor.
+        </div>
+      </div>}
+      <footer className="border-t border-zinc-200 pt-4 text-xs leading-6 text-zinc-500">
+        Preview experimental. Não substitui um briefing meteorológico operacional validado.
+        Não é efetuado qualquer deployment de produção.
+      </footer>
     </div>
   );
 }
