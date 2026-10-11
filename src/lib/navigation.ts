@@ -32,6 +32,14 @@ export const navigationItems = [
     details: ["7-day view", "Colour-coded NOTAMs", "Custom area overlay"],
   },
   {
+    title: "Meteorology",
+    href: "/meteorology",
+    eyebrow: "Utility · Aviation weather",
+    group: "utility",
+    description: "SIGWX Iberia, surface charts, verified aerodrome METAR/TAF and LPPC area weather.",
+    details: ["SIGWX", "METAR / TAF", "LPPC"],
+  },
+  {
     title: "Aviation Map",
     href: "/vfr-map",
     eyebrow: "Utility · Portugal",

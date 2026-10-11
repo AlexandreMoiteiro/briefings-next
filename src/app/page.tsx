@@ -76,7 +76,7 @@ export default function HomePage() {
       <section>
         <div className="mb-4">
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-            Maps
+            Maps &amp; Meteorology
           </p>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
