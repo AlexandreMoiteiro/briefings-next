@@ -34,6 +34,8 @@ type UsageEventRow = {
   url: string | null;
 };
 
+type DailyPageOpens = { day:string; meteorology:number; notam_map:number };
+
 type Metric = {
   label: string;
   value: string;
@@ -309,6 +311,8 @@ export default function AdminUsagePage() {
   const [adminCode, setAdminCode] = useState("");
   const [inputCode, setInputCode] = useState("");
   const [rows, setRows] = useState<UsageEventRow[]>([]);
+  const [pageOpens, setPageOpens] = useState<DailyPageOpens[]>([]);
+  const [pageOpensError, setPageOpensError] = useState("");
   const [selectedModule, setSelectedModule] = useState("all");
   const [selectedEvent, setSelectedEvent] = useState("all");
   const [search, setSearch] = useState("");
@@ -343,6 +347,13 @@ export default function AdminUsagePage() {
       return;
     }
 
+    const { data: daily, error: dailyError } = await supabase.rpc("get_page_open_counts_admin", {
+      p_admin_code: code.trim(),
+      p_days: 30,
+    });
+    setPageOpens(dailyError ? [] : ((daily ?? []) as DailyPageOpens[]));
+    setPageOpensError(dailyError ? "Daily page counts are currently unavailable." : "");
+
     setRows(
       ((data ?? []) as UsageEventRow[]).map((row) => ({
         ...row,
@@ -363,6 +374,7 @@ export default function AdminUsagePage() {
     setAdminCode("");
     setInputCode("");
     setRows([]);
+    setPageOpens([]);
     setExpandedRowId("");
     window.sessionStorage.removeItem(ADMIN_CODE_STORAGE_KEY);
   }
@@ -517,6 +529,36 @@ export default function AdminUsagePage() {
             </button>
           </div>
         </header>
+
+        <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
+          <h2 className="text-lg font-semibold text-zinc-950">Daily page opens</h2>
+          <p className="mt-1 text-xs text-zinc-500">Last 30 days · UTC · page openings, not unique visitors · no personal details collected for these counters.</p>
+          {pageOpensError && <p className="mt-3 text-sm text-amber-700">{pageOpensError}</p>}
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <p className="text-xs font-semibold text-zinc-500">Meteorology · today</p>
+              <p className="mt-1 text-3xl font-semibold">{Number(pageOpens[0]?.meteorology ?? 0)}</p>
+            </div>
+            <div className="rounded-xl bg-zinc-50 p-4">
+              <p className="text-xs font-semibold text-zinc-500">NOTAM Map · today</p>
+              <p className="mt-1 text-3xl font-semibold">{Number(pageOpens[0]?.notam_map ?? 0)}</p>
+            </div>
+          </div>
+          <div className="mt-4 max-h-80 overflow-auto rounded-xl border border-zinc-200">
+            <table className="w-full text-left text-sm">
+              <thead className="sticky top-0 bg-zinc-50 text-xs text-zinc-600"><tr>
+                <th className="px-3 py-2">Date (UTC)</th>
+                <th className="px-3 py-2 text-right">Meteorology</th>
+                <th className="px-3 py-2 text-right">NOTAM Map</th>
+              </tr></thead>
+              <tbody>{pageOpens.map(day=><tr key={day.day} className="border-t border-zinc-100">
+                <td className="px-3 py-2">{day.day}</td>
+                <td className="px-3 py-2 text-right">{day.meteorology}</td>
+                <td className="px-3 py-2 text-right">{day.notam_map}</td>
+              </tr>)}</tbody>
+            </table>
+          </div>
+        </section>
 
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
           {[
