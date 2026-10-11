@@ -7,7 +7,7 @@ function ToolCard({ item, index }: { item: NavItem; index?: number }) {
   return (
     <Link
       href={item.href}
-      className="group rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md"
+      className={"group rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md" + (item.href === "/vfr-map" ? " md:col-span-2" : "")}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
