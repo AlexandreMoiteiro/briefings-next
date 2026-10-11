@@ -307,6 +307,8 @@ function PerformanceAerodromes({ payload }: { payload: JsonRecord }) {
 
 export default function AdminUsagePage() {
   const [unlocked, setUnlocked] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [rememberedSession, setRememberedSession] = useState(false);
   const [inputCode, setInputCode] = useState("");
   const [rows, setRows] = useState<UsageEventRow[]>([]);
   const [pageOpens, setPageOpens] = useState<DailyPageOpens[]>([]);
@@ -329,7 +331,7 @@ export default function AdminUsagePage() {
         ...(code?{headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}:{})
       });
       if(!response.ok){
-        if(silent && response.status===401)return;
+        if(silent && response.status===401){setRememberedSession(false);return;}
         throw new Error(response.status===401?"Invalid or expired admin session.":"Could not load usage events.");
       }
       const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[];pageOpensError?:string};
@@ -337,11 +339,12 @@ export default function AdminUsagePage() {
       setPageOpens(result.pageOpens??[]);
       setPageOpensError(result.pageOpensError??"");
       setUnlocked(true);
+      setRememberedSession(true);
       setInputCode("");
     }catch(err){
       setRows([]);setPageOpens([]);setUnlocked(false);
       setErrorMessage(err instanceof Error?err.message:"Unable to load admin dashboard.");
-    }finally{setBusy(false);}
+    }finally{setBusy(false);if(silent)setCheckingSession(false);}
   }
 
   function handleUnlock(event:React.FormEvent<HTMLFormElement>){
@@ -351,7 +354,7 @@ export default function AdminUsagePage() {
 
   function handleLogout(){
     void fetch("/api/admin/session",{method:"DELETE",credentials:"same-origin"});
-    setUnlocked(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
+    setUnlocked(false);setRememberedSession(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
   }
 
   useEffect(()=>{void loadEvents(undefined,true);},[]);
@@ -412,6 +415,8 @@ export default function AdminUsagePage() {
     };
   }, [rows]);
 
+  if (checkingSession) return <main className="mx-auto max-w-md p-8 text-center text-sm text-zinc-500">Checking your admin session…</main>;
+
   if (!unlocked) {
     return (
       <main className="min-h-screen bg-zinc-50 px-6 py-16">
@@ -423,8 +428,7 @@ export default function AdminUsagePage() {
             Usage dashboard
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-600">
-            Enter your admin code once on this device to view usage events created by the
-            app.
+            Sign in on this device. Your secure session stays available for 30 days.
           </p>
 
           <form onSubmit={handleUnlock} className="mt-6 space-y-3">
