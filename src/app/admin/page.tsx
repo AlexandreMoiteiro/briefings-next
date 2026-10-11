@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
 const UsageEventMap = dynamic(
@@ -498,6 +499,8 @@ export default function AdminUsagePage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link href="/admin/messages" className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">Messages</Link>
+            <Link href="/admin/export-access" className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">Export Access</Link>
             <button
               type="button"
               onClick={() => loadEvents()}
