@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase/client";
 
 type FeedbackMessage = {
   id: string;
@@ -38,7 +37,6 @@ type InboxItem =
 
 type View = "all" | "feedback" | "unblock";
 
-const ADMIN_CODE_STORAGE_KEY = "briefings_admin_usage_code";
 
 function formatDate(value: string) {
   try {
@@ -65,7 +63,7 @@ function statusClass(status: string) {
 }
 
 export default function AdminMessagesPage() {
-  const [adminCode, setAdminCode] = useState("");
+  const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage[]>([]);
   const [unblock, setUnblock] = useState<UnblockRequest[]>([]);
   const [view, setView] = useState<View>("all");
@@ -74,41 +72,26 @@ export default function AdminMessagesPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function load(code = adminCode) {
-    if (!supabase || !code.trim()) return;
-
-    setLoading(true);
-    setError("");
-
-    const [feedbackResult, unblockResult] = await Promise.all([
-      supabase.rpc("get_app_feedback_messages_admin", {
-        p_admin_code: code.trim(),
-        p_limit: 300,
-      }),
-      supabase.rpc("get_app_unblock_requests_admin", {
-        p_admin_code: code.trim(),
-        p_limit: 300,
-      }),
-    ]);
-
-    setLoading(false);
-
-    if (feedbackResult.error || unblockResult.error) {
-      setFeedback([]);
-      setUnblock([]);
-      setError("Could not load the Admin inbox. Check the admin code.");
-      return;
-    }
-
-    setFeedback((feedbackResult.data ?? []) as FeedbackMessage[]);
-    setUnblock((unblockResult.data ?? []) as UnblockRequest[]);
+  async function load(){
+    setLoading(true);setError("");
+    try{
+      const response=await fetch("/api/admin/messages",{credentials:"same-origin",cache:"no-store"});
+      if(!response.ok)throw new Error("Unable to open messages. Sign in via Admin.");
+      const result=await response.json() as {feedback:FeedbackMessage[];unblock:UnblockRequest[]};
+      setFeedback(result.feedback||[]);setUnblock(result.unblock||[]);setAuthorized(true);
+    }catch(e){setAuthorized(false);setError(e instanceof Error?e.message:"Unable to load messages.");}
+    finally{setLoading(false);}
   }
-
-  useEffect(() => {
-    const saved = window.sessionStorage.getItem(ADMIN_CODE_STORAGE_KEY) ?? "";
-    setAdminCode(saved);
-    if (saved) void load(saved);
-  }, []);
+  async function runAction(action:string,body:Record<string,unknown>){
+    setBusy(action);setError("");
+    try{
+      const response=await fetch("/api/admin/messages",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})});
+      if(!response.ok)throw new Error("Unable to complete the requested action.");
+      await load();
+    }catch(e){setError(e instanceof Error?e.message:"Action failed.");}
+    finally{setBusy("");}
+  }
+  useEffect(()=>{void load();},[]);
 
   const items = useMemo<InboxItem[]>(() => {
     const merged: InboxItem[] = [
@@ -131,123 +114,32 @@ export default function AdminMessagesPage() {
   const openFeedback = feedback.filter((row) => row.status === "open").length;
   const openUnblock = unblock.filter((row) => row.status === "open").length;
 
-  async function setFeedbackStatus(
-    row: FeedbackMessage,
-    status: FeedbackMessage["status"]
-  ) {
-    if (!supabase || !adminCode) return;
-    setBusy(`feedback:${row.id}`);
-    setError("");
-
-    const { error: updateError } = await supabase.rpc(
-      "set_app_feedback_message_status_admin",
-      {
-        p_admin_code: adminCode,
-        p_message_id: row.id,
-        p_status: status,
-      }
-    );
-
-    setBusy("");
-    if (updateError) {
-      setError("Could not update the message status.");
-      return;
-    }
-    await load();
+  async function setFeedbackStatus(row:FeedbackMessage,status:FeedbackMessage["status"]){
+    await runAction("feedback-status",{id:row.id,status});
+  }
+  async function setUnblockStatus(row:UnblockRequest,status:UnblockRequest["status"]){
+    await runAction("unblock-status",{id:row.id,status});
+  }
+  async function unblockDevice(row:UnblockRequest){
+    if(!window.confirm(`Unblock the device for ${row.pilot_name}?`))return;
+    await runAction("unblock-device",{id:row.id,clientId:row.client_id});
+  }
+  async function unblockNetwork(row:UnblockRequest){
+    if(!window.confirm(`Remove the network/IP ban for ${row.pilot_name}? This can affect other devices sharing the same public IP.`))return;
+    await runAction("unblock-network",{ipHash:row.ip_hash});
   }
 
-  async function setUnblockStatus(
-    row: UnblockRequest,
-    status: UnblockRequest["status"]
-  ) {
-    if (!supabase || !adminCode) return;
-    setBusy(`unblock-status:${row.id}`);
-    setError("");
-
-    const { error: updateError } = await supabase.rpc(
-      "set_app_unblock_request_status_admin",
-      {
-        p_admin_code: adminCode,
-        p_request_id: row.id,
-        p_status: status,
-      }
-    );
-
-    setBusy("");
-    if (updateError) {
-      setError("Could not update the unblock request.");
-      return;
-    }
-    await load();
-  }
-
-  async function unblockDevice(row: UnblockRequest) {
-    if (!supabase || !adminCode || !row.client_id) return;
-    if (!window.confirm(`Unblock the device for ${row.pilot_name}?`)) return;
-
-    setBusy(`device:${row.id}`);
-    setError("");
-
-    const { error: unblockError } = await supabase.rpc("set_app_client_ban_admin", {
-      p_admin_code: adminCode,
-      p_client_id: row.client_id,
-      p_banned: false,
-      p_reason: null,
-    });
-
-    if (unblockError) {
-      setBusy("");
-      setError("Could not unblock the device.");
-      return;
-    }
-
-    await supabase.rpc("set_app_unblock_request_status_admin", {
-      p_admin_code: adminCode,
-      p_request_id: row.id,
-      p_status: "resolved",
-    });
-
-    setBusy("");
-    await load();
-  }
-
-  async function unblockNetwork(row: UnblockRequest) {
-    if (!supabase || !adminCode || !row.ip_hash) return;
-    if (
-      !window.confirm(
-        `Remove the network/IP ban for ${row.pilot_name}? This can affect other devices sharing the same public IP.`
-      )
-    ) {
-      return;
-    }
-
-    setBusy(`network:${row.id}`);
-    setError("");
-
-    const { error: unblockError } = await supabase.rpc("set_app_ip_ban_admin", {
-      p_admin_code: adminCode,
-      p_ip_hash: row.ip_hash,
-      p_banned: false,
-      p_reason: null,
-    });
-
-    setBusy("");
-    if (unblockError) {
-      setError("Could not unblock the network/IP.");
-      return;
-    }
-    await load();
-  }
-
-  if (!adminCode) {
+  if (authorized === false) {
     return (
       <main className="mx-auto max-w-3xl">
         <div className="rounded-3xl border border-amber-200 bg-amber-50 p-6 text-sm leading-6 text-amber-900">
-          Open the <Link href="/admin" className="font-semibold underline">Admin dashboard</Link> and enter the admin code first. The same session unlocks the inbox.
+          Open the <Link href="/admin" className="font-semibold underline">Admin dashboard</Link> and enter the admin code first. The same secure session unlocks the inbox.
         </div>
       </main>
     );
   }
+
+  if (authorized === null) return <p className="p-6 text-sm text-zinc-600">Loading admin messages…</p>;
 
   return (
     <main className="mx-auto max-w-6xl space-y-5">
