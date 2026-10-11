@@ -1,8 +1,10 @@
 "use client";
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export function AemetAnnouncement(){
   const [visible,setVisible]=useState(false);
+  const router=useRouter();
   useEffect(()=>{
     try{if(window.localStorage.getItem("briefings-aemet-feature-v3")!=="seen")setVisible(true);}
     catch{setVisible(true);}
@@ -23,8 +25,8 @@ export function AemetAnnouncement(){
       </p>
       <p className="mt-3 text-sm leading-6 text-zinc-700">If you notice an error, have a suggestion, or have any questions, please use the <strong>Send Message</strong> tab to get in touch with me. Your feedback helps improve Briefings for everyone.</p>
       <p className="mt-3 text-xs text-zinc-500">Official chart source: © AEMET.</p>
-      <button type="button" onClick={dismiss}
-        className="mt-5 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800">Continue to Briefings</button>
+      <button type="button" onClick={()=>{dismiss();router.push("/meteorology");}}
+        className="mt-5 w-full rounded-xl bg-zinc-900 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800">Explore AEMET Weather Charts</button>
     </div>
   </div>;
 }
