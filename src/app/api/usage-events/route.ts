@@ -9,6 +9,8 @@ const EVENT_MODULES = {
   area_map_save: "area-map",
   area_map_update: "area-map",
   area_map_pdf_export: "area-map",
+  meteorology_open: "meteorology",
+  notam_map_open: "notam-map",
 } as const;
 
 type UsageEventType = keyof typeof EVENT_MODULES;
