@@ -92,11 +92,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid usage event." }, { status: 400 });
     }
 
-    const ip = getClientIp(request);
+    const pageOpen = eventType === "meteorology_open" || eventType === "notam_map_open";
+    const ip = pageOpen ? "" : getClientIp(request);
     const supabase = createPublicServerSupabase();
     const { error } = await supabase.from("app_usage_events").insert({
       id: eventId,
-      client_id: clientId,
+      client_id: pageOpen ? "anonymous-page-open" : clientId,
       ip_hash: ip ? hashIp(ip) : null,
       event_type: eventType,
       module,
@@ -106,8 +107,8 @@ export async function POST(request: Request) {
       route_name: cleanText(body.routeName, 160),
       summary: safeJson(body.summary, 12_000),
       payload: safeJson(body.payload, 38_000),
-      user_agent: cleanText(request.headers.get("user-agent"), 500),
-      url: cleanText(body.url, 1_000),
+      user_agent: pageOpen ? null : cleanText(request.headers.get("user-agent"), 500),
+      url: pageOpen ? null : cleanText(body.url, 1_000),
     });
 
     if (error && error.code !== "23505") {
