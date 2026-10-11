@@ -39,8 +39,8 @@ export function AppShell({ children }: AppShellProps) {
             </Link>
             <Link href="/admin" aria-label="Admin dashboard"
               title="Admin"
-              className="text-[10px] font-normal text-zinc-300 opacity-50 transition hover:text-zinc-600 hover:opacity-100">
-              ·
+              className="text-xs font-medium text-zinc-400 transition hover:text-zinc-700">
+              Admin
             </Link>
           </div>
         </div>
