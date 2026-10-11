@@ -360,6 +360,7 @@ export default function AdminUsagePage() {
     const searchText = search.trim().toLowerCase();
 
     return rows.filter((row) => {
+      if (row.event_type === "meteorology_open" || row.event_type === "notam_map_open") return false;
       if (selectedModule !== "all" && row.module !== selectedModule) {
         return false;
       }
@@ -387,22 +388,22 @@ export default function AdminUsagePage() {
   }, [rows, search, selectedEvent, selectedModule]);
 
   const modules = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.module))).sort(),
+    () => Array.from(new Set(rows.filter(row => !["meteorology_open","notam_map_open"].includes(row.event_type)).map((row) => row.module))).sort(),
     [rows]
   );
 
   const eventTypes = useMemo(
-    () => Array.from(new Set(rows.map((row) => row.event_type))).sort(),
+    () => Array.from(new Set(rows.filter(row => !["meteorology_open","notam_map_open"].includes(row.event_type)).map((row) => row.event_type))).sort(),
     [rows]
   );
 
   const stats = useMemo(() => {
     const count = (eventType: string) =>
       rows.filter((row) => row.event_type === eventType).length;
-    const uniqueClients = new Set(rows.map((row) => row.client_id).filter(Boolean));
+    const uniqueClients = new Set(rows.filter(row => !["meteorology_open","notam_map_open"].includes(row.event_type)).map((row) => row.client_id).filter(Boolean));
 
     return {
-      total: rows.length,
+      total: rows.filter(row => !["meteorology_open","notam_map_open"].includes(row.event_type)).length,
       navlogs: count("navlog_export"),
       performance: count("performance_export"),
       briefings: count("briefing_export"),
