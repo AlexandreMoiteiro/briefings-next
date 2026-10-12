@@ -1,2 +1,2 @@
 import { redirect } from "next/navigation";
-export default function DeprecatedAdminRoute(){ redirect("/admin"); }
+export default function DeprecatedExportAccessPath(){ redirect("/admin/ip-bans"); }
