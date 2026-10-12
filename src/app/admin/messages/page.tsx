@@ -1,2 +1,8 @@
 import { redirect } from "next/navigation";
-export default function DeprecatedAdminRoute(){ redirect("/admin"); }
+import { readAdminCode } from "@/lib/admin-session";
+import { AdminMessagesPanel } from "./panel";
+export const dynamic = "force-dynamic";
+export default async function MessagesPage() {
+  if (!(await readAdminCode())) redirect("/admin");
+  return <AdminMessagesPanel />;
+}
