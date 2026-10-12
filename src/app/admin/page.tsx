@@ -1,8 +1,9 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { AdminMessagesPanel } from "./messages/panel";
+import { ExportAccessPanel } from "./export-access/panel";
 
 const UsageEventMap = dynamic(
   () =>
@@ -307,66 +308,48 @@ function PerformanceAerodromes({ payload }: { payload: JsonRecord }) {
 }
 
 export default function AdminUsagePage() {
-  const [unlocked, setUnlocked] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
-  const [rememberedSession, setRememberedSession] = useState(false);
-  const [inputCode, setInputCode] = useState("");
-  const [rows, setRows] = useState<UsageEventRow[]>([]);
-  const [pageOpens, setPageOpens] = useState<DailyPageOpens[]>([]);
-  const [pageOpensError, setPageOpensError] = useState("");
-  const [selectedModule, setSelectedModule] = useState("all");
-  const [selectedEvent, setSelectedEvent] = useState("all");
-  const [search, setSearch] = useState("");
-  const [expandedRowId, setExpandedRowId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [adminCode,setAdminCode]=useState("");
+  const [inputCode,setInputCode]=useState("");
+  const [activeTab,setActiveTab]=useState<"usage"|"messages"|"access">("usage");
+  const [rows,setRows]=useState<UsageEventRow[]>([]);
+  const [pageOpens,setPageOpens]=useState<DailyPageOpens[]>([]);
+  const [pageOpensError,setPageOpensError]=useState("");
+  const [selectedModule,setSelectedModule]=useState("all");
+  const [selectedEvent,setSelectedEvent]=useState("all");
+  const [search,setSearch]=useState("");
+  const [expandedRowId,setExpandedRowId]=useState("");
+  const [busy,setBusy]=useState(false);
+  const [errorMessage,setErrorMessage]=useState("");
 
-  async function loadEvents(code?:string, silent=false){
-    setBusy(true);
-    setErrorMessage("");
+  async function loadEvents(code=adminCode){
+    if(!code.trim()){setErrorMessage("Enter the admin code.");return;}
+    setBusy(true);setErrorMessage("");
     try{
       const response=await fetch("/api/admin/session",{
-        method:code?"POST":"GET",
-        credentials:"same-origin",
-        cache:"no-store",
-        ...(code?{headers:{"Content-Type":"application/json"},body:JSON.stringify({code})}:{})
+        method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({code}),
+        credentials:"same-origin",cache:"no-store"
       });
-      if(!response.ok){
-        if(silent && response.status===401){setRememberedSession(false);return;}
-        if(response.status===401)setRememberedSession(false);
-        throw new Error(response.status===401?"Admin session expired. Please enter your code again.":"Could not load usage events.");
-      }
-      const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[];pageOpensError?:string};
-      setRows((result.rows??[]).map(row=>({...row,summary:asRecord(row.summary),payload:asRecord(row.payload)})));
-      setPageOpens(result.pageOpens??[]);
-      setPageOpensError(result.pageOpensError??"");
-      setUnlocked(true);
-      setRememberedSession(true);
+      if(!response.ok)throw Error("Invalid admin code or unable to load data.");
+      const result=await response.json() as {rows:UsageEventRow[];pageOpens:DailyPageOpens[]};
+      setRows((result.rows||[]).map(row=>({...row,summary:asRecord(row.summary),payload:asRecord(row.payload)})));
+      setPageOpens(result.pageOpens||[]);
+      setPageOpensError("");
+      setAdminCode(code);
       setInputCode("");
-    }catch(err){
-      setRows([]);setPageOpens([]);setUnlocked(false);
-      setErrorMessage(err instanceof Error?err.message:"Unable to load admin dashboard.");
-    }finally{setBusy(false);if(silent)setCheckingSession(false);}
+    }catch(e){
+      setErrorMessage(e instanceof Error?e.message:"Unable to sign in.");
+      if(!adminCode)setRows([]);
+    }finally{setBusy(false);}
   }
 
   function handleUnlock(event:React.FormEvent<HTMLFormElement>){
-    event.preventDefault();
-    void loadEvents(inputCode.trim());
+    event.preventDefault();void loadEvents(inputCode.trim());
   }
-
   function handleLogout(){
-    void fetch("/api/admin/session",{method:"DELETE",credentials:"same-origin"});
-    setUnlocked(false);setRememberedSession(false);setInputCode("");setRows([]);setPageOpens([]);setExpandedRowId("");
+    setAdminCode("");setInputCode("");setRows([]);setPageOpens([]);
+    setExpandedRowId("");setActiveTab("usage");setErrorMessage("");
+    void fetch("/api/admin/session",{method:"DELETE",cache:"no-store"});
   }
-
-  useEffect(()=>{
-    let live=true;
-    fetch("/api/admin/session?check=1",{credentials:"same-origin",cache:"no-store"})
-      .then(response=>{if(live)setRememberedSession(response.ok);})
-      .catch(()=>{if(live)setRememberedSession(false);})
-      .finally(()=>{if(live)setCheckingSession(false);});
-    return()=>{live=false;};
-  },[]);
 
   const filteredRows = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -424,9 +407,7 @@ export default function AdminUsagePage() {
     };
   }, [rows]);
 
-  if (checkingSession) return <main className="mx-auto max-w-md p-8 text-center text-sm text-zinc-500">Checking your admin session…</main>;
-
-  if (!unlocked) {
+  if (!adminCode) {
     return (
       <main className="min-h-screen bg-zinc-50 px-6 py-16">
         <section className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
@@ -437,38 +418,22 @@ export default function AdminUsagePage() {
             Usage dashboard
           </h1>
           <p className="mt-3 text-sm leading-6 text-zinc-600">
-            Sign in on this device. Your secure session stays available for 30 days.
+            Enter the admin code to manage usage, messages and PDF export access. The code is not saved.
           </p>
 
-          {rememberedSession ? (
-            <button type="button" onClick={()=>void loadEvents()} disabled={busy}
-              className="mt-6 w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
-              {busy?"Opening dashboard…":"Enter Admin"}
-            </button>
-          ) : (
-          <form onSubmit={handleUnlock} className="mt-6 space-y-3">
+          <form onSubmit={handleUnlock} autoComplete="off" className="mt-6 space-y-3">
             <label className="block space-y-1.5">
-              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-                Admin code
-              </span>
-              <input
-                value={inputCode}
-                onChange={(event) => setInputCode(event.target.value)}
-                type="password"
-                className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none transition focus:border-zinc-500"
-                placeholder="Enter admin code"
-              />
+              <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Admin code</span>
+              <input value={inputCode} onChange={e=>setInputCode(e.target.value)}
+                type="password" autoComplete="new-password" required
+                className="w-full rounded-xl border border-zinc-200 px-3 py-2 text-sm outline-none focus:border-zinc-500"
+                placeholder="Enter admin code"/>
             </label>
-
-            <button
-              type="submit"
-              disabled={busy}
-              className="w-full rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
-            >
-              {busy ? "Loading..." : "Open admin"}
+            <button type="submit" disabled={busy}
+              className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-50">
+              {busy?"Checking…":"Enter Admin"}
             </button>
           </form>
-          )}
 
           {errorMessage ? (
             <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
@@ -481,6 +446,23 @@ export default function AdminUsagePage() {
   }
 
   return (
+    <div className="space-y-4">
+      <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 rounded-2xl border border-zinc-200 bg-white p-3">
+        <nav aria-label="Admin sections" className="flex flex-wrap gap-2">
+          {([
+            ["usage","Usage"],
+            ["messages","Messages"],
+            ["access","Export Access"],
+          ] as const).map(([key,label])=><button type="button" key={key}
+            onClick={()=>setActiveTab(key)}
+            className={"rounded-lg px-4 py-2 text-sm font-semibold "+(activeTab===key?"bg-zinc-900 text-white":"bg-zinc-100 text-zinc-600 hover:bg-zinc-200")}>
+            {label}
+          </button>)}
+        </nav>
+        <button type="button" onClick={handleLogout}
+          className="rounded-lg border border-zinc-200 px-4 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-50">Lock</button>
+      </div>
+      {activeTab==="usage" ? (
     <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6 lg:px-8">
       <section className="mx-auto max-w-[1500px] space-y-6">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -499,8 +481,6 @@ export default function AdminUsagePage() {
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link href="/admin/messages" className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">Messages</Link>
-            <Link href="/admin/export-access" className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">Export Access</Link>
             <button
               type="button"
               onClick={() => loadEvents()}
@@ -510,13 +490,7 @@ export default function AdminUsagePage() {
               {busy ? "Refreshing..." : "Refresh"}
             </button>
 
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:bg-zinc-100"
-            >
-              Lock
-            </button>
+
           </div>
         </header>
 
@@ -751,5 +725,11 @@ export default function AdminUsagePage() {
         </section>
       </section>
     </main>
+      ) : activeTab==="messages" ? (
+        <AdminMessagesPanel adminCode={adminCode} />
+      ) : (
+        <ExportAccessPanel adminCode={adminCode} />
+      )}
+    </div>
   );
 }
