@@ -32,17 +32,16 @@ export function AppShell({ children }: AppShellProps) {
 
       <footer className="mt-auto border-t border-zinc-200 bg-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <p className="font-medium text-zinc-600">Briefings</p>
-          <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Link href="/feedback" className="font-medium text-zinc-700 transition hover:text-zinc-950">
-              Suggestions & questions
-            </Link>
-            <Link href="/admin" aria-label="Admin dashboard"
-              title="Admin"
-              className="flex h-9 w-9 items-center justify-center rounded-lg transition hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
-              <span aria-hidden="true" className="h-3.5 w-3.5 rounded-[3px] border border-zinc-400 bg-zinc-200" />
+          <div className="flex items-center gap-5">
+            <p className="font-medium text-zinc-600">Briefings</p>
+            <Link href="/admin" aria-label="Open Admin" title="Admin"
+              className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
+              <span aria-hidden="true" className="text-[27px] leading-none">{" \u20DE"}</span>
             </Link>
           </div>
+          <Link href="/feedback" className="font-medium text-zinc-700 transition hover:text-zinc-950">
+            Suggestions & questions
+          </Link>
         </div>
       </footer>
     </div>
