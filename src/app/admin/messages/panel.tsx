@@ -61,7 +61,7 @@ function statusClass(status: string) {
   return "bg-emerald-100 text-emerald-800";
 }
 
-export function AdminMessagesPanel({adminCode}:{adminCode:string}) {
+export function AdminMessagesPanel() {
   const [authorized, setAuthorized] = useState<boolean | null>(null);
   const [feedback, setFeedback] = useState<FeedbackMessage[]>([]);
   const [unblock, setUnblock] = useState<UnblockRequest[]>([]);
@@ -74,7 +74,7 @@ export function AdminMessagesPanel({adminCode}:{adminCode:string}) {
   async function load(){
     setLoading(true);setError("");
     try{
-      const response=await fetch("/api/admin/messages",{method:"POST",credentials:"same-origin",cache:"no-store",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:"list",code:adminCode})});
+      const response=await fetch("/api/admin/messages",{credentials:"same-origin",cache:"no-store"});
       if(!response.ok)throw new Error("Unable to open messages. Sign in via Admin.");
       const result=await response.json() as {feedback:FeedbackMessage[];unblock:UnblockRequest[]};
       setFeedback(result.feedback||[]);setUnblock(result.unblock||[]);setAuthorized(true);
@@ -84,13 +84,13 @@ export function AdminMessagesPanel({adminCode}:{adminCode:string}) {
   async function runAction(action:string,body:Record<string,unknown>){
     setBusy(action);setError("");
     try{
-      const response=await fetch("/api/admin/messages",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,code:adminCode,...body})});
+      const response=await fetch("/api/admin/messages",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})});
       if(!response.ok)throw new Error("Unable to complete the requested action.");
       await load();
     }catch(e){setError(e instanceof Error?e.message:"Action failed.");}
     finally{setBusy("");}
   }
-  useEffect(()=>{void load();},[adminCode]);
+  useEffect(()=>{void load();},[]);
 
   const items = useMemo<InboxItem[]>(() => {
     const merged: InboxItem[] = [
