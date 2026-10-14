@@ -1,0 +1,24 @@
+name: AEMET charts (manual setup)
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  charts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate chart source configuration
+        env:
+          AEMET_CHART_MANIFEST: ${{ secrets.AEMET_CHART_MANIFEST }}
+        run: python3 scripts/aemet-collector.py --dry-run
+      - name: Fetch and upload verified AEMET charts
+        env:
+          AEMET_CHART_MANIFEST: ${{ secrets.AEMET_CHART_MANIFEST }}
+          AEMET_AUTHORIZATION: ${{ secrets.AEMET_AUTHORIZATION }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python3 scripts/aemet-collector.py
