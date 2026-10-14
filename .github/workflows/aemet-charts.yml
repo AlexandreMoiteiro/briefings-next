@@ -1,24 +1,45 @@
-name: AEMET charts (manual setup)
+name: AEMET aviation charts
+
 on:
   workflow_dispatch:
+    inputs:
+      kind:
+        description: "Charts to collect"
+        required: true
+        type: choice
+        options:
+          - all
+          - sigwx
+          - wind-temp
+        default: all
 
+# Deliberately no schedule until genuine AEMET download endpoints and access
+# have been configured and one end-to-end upload has been verified.
 permissions:
   contents: read
 
+concurrency:
+  group: aemet-aviation-charts
+  cancel-in-progress: false
+
 jobs:
-  charts:
+  collect:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Validate chart source configuration
+      - name: Check chart filename and source safety
+        run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
+      - name: Validate live source configuration without networking
         env:
-          AEMET_CHART_MANIFEST: ${{ secrets.AEMET_CHART_MANIFEST }}
-        run: python3 scripts/aemet-collector.py --dry-run
-      - name: Fetch and upload verified AEMET charts
+          AEMET_SIGWX_URL_TEMPLATE: ${{ secrets.AEMET_SIGWX_URL_TEMPLATE }}
+          AEMET_WIND_URL_TEMPLATE: ${{ secrets.AEMET_WIND_URL_TEMPLATE }}
+        run: python3 scripts/aemet-collector.py --dry-run --kind "${{ inputs.kind }}"
+      - name: Download and upload verified AEMET PNG charts
         env:
-          AEMET_CHART_MANIFEST: ${{ secrets.AEMET_CHART_MANIFEST }}
+          AEMET_SIGWX_URL_TEMPLATE: ${{ secrets.AEMET_SIGWX_URL_TEMPLATE }}
+          AEMET_WIND_URL_TEMPLATE: ${{ secrets.AEMET_WIND_URL_TEMPLATE }}
           AEMET_AUTHORIZATION: ${{ secrets.AEMET_AUTHORIZATION }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python3 scripts/aemet-collector.py
+        run: python3 scripts/aemet-collector.py --kind "${{ inputs.kind }}"
