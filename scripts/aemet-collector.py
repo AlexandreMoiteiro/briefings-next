@@ -39,8 +39,9 @@ def wind_runs(now: datetime) -> list[datetime]:
 
 
 def source_urls(now: datetime, sigwx_template: str, wind_template: str) -> list[tuple[str, str]]:
-    if not ("{valid_date}" in sigwx_template and "{valid_hour}" in sigwx_template):
-        raise ValueError("SIGWX URL template must contain {valid_date} and {valid_hour}")
+    # SIGWX bulletin filename timestamp is the issue time (12h before validity).
+    if not ("{issue_date}" in sigwx_template and "{issue_time}" in sigwx_template):
+        raise ValueError("SIGWX URL template must contain {issue_date} and {issue_time}")
     if not all(token in wind_template for token in ("{run_date}", "{run_hour}", "{lead}", "{flight_level}")):
         raise ValueError("Wind URL template needs {run_date}, {run_hour}, {lead} and {flight_level}")
     urls: list[tuple[str, str]] = []
@@ -48,7 +49,10 @@ def source_urls(now: datetime, sigwx_template: str, wind_template: str) -> list[
         date = validity.strftime("%Y-%m-%d")
         hour = validity.strftime("%H")
         path = f"sigwx/{date}_{hour}.png"
+        issued = validity - timedelta(hours=12)
         url = sigwx_template.format(
+            issue_date=issued.strftime("%Y%m%d"),
+            issue_time=issued.strftime("%H%M"),
             valid_date=date, valid_hour=hour,
             valid_yyyymmdd=validity.strftime("%Y%m%d"),
             valid_yyyymmddhh=validity.strftime("%Y%m%d%H"),
@@ -107,7 +111,7 @@ def request_png(url: str, token: str | None) -> bytes | None:
         if exc.code in (404, 410):
             return None  # Product not issued yet.
         if exc.code in (401, 403):
-            raise RuntimeError("AMA access denied; authenticated download is required") from exc
+            raise RuntimeError("AEMET image URL returned access denied (previous VM URLs worked without login)") from exc
         raise RuntimeError(f"AEMET response HTTP {exc.code}") from exc
 
 
@@ -131,10 +135,19 @@ def main() -> int:
     parser.add_argument("--kind", choices=("all", "sigwx", "wind-temp"), default="all")
     args = parser.parse_args()
 
+    # Confirmed VM filename layout; wind path was verified with HTTP 200 PNG.
     sigwx = os.environ.get("AEMET_SIGWX_URL_TEMPLATE", "")
-    wind = os.environ.get("AEMET_WIND_URL_TEMPLATE", "")
-    if not sigwx or not wind:
-        raise ValueError("Configure both verified AEMET_SIGWX_URL_TEMPLATE and AEMET_WIND_URL_TEMPLATE")
+    wind = os.environ.get(
+        "AEMET_WIND_URL_TEMPLATE",
+        "https://ama.aemet.es/o/estaticos/productos/atap/"
+        "{run_date}/HMAR/{run_hour}/P3/{lead}/VTPLOT_FL{flight_level}__.1.png",
+    )
+    if args.kind in ("all", "sigwx") and not sigwx:
+        raise ValueError("SIGWX direct URL directory must be configured once. "
+                         "The original VM scripts are unavailable.")
+    if not sigwx:
+        # For wind-only mode source_urls still validates the SIGWX template.
+        sigwx = "https://ama.aemet.es/unused/QGQE70LEMM{issue_time}________{issue_date}.png"
     now = datetime.now(timezone.utc)
     entries = source_urls(now, sigwx, wind)
     entries = [(path, url) for path, url in entries if args.kind == "all" or path.startswith(args.kind + "/")]
