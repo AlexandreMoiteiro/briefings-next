@@ -16,11 +16,11 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-SIGWX = re.compile(r"sigwx/\\d{4}-\\d{2}-\\d{2}_(?:00|06|12|18)\\.png\\Z")
-WIND = re.compile(r"wind-temp/\\d{8}_HMAR(?:00|12)_H(?:003|006|009|012|015|018|021|024|027|030)_FL(?:020|050|100|150)\\.png\\Z")
+SIGWX = re.compile(r"sigwx/\d{4}-\d{2}-\d{2}_(?:00|06|12|18)\.png\Z")
+WIND = re.compile(r"wind-temp/\d{8}_HMAR(?:00|12)_H(?:003|006|009|012|015|018|021|024|027|030)_FL(?:020|050|100|150)\.png\Z")
 FLIGHT_LEVELS = ("020", "050", "100", "150")
 LEADS = (3, 6, 9, 12, 15, 18, 21, 24, 27, 30)
-PNG_SIGNATURE = b"\\x89PNG\\r\\n\\x1a\\n"
+PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 MAX_BYTES = 15 * 1024 * 1024
 
 
