@@ -1,6 +1,11 @@
 name: AEMET aviation charts
 
 on:
+  push:
+    paths:
+      - "scripts/aemet-collector.py"
+      - "tests/test_aemet_collector.py"
+      - ".github/workflows/aemet-charts.yml"
   workflow_dispatch:
     inputs:
       kind:
@@ -23,13 +28,21 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test chart filename and URL safety
+        run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
+
   collect:
+    if: github.event_name == 'workflow_dispatch'
+    needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
-      - name: Check chart filename and source safety
-        run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
       - name: Validate live source configuration without networking
         env:
           AEMET_SIGWX_URL_TEMPLATE: ${{ secrets.AEMET_SIGWX_URL_TEMPLATE }}
