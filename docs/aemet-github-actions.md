@@ -38,7 +38,7 @@ The collector checks the source domain, file type and image dimensions; it fails
 1. Obtain approved AEMET chart URLs, confirm the chart use/redistribution terms and set GitHub secrets.
 2. In **Actions → AEMET aviation charts → Run workflow**, select `sigwx`, `wind-temp` or `all`.
 3. Confirm successful uploads to Supabase Storage and valid chart visibility in the Preview Meteorology page.
-4. **Only then** add `schedule:` to the workflow, e.g. UTC `35 */3 * * *`, and monitor failures.
+4. **Only then** add `schedule:` to the workflow, e.g. UTC `35 */3 * * *`, and monitor failures. GitHub scheduled workflows run from the repository **default branch**, not necessarily the Briefings development branch; copy the tested collector/workflow to that default branch or change the repository configuration before enabling scheduling.
 
 Note that scheduled GitHub Actions jobs may be delayed or skipped during platform load. Monitoring must detect stale charts; the client should not display them as current flight-planning data.
 
