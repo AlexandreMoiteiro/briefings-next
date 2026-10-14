@@ -38,14 +38,14 @@ def wind_runs(now: datetime) -> list[datetime]:
     return [current - timedelta(hours=12), current]
 
 
-def source_urls(now: datetime, sigwx_template: str, wind_template: str) -> list[tuple[str, str]]:
+def source_urls(now: datetime, sigwx_template: str | None, wind_template: str | None) -> list[tuple[str, str]]:
     # SIGWX bulletin filename timestamp is the issue time (12h before validity).
-    if not ("{issue_date}" in sigwx_template and "{issue_time}" in sigwx_template):
+    if sigwx_template and not ("{issue_date}" in sigwx_template and "{issue_time}" in sigwx_template):
         raise ValueError("SIGWX URL template must contain {issue_date} and {issue_time}")
-    if not all(token in wind_template for token in ("{run_date}", "{run_hour}", "{lead}", "{flight_level}")):
+    if wind_template and not all(token in wind_template for token in ("{run_date}", "{run_hour}", "{lead}", "{flight_level}")):
         raise ValueError("Wind URL template needs {run_date}, {run_hour}, {lead} and {flight_level}")
     urls: list[tuple[str, str]] = []
-    for validity in sigwx_slots(now):
+    for validity in sigwx_slots(now) if sigwx_template else ():
         date = validity.strftime("%Y-%m-%d")
         hour = validity.strftime("%H")
         path = f"sigwx/{date}_{hour}.png"
@@ -58,7 +58,7 @@ def source_urls(now: datetime, sigwx_template: str, wind_template: str) -> list[
             valid_yyyymmddhh=validity.strftime("%Y%m%d%H"),
         )
         urls.append((path, url))
-    for run in wind_runs(now):
+    for run in wind_runs(now) if wind_template else ():
         for lead in LEADS:
             for level in FLIGHT_LEVELS:
                 path = f"wind-temp/{run:%Y%m%d}_HMAR{run:%H}_H{lead:03d}_FL{level}.png"
@@ -145,12 +145,9 @@ def main() -> int:
     if args.kind in ("all", "sigwx") and not sigwx:
         raise ValueError("SIGWX direct URL directory must be configured once. "
                          "The original VM scripts are unavailable.")
-    if not sigwx:
-        # For wind-only mode source_urls still validates the SIGWX template.
-        sigwx = "https://ama.aemet.es/unused/QGQE70LEMM{issue_time}________{issue_date}.png"
     now = datetime.now(timezone.utc)
-    entries = source_urls(now, sigwx, wind)
-    entries = [(path, url) for path, url in entries if args.kind == "all" or path.startswith(args.kind + "/")]
+    entries = source_urls(now, sigwx if args.kind != "wind-temp" else None,
+                          wind if args.kind != "sigwx" else None)
     for _, url in entries:
         validate_aemet_url(url)
 
