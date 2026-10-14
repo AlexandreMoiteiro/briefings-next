@@ -1,49 +1,60 @@
-# AEMET aviation charts — GitHub Actions replacement for the Google VM
+# AEMET aviation charts — reconstruction from previously verified Briefings VM setup
 
-This replaces the deleted `briefings-aemet-test` VM collector with a GitHub runner. It does **not** claim to know AEMET private aviation-chart download endpoints or bypass AMA authentication.
+The original collectors were verified with HTTP 200 + image/png from the Madrid VM on 11 October 2026. They downloaded the AEMET PNGs directly **without any AMA browser login**. The web portal may require a login for other features; that is distinct from these image URLs.
 
-## Current state
+## Recovered, tested source conventions
 
-- The old VM scripts (`fetch-sigwx.sh`, `fetch-wind-temp.sh`, `sync-supabase.sh`) are no longer available.
-- The Briefings API already reads valid PNGs from Supabase Storage bucket `aemet-charts`.
-- `scripts/aemet-collector.py` generates dated AEMET chart requests and uploads validated PNGs to that bucket.
-- GitHub Actions is **manual-only** until confirmed AEMET download URL templates, authorization, and an end-to-end test are available.
+### SIGWX Spain
 
-The correct source is the AEMET aeronautical AMA portal (`https://ama.aemet.es/mapas-aeronauticos`), which is access-restricted. A generic website URL is **not** a download URL.
+Official PNG filename: `QGQE70LEMM{issue_time}________{issue_date}.png`
 
-## One-time GitHub Actions secrets
+- Issue date: YYYYMMDD; issue time: HHMM (UTC).
+- Issue time = chart validity **minus 12 hours** (previous-day rollover included).
+- Validity slots: 00/06/12/18 UTC.
+- Stored under Supabase `aemet-charts/sigwx/YYYY-MM-DD_HH.png`, matching the existing Meteorology reader.
+- **The precise SIGWX directory prefix is the one detail not preserved outside the deleted VM**. Supply it once as `AEMET_SIGWX_URL_TEMPLATE`; do not guess it or substitute an AMA HTML page. Example filename template syntax: `https://ama.aemet.es/<verified-directory>/QGQE70LEMM{issue_time}________{issue_date}.png` (the `<verified-directory>` portion is a placeholder, not a URL).
 
-Set these under **GitHub repository → Settings → Secrets and variables → Actions → New repository secret**. Never put these values in a commit or chat:
+### Wind / Temperature
+
+Previously verified direct source pattern:
+
+```text
+https://ama.aemet.es/o/estaticos/productos/atap/{run_date}/HMAR/{run_hour}/P3/{lead}/VTPLOT_FL{flight_level}__.1.png
+```
+
+- Two daily model cycles: 00 and 12 UTC; include previous cycle when new products have not appeared.
+- Leads: H+003, H+006, ... H+030.
+- Levels: FL020, FL050, FL100, FL150.
+- Stored under `aemet-charts/wind-temp/YYYYMMDD_HMARHH_HNNN_FLNNN.png`, matching Briefings.
+- No AEMET authorization header was needed for the validated VM downloads.
+
+## GitHub Actions setup
+
+The workflow is at `.github/workflows/aemet-charts.yml` and the collector at `scripts/aemet-collector.py`.
+
+GitHub repository **Settings → Secrets and variables → Actions**:
 
 | Secret | Purpose |
 | --- | --- |
-| `AEMET_SIGWX_URL_TEMPLATE` | Confirmed, authorized direct HTTPS PNG URL pattern for Spanish SIGWX (must include `{valid_date}` and `{valid_hour}`). |
-| `AEMET_WIND_URL_TEMPLATE` | Confirmed, authorized direct HTTPS PNG URL pattern for HMAR wind/temp (must include `{run_date}`, `{run_hour}`, `{lead}`, `{flight_level}`). |
-| `AEMET_AUTHORIZATION` | Optional official API Authorization header, **if supported and supplied** by AEMET. Do not paste personal browser session cookies. |
 | `SUPABASE_URL` | `https://xyyodgojcrdkleuyicjn.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase server-side service role key (never a public/anon key). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server-only Supabase service role key used for Storage uploads; never expose it client-side. |
+| `AEMET_SIGWX_URL_TEMPLATE` | One-time exact SIGWX PNG directory+filename URL pattern. Still needs recovery/verification. |
+| `AEMET_WIND_URL_TEMPLATE` | Optional override. Already defaults to the previously validated HMAR URL pattern. |
+| `AEMET_AUTHORIZATION` | Optional; not needed in the previous successful VM tests. |
 
-The URL templates must come from an actual authorized AEMET chart request or published AEMET API contract, **not guessed**. If AMA only offers interactive browser sessions and no automation-friendly chart API, ask AEMET about authorized redistribution and machine access before enabling unattended transfers.
+The collector supports `--kind wind-temp` **without the SIGWX URL configuration**, so once Supabase upload secrets are set, the wind collector can be tested independently.
 
-### Supported placeholders
+### Run and verify
 
-SIGWX: `{valid_date}` (YYYY-MM-DD), `{valid_hour}` (00/06/12/18), `{valid_yyyymmdd}`, `{valid_yyyymmddhh}`.
+1. Run `python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v` to check filenames/date handling without network access.
+2. Configure Supabase secrets in GitHub Actions.
+3. Trigger **AEMET aviation charts → Run workflow → wind-temp** once and check the logs for HTTP 200 PNG uploads. The workflow must be present on the repository's default branch for dispatch.
+4. Check newly uploaded objects in Supabase bucket `aemet-charts` and verify the Meteorology page.
+5. After recovering the SIGWX directory, trigger `sigwx` separately and check likewise.
+6. Only after successful runs for both products, enable GitHub Actions scheduling. Scheduled workflows execute from the default branch and can occasionally be delayed.
 
-Wind: `{run_date}` (YYYYMMDD), `{run_hour}` (00/12), `{lead}` (003…030), `{flight_level}` (020/050/100/150), `{valid_yyyymmddhh}`.
+The GitHub workflow remains manual-only to avoid silent false claims that forecasts are updating. The Production Vercel app does not need any code changes to read new PNGs.
 
-The collector checks the source domain, file type and image dimensions; it fails rather than uploading an HTML login screen or relabeling a single “latest” chart as different validity periods.
+## Safety and use
 
-## Verify and enable
-
-1. Obtain approved AEMET chart URLs, confirm the chart use/redistribution terms and set GitHub secrets.
-2. In **Actions → AEMET aviation charts → Run workflow**, select `sigwx`, `wind-temp` or `all`.
-3. Confirm successful uploads to Supabase Storage and valid chart visibility in the Preview Meteorology page.
-4. **Only then** add `schedule:` to the workflow, e.g. UTC `35 */3 * * *`, and monitor failures. GitHub scheduled workflows run from the repository **default branch**, not necessarily the Briefings development branch; copy the tested collector/workflow to that default branch or change the repository configuration before enabling scheduling.
-
-Note that scheduled GitHub Actions jobs may be delayed or skipped during platform load. Monitoring must detect stale charts; the client should not display them as current flight-planning data.
-
-## Offline test
-
-```bash
-python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
-```
+AEMET charts are time-sensitive aviation products. A missing/failing download must **not** be relabelled with a current timestamp. The collector checks source domain, PNG signatures and dimensions, and fails on invalid content. Confirm current validity and forecast limitations before operational use.
