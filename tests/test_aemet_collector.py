@@ -13,8 +13,8 @@ spec.loader.exec_module(collector)
 class ChartCollectorTests(unittest.TestCase):
     def setUp(self):
         self.now = datetime(2026, 10, 15, 0, 35, tzinfo=timezone.utc)
-        self.sig = "https://ama.aemet.es/chart/{valid_date}/{valid_hour}.png"
-        self.wind = "https://ama.aemet.es/chart/{run_date}/{run_hour}/{lead}/{flight_level}.png"
+        self.sig = "https://ama.aemet.es/example/QGQE70LEMM{issue_time}________{issue_date}.png"
+        self.wind = "https://ama.aemet.es/o/estaticos/productos/atap/{run_date}/HMAR/{run_hour}/P3/{lead}/VTPLOT_FL{flight_level}__.1.png"
 
     def test_forecast_file_names_match_briefings_api(self):
         entries = collector.source_urls(self.now, self.sig, self.wind)
@@ -25,6 +25,23 @@ class ChartCollectorTests(unittest.TestCase):
             collector.SIGWX.fullmatch(path) or collector.WIND.fullmatch(path)
             for path, _ in entries
         ))
+
+    def test_previous_validated_aemet_filenames(self):
+        entries = dict(collector.source_urls(self.now, self.sig, self.wind))
+        self.assertEqual(
+            entries["sigwx/2026-10-15_00.png"],
+            "https://ama.aemet.es/example/QGQE70LEMM1200________20261014.png",
+        )
+        self.assertEqual(
+            entries["wind-temp/20261014_HMAR12_H003_FL020.png"],
+            "https://ama.aemet.es/o/estaticos/productos/atap/20261014/"
+            "HMAR/12/P3/003/VTPLOT_FL020__.1.png",
+        )
+
+    def test_wind_only_does_not_require_sigwx_source(self):
+        entries = collector.source_urls(self.now, None, self.wind)
+        self.assertEqual(len(entries), 80)
+        self.assertTrue(all(path.startswith("wind-temp/") for path, _ in entries))
 
     def test_forecast_cycles_roll_over_midnight(self):
         paths = [path for path, _ in collector.source_urls(self.now, self.sig, self.wind)]
