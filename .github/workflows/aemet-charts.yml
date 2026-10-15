@@ -1,13 +1,8 @@
 name: AEMET aviation charts
 
+# Disabled: direct TCP connection from GitHub runners to AMA port 443 times out.
+# Re-enable only after a working AEMET egress path is verified.
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/aemet-charts.yml"
-  schedule:
-    - cron: "37 2,8,14,20 * * *"
   workflow_dispatch:
 
 permissions:
