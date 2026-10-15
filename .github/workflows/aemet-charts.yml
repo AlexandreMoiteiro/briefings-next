@@ -5,28 +5,14 @@ on:
     branches:
       - preview/meteorology-current-app
     paths:
+      - ".github/workflows/aemet-charts.yml"
       - "scripts/aemet-collector.py"
       - "tests/test_aemet_collector.py"
-      - ".github/workflows/aemet-charts.yml"
   workflow_dispatch:
-    inputs:
-      kind:
-        description: "Charts to collect"
-        required: true
-        type: choice
-        options:
-          - all
-          - sigwx
-          - wind-temp
-        default: all
 
 permissions:
   contents: read
   id-token: write
-
-concurrency:
-  group: aemet-aviation-charts
-  cancel-in-progress: false
 
 jobs:
   test:
@@ -34,14 +20,32 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-      - name: Validate timestamp and AEMET filename rules
+      - name: Test chart filename and time calculation
         run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
 
+  network:
+    needs: test
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Test direct official AEMET PNG over IPv4 and IPv6
+        shell: bash
+        run: |
+          getent ahostsv4 ama.aemet.es || true
+          getent ahostsv6 ama.aemet.es || true
+          for ip in 4 6; do
+            echo "Testing IPv$ip"
+            curl -"$ip" -sS -L --max-time 10 --connect-timeout 5 \
+              -o /tmp/aemet-probe.png \
+              -w "HTTP=%{http_code} remote=%{remote_ip} content_type=%{content_type} size=%{size_download}\n" \
+              'https://ama.aemet.es/o/estaticos/bbdd/imagenes/QGQE70LEMM1200________20261014.png' || true
+          done
+
   collect:
+    if: github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - name: Fetch AEMET PNGs and send to Supabase using GitHub OIDC
-        run: python3 scripts/aemet-collector.py --kind "${{ inputs.kind || 'all' }}"
+      - run: python3 scripts/aemet-collector.py --kind all
