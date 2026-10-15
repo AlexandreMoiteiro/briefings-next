@@ -84,6 +84,10 @@ export default function MeteorologyPage(){
       
       <h1 className="text-3xl font-semibold">AEMET Weather Charts</h1>
     </header>
+    <section role="status" aria-label="Meteorology service notice" className="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4 text-amber-950">
+      <p className="text-sm font-semibold">Technical difficulties</p>
+      <p className="mt-1 text-sm leading-relaxed">Some AEMET weather charts are temporarily unavailable or may be outdated. We are working to restore normal updates. Please consult official aviation weather sources for flight planning.</p>
+    </section>
     {loading?<p className="text-sm">Loading charts…</p>:error?<p className="rounded-xl bg-amber-50 p-4 text-sm text-amber-900">{error}</p>:
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
