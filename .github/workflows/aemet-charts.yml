@@ -1,0 +1,33 @@
+name: AEMET aviation charts
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/aemet-charts.yml"
+  schedule:
+    - cron: "37 2,8,14,20 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: briefings-aemet-charts
+  cancel-in-progress: false
+
+jobs:
+  charts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    steps:
+      - name: Checkout tested aviation collector
+        uses: actions/checkout@v4
+        with:
+          ref: preview/meteorology-current-app
+      - name: Validate AEMET date and file naming
+        run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
+      - name: Download AEMET SIGWX and wind/temperature PNGs
+        run: python3 scripts/aemet-collector.py --kind all
