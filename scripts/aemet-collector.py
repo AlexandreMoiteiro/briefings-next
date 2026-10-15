@@ -8,6 +8,12 @@ being relabelled as current aviation forecasts.
 from __future__ import annotations
 
 import argparse
+import concurrent.futures
+import json
+import threading
+import time
+from urllib.parse import quote
+from urllib.request import urlopen
 from datetime import datetime, timedelta, timezone
 import os
 import re
@@ -93,12 +99,12 @@ CLIENT = build_opener(RestrictedRedirects())
 
 def request_png(url: str, token: str | None) -> bytes | None:
     validate_aemet_url(url)
-    headers = {"User-Agent": "Briefings-Aviation-Chart-Collector/1.0", "Accept": "image/png"}
+    headers = {"User-Agent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/129.0.0.0 Safari/537.36", "Accept": "image/png,image/*;q=0.8,*/*;q=0.1"}
     if token:
         headers["Authorization"] = token
     req = Request(url, headers=headers)
     try:
-        with CLIENT.open(req, timeout=35) as response:
+        with CLIENT.open(req, timeout=12) as response:
             data = response.read(MAX_BYTES + 1)
             if len(data) > MAX_BYTES or len(data) < 32 or data[:8] != PNG_SIGNATURE:
                 raise ValueError("AEMET response was not a valid PNG")
@@ -115,18 +121,49 @@ def request_png(url: str, token: str | None) -> bytes | None:
         raise RuntimeError(f"AEMET response HTTP {exc.code}") from exc
 
 
-def upload_chart(base: str, key: str, path: str, png: bytes) -> None:
+OIDC_LOCK = threading.Lock()
+OIDC_CACHED = ("", 0.0)
+SINK = "https://xyyodgojcrdkleuyicjn.supabase.co/functions/v1/receive-aemet-chart"
+
+
+def github_identity_token() -> str:
+    """Fetch GitHub's signed short-lived workflow identity; no saved Supabase key."""
+    global OIDC_CACHED
+    with OIDC_LOCK:
+        if OIDC_CACHED[0] and time.monotonic() < OIDC_CACHED[1]:
+            return OIDC_CACHED[0]
+        endpoint = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_URL", "")
+        runner_key = os.environ.get("ACTIONS_ID_TOKEN_REQUEST_TOKEN", "")
+        if not endpoint or not runner_key:
+            raise RuntimeError("GitHub Actions OIDC permission is missing")
+        url = endpoint + ("&" if "?" in endpoint else "?") + "audience=briefings-aemet-charts"
+        req = Request(url, headers={"Authorization": "Bearer " + runner_key})
+        with urlopen(req, timeout=15) as response:
+            token = json.load(response)["value"]
+        if not token:
+            raise RuntimeError("GitHub did not issue an OIDC token")
+        OIDC_CACHED = (token, time.monotonic() + 165)
+        return token
+
+
+def upload_chart(path: str, png: bytes) -> None:
+    """Only the OIDC-authorized Supabase function can insert images."""
     if not (SIGWX.fullmatch(path) or WIND.fullmatch(path)):
         raise ValueError("Unsafe or unexpected Supabase path")
-    url = base.rstrip("/") + "/storage/v1/object/aemet-charts/" + path
+    target = SINK + "?path=" + quote(path, safe="/")
     req = Request(
-        url, data=png, method="POST",
-        headers={"apikey": key, "Authorization": "Bearer " + key,
-                 "Content-Type": "image/png", "x-upsert": "true"},
+        target, data=png, method="POST",
+        headers={
+            "Authorization": "Bearer " + github_identity_token(),
+            "Content-Type": "image/png",
+        },
     )
-    with CLIENT.open(req, timeout=45) as response:
-        if response.status not in (200, 201):
-            raise RuntimeError(f"Supabase upload HTTP {response.status}")
+    try:
+        with urlopen(req, timeout=35) as response:
+            if response.status not in (200, 201):
+                raise RuntimeError("Chart receiver HTTP " + str(response.status))
+    except HTTPError as exc:
+        raise RuntimeError("Chart receiver HTTP " + str(exc.code)) from exc
 
 
 def main() -> int:
@@ -153,29 +190,38 @@ def main() -> int:
             print("Validated:", path)
         return 0
 
-    base = os.environ.get("SUPABASE_URL", "")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY", "")
-    if not base.startswith("https://") or not key:
-        raise ValueError("Supabase URL or service role key not configured")
-
     token = os.environ.get("AEMET_AUTHORIZATION")
     uploaded = 0
     missing = 0
-    for path, url in entries:
+    failed = []
+    # GitHub runners fetch charts concurrently to avoid long waits if AEMET is slow.
+    def collect(item: tuple[str, str]) -> tuple[str, str]:
+        path, url = item
         try:
             png = request_png(url, token)
             if png is None:
+                return path, "not-issued"
+            upload_chart(path, png)
+            return path, "uploaded"
+        except (ValueError, HTTPError, URLError, RuntimeError, TimeoutError, OSError) as exc:
+            return path, "FAILED " + str(exc)[:220]
+
+    # Fail immediately if GitHub is not permitted to issue a signed OIDC token.
+    github_identity_token()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=4) as executor:
+        for path, outcome in executor.map(collect, entries):
+            if outcome == "uploaded":
+                uploaded += 1
+                print("Uploaded", path, flush=True)
+            elif outcome == "not-issued":
                 missing += 1
-                continue
-            upload_chart(base, key, path, png)
-            uploaded += 1
-            print("Uploaded", path, len(png), "bytes")
-        except (ValueError, HTTPError, URLError, RuntimeError) as exc:
-            print(f"FAILED {path}: {exc}", file=sys.stderr)
-            raise
-    print(f"Summary: {uploaded} uploaded, {missing} unavailable (not issued)")
-    if uploaded == 0:
-        raise RuntimeError("No charts were uploaded. AEMET source configuration needs verification.")
+            else:
+                failed.append(path + " " + outcome)
+                print("FAILED", path, outcome, file=sys.stderr, flush=True)
+
+    print(f"Summary: {uploaded} uploaded, {missing} unavailable, {len(failed)} errors")
+    if uploaded == 0 or failed:
+        raise RuntimeError("AEMET upload incomplete; inspect the errors above")
     return 0
 
 
