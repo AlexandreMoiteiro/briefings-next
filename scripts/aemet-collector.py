@@ -136,15 +136,12 @@ def main() -> int:
     args = parser.parse_args()
 
     # Confirmed VM filename layout; wind path was verified with HTTP 200 PNG.
-    sigwx = os.environ.get("AEMET_SIGWX_URL_TEMPLATE", "")
+    sigwx = os.environ.get("AEMET_SIGWX_URL_TEMPLATE", "https://ama.aemet.es/o/estaticos/bbdd/imagenes/QGQE70LEMM{issue_time}________{issue_date}.png")
     wind = os.environ.get(
         "AEMET_WIND_URL_TEMPLATE",
         "https://ama.aemet.es/o/estaticos/productos/atap/"
         "{run_date}/HMAR/{run_hour}/P3/{lead}/VTPLOT_FL{flight_level}__.1.png",
     )
-    if args.kind in ("all", "sigwx") and not sigwx:
-        raise ValueError("SIGWX direct URL directory must be configured once. "
-                         "The original VM scripts are unavailable.")
     now = datetime.now(timezone.utc)
     entries = source_urls(now, sigwx if args.kind != "wind-temp" else None,
                           wind if args.kind != "sigwx" else None)
