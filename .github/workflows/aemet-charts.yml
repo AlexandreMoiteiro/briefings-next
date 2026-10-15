@@ -2,6 +2,8 @@ name: AEMET aviation charts
 
 on:
   push:
+    branches:
+      - preview/meteorology-current-app
     paths:
       - "scripts/aemet-collector.py"
       - "tests/test_aemet_collector.py"
@@ -18,10 +20,9 @@ on:
           - wind-temp
         default: all
 
-# Deliberately no schedule until genuine AEMET download endpoints and access
-# have been configured and one end-to-end upload has been verified.
 permissions:
   contents: read
+  id-token: write
 
 concurrency:
   group: aemet-aviation-charts
@@ -33,26 +34,14 @@ jobs:
     timeout-minutes: 3
     steps:
       - uses: actions/checkout@v4
-      - name: Test chart filename and URL safety
+      - name: Validate timestamp and AEMET filename rules
         run: python3 -m unittest discover -s tests -p 'test_aemet_collector.py' -v
 
   collect:
-    if: github.event_name == 'workflow_dispatch'
     needs: test
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - name: Validate live source configuration without networking
-        env:
-          AEMET_SIGWX_URL_TEMPLATE: ${{ secrets.AEMET_SIGWX_URL_TEMPLATE }}
-          AEMET_WIND_URL_TEMPLATE: ${{ secrets.AEMET_WIND_URL_TEMPLATE }}
-        run: python3 scripts/aemet-collector.py --dry-run --kind "${{ inputs.kind }}"
-      - name: Download and upload verified AEMET PNG charts
-        env:
-          AEMET_SIGWX_URL_TEMPLATE: ${{ secrets.AEMET_SIGWX_URL_TEMPLATE }}
-          AEMET_WIND_URL_TEMPLATE: ${{ secrets.AEMET_WIND_URL_TEMPLATE }}
-          AEMET_AUTHORIZATION: ${{ secrets.AEMET_AUTHORIZATION }}
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: python3 scripts/aemet-collector.py --kind "${{ inputs.kind }}"
+      - name: Fetch AEMET PNGs and send to Supabase using GitHub OIDC
+        run: python3 scripts/aemet-collector.py --kind "${{ inputs.kind || 'all' }}"
