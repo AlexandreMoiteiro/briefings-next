@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 import { AppShell } from "@/components/app-shell";
-import { AemetAnnouncement } from "@/components/aemet-announcement";
 
 export const metadata: Metadata = {
   title: "Briefings",
@@ -27,7 +26,6 @@ export default function RootLayout({
     <html lang="en">
       <body>
         <AppShell>{children}</AppShell>
-        <AemetAnnouncement />
       </body>
     </html>
   );
