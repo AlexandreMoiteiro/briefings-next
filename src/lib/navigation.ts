@@ -32,14 +32,6 @@ export const navigationItems = [
     details: ["7-day view", "Colour-coded NOTAMs", "Custom area overlay"],
   },
   {
-    title: "Meteorology",
-    href: "/meteorology",
-    eyebrow: "Utility · Aviation weather",
-    group: "utility",
-    description: "View and compare AEMET SIGWX Low-Level and Wind & Temperature charts for the Iberian Peninsula.",
-    details: ["SIGWX", "Wind & Temperature", "Full-screen comparison"],
-  },
-  {
     title: "VFR Map",
     href: "/vfr-map",
     eyebrow: "Utility · Portugal",
