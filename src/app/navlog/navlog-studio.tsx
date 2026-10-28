@@ -1012,14 +1012,39 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
         ) : null}
 
-        <div className="border-t border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-950">
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">
-            <span>
-              <strong>Ground/taxi allowance: 20 min by default.</strong> This is included in Block time and in the starting fuel calculation.
-            </span>
-            <strong className="shrink-0 rounded-full border border-sky-200 bg-white px-3 py-1 text-sky-800">
-              ↓ Change it below in More mission details
-            </strong>
+        <div className="border-t border-sky-200 bg-sky-50 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="text-sm font-bold text-sky-950">Ground / taxi allowance</p>
+              <p className="mt-1 text-xs leading-5 text-sky-800">
+                Time before takeoff. Included in the calculated block time and fuel burn.
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2 rounded-xl border border-sky-300 bg-white px-3 py-2 shadow-sm">
+                <span className="sr-only">Ground / taxi allowance in minutes</span>
+                <input
+                  type="number"
+                  min={0}
+                  max={120}
+                  step={1}
+                  value={setup.taxiMin}
+                  onChange={(event) =>
+                    updateSetup("taxiMin", Math.max(0, Math.min(120, Number(event.target.value) || 0)))
+                  }
+                  className="w-16 border-0 bg-transparent text-right text-lg font-bold tabular-nums text-sky-950 outline-none"
+                />
+                <span className="text-sm font-medium text-sky-700">min</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => updateSetup("taxiMin", initialProfile.taxiMin)}
+                disabled={setup.taxiMin === initialProfile.taxiMin}
+                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-800 transition hover:border-sky-400 disabled:cursor-default disabled:opacity-40"
+              >
+                Reset to {initialProfile.taxiMin} min
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1067,7 +1092,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4">
               <div>
                 <p className="text-sm font-semibold text-zinc-900">Aircraft assumptions</p>
-                <p className="text-xs text-zinc-500">TAS, common fuel flow, climb/descent rates and the editable ground/taxi allowance.</p>
+                <p className="text-xs text-zinc-500">TAS, common fuel flow and climb/descent rates. Ground/taxi time is editable above.</p>
               </div>
               <button type="button" onClick={() => setShowPerformance((value) => !value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700">
                 {showPerformance ? "Hide assumptions" : "Edit assumptions"}
@@ -1080,7 +1105,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 <NumberField label="Cruise TAS" value={setup.cruiseTas} min={30} max={300} onChange={(value) => updateSetup("cruiseTas", value)} />
                 <NumberField label="Descent TAS" value={setup.descentTas} min={30} max={250} onChange={(value) => updateSetup("descentTas", value)} />
                 <NumberField label="Fuel L/h · all phases" value={setup.fuelFlowLh} min={0} max={120} onChange={(value) => updateSetup("fuelFlowLh", value)} />
-                <NumberField label="Ground / taxi min" value={setup.taxiMin} min={0} max={120} step={5} onChange={(value) => updateSetup("taxiMin", value)} />
                 <NumberField label="ROC" value={setup.rocFpm} min={100} max={2000} step={50} onChange={(value) => updateSetup("rocFpm", value)} />
                 <NumberField label="ROD" value={setup.rodFpm} min={100} max={2000} step={50} onChange={(value) => updateSetup("rodFpm", value)} />
                 <NumberField label="Default alt" value={setup.defaultAltitude} min={0} max={20000} step={100} onChange={(value) => updateSetup("defaultAltitude", value)} />
