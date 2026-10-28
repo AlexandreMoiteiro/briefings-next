@@ -27,7 +27,7 @@ const PA28_REGISTRATIONS = [
   "OE-KPF",
   "OE-KPH",
 ] as const;
-const C152_REGISTRATIONS = ["CS-AVC"] as const;
+const C152_REGISTRATIONS = ["CS-AVC", "CS-AYR"] as const;
 
 type AircraftTypeValue = "P2006T" | "P2008" | "PA28" | "C152";
 
@@ -153,7 +153,7 @@ function syncOverride(
     setBriefingAircraftOverride({
       enabled: true,
       aircraftType: "Cessna 152",
-      registration: "CS-AVC",
+      registration: registration as "CS-AVC" | "CS-AYR",
     });
     return;
   }

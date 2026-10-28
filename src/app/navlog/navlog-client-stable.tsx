@@ -45,7 +45,7 @@ const AIRCRAFT_CHOICES: readonly AircraftChoice<Aircraft>[] = [
   {
     value: "Cessna 152",
     name: "Cessna 152",
-    registrations: "CS-AVC",
+    registrations: "CS-AVC · CS-AYR",
     imageSrc: "/aircraft/c152.png",
   },
   {

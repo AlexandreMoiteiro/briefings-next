@@ -154,7 +154,7 @@ export const piperRegistrations = [
   "OE-KPH",
 ];
 
-export const c152Registrations = [C152_NAVLOG_PRESET.registration];
+export const c152Registrations = [C152_NAVLOG_PRESET.registration, "CS-AYR"];
 
 export const navlogReferenceLayers: NavlogReferenceLayer[] = [
   "IFR",

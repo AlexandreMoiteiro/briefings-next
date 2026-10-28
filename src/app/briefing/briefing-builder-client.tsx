@@ -318,6 +318,7 @@ export function BriefingBuilderClient() {
     registration: string,
     fallbackAircraftType: string
   ) {
+    if (registration === "CS-AVC" || registration === "CS-AYR") return "C152";
     if (registration.startsWith("CS-")) return "P2008";
     if (registration.startsWith("OE-")) return "PA28";
     return fallbackAircraftType;

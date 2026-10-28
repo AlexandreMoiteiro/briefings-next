@@ -7,9 +7,8 @@ import {
 } from "@/components/aircraft-picker";
 import { PreparationPageHeader } from "@/components/preparation-page-header";
 import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
-import { C152ClientV3 } from "./c152-client-v3";
+import { C152RegistrationClient } from "./c152-registration-client";
 import { P2006TMissionClient } from "./p2006t-mission-client";
-import { PerformanceUsageTracker } from "./performance-usage-tracker";
 import { PerformanceWorkspace } from "./performance-workspace";
 import { StandardAircraftClientV4 } from "./standard-aircraft-client-v4";
 
@@ -40,7 +39,7 @@ const OPTIONS: readonly AircraftChoice<PerformanceMode>[] = [
   {
     value: "C152",
     name: "Cessna 152",
-    registrations: "CS-AVC",
+    registrations: "CS-AVC · CS-AYR",
     imageSrc: "/aircraft/c152.png",
     imageAlt: "Cessna 152",
   },
@@ -97,9 +96,7 @@ export function PerformanceRouterClient() {
             <StandardAircraftClientV4 aircraft="Piper PA-28" />
           ) : null}
           {mode === "C152" ? (
-            <PerformanceUsageTracker aircraft="Cessna 152">
-              <C152ClientV3 />
-            </PerformanceUsageTracker>
+            <C152RegistrationClient />
           ) : null}
         </PerformanceWorkspace>
       </div>

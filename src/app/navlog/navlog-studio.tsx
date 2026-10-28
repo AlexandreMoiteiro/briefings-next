@@ -3,6 +3,8 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { logUsageEvent } from "@/lib/usage-events";
+import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
+import { C152_CS_AYR } from "@/lib/performance/c152-performance";
 import { loadAllNavlogData } from "@/lib/navlog-data";
 import { buildNavlogFormPdf } from "@/lib/pdf/navlog-form-pdf";
 import {
@@ -259,6 +261,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [showPerformance, setShowPerformance] = useState(false);
   const [manualMapClickEnabled, setManualMapClickEnabled] = useState(false);
   const [windConfirmed, setWindConfirmed] = useState(false);
+  const [ayrTankConfiguration, setAyrTankConfiguration] = useState<"" | "standard" | "long-range">("");
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
@@ -275,6 +278,13 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   const isCustomAircraft = aircraftType === CUSTOM_AIRCRAFT_TYPE;
   const registrationOptions = getRegistrationsForAircraft(aircraftType);
+  const isC152Ayr = setup.registration === "CS-AYR";
+  const ayrFuelCapacityL =
+    ayrTankConfiguration === "standard"
+      ? C152_CS_AYR.standardFuelUsableGal * LITERS_PER_US_GALLON
+      : ayrTankConfiguration === "long-range"
+        ? C152_CS_AYR.longRangeFuelUsableGal * LITERS_PER_US_GALLON
+        : null;
   const aircraftPerformanceValuesReady =
     setup.climbTas > 0 &&
     setup.cruiseTas > 0 &&
@@ -590,6 +600,18 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }
 
   async function exportNavlogPdf() {
+    if (
+      isC152Ayr &&
+      (ayrFuelCapacityL === null ||
+        !Number.isFinite(setup.startEfob) ||
+        setup.startEfob <= 0 ||
+        setup.startEfob > ayrFuelCapacityL)
+    ) {
+      window.alert(
+        "CS-AYR: verify the installed fuel tanks and enter the actual starting fuel quantity within the usable tank capacity before exporting."
+      );
+      return;
+    }
     if (isCustomAircraft && !aircraftPerformanceValuesReady) {
       window.alert(
         "Custom aircraft performance values are incomplete. Fill TAS, fuel flow, EFOB, ROC and ROD before exporting."
@@ -867,7 +889,20 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             ) : (
               <select
                 value={setup.registration}
-                onChange={(event) => updateSetup("registration", event.target.value)}
+                onChange={(event) => {
+                  const nextRegistration = event.target.value;
+                  setSetup((current) => ({
+                    ...current,
+                    registration: nextRegistration,
+                    startEfob:
+                      nextRegistration === "CS-AYR"
+                        ? 0
+                        : nextRegistration === "CS-AVC"
+                          ? C152_NAVLOG_PRESET.startEfobL
+                          : current.startEfob,
+                  }));
+                  setAyrTankConfiguration("");
+                }}
                 className="h-10 w-full border-0 bg-transparent p-0 text-base font-semibold outline-none"
               >
                 {registrationOptions.map((registration) => (
@@ -902,7 +937,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               <input
                 type="number"
                 min={0}
-                max={300}
+                max={isC152Ayr ? ayrFuelCapacityL ?? 0 : 300}
                 value={setup.startEfob}
                 onChange={(event) => updateSetup("startEfob", Number(event.target.value))}
                 className="h-10 min-w-0 flex-1 border-0 bg-transparent p-0 text-base font-semibold outline-none"
@@ -953,6 +988,29 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             </div>
           </div>
         </div>
+        {isC152Ayr ? (
+          <div className="border-t border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+            <label className="flex flex-wrap items-center gap-3">
+              <span className="font-semibold">CS-AYR installed tanks:</span>
+              <select
+                value={ayrTankConfiguration}
+                onChange={(event) => {
+                  setAyrTankConfiguration(event.target.value as "" | "standard" | "long-range");
+                  updateSetup("startEfob", 0);
+                }}
+                className="rounded-lg border border-amber-300 bg-white px-2 py-1.5 text-sm"
+              >
+                <option value="">Select verified configuration</option>
+                <option value="standard">Standard · 24.5 US gal usable</option>
+                <option value="long-range">Long-range · 37.5 US gal usable</option>
+              </select>
+            </label>
+            <p className="mt-2 text-xs leading-5">
+              No CS-AVC fuel quantity is copied to CS-AYR. Confirm the tank
+              installation and enter the actual start EFOB in litres before PDF export.
+            </p>
+          </div>
+        ) : null}
 
         <div className="border-t border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-950">
           <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between sm:gap-4">

@@ -32,11 +32,12 @@ export function AppShell({ children }: AppShellProps) {
 
       <footer className="mt-auto border-t border-zinc-200 bg-white">
         <div className="mx-auto flex w-full max-w-7xl flex-col gap-3 px-4 py-5 text-sm text-zinc-500 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-          <div className="flex items-center gap-5">
+          <div className="flex items-center gap-3">
             <p className="font-medium text-zinc-600">Briefings</p>
+            <span aria-hidden="true" className="text-zinc-300">·</span>
             <Link href="/admin" aria-label="Open Admin" title="Admin"
-              className="flex h-10 w-10 items-center justify-center rounded-lg text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
-              <span aria-hidden="true" className="text-[27px] leading-none">{" \u20DE"}</span>
+              className="rounded-sm text-xs font-normal text-zinc-400 transition hover:text-zinc-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-zinc-500">
+              Admin
             </Link>
           </div>
           <Link href="/feedback" className="font-medium text-zinc-700 transition hover:text-zinc-950">

@@ -74,8 +74,6 @@ const KG_PER_LB = 0.45359237;
 const FT_PER_M = 3.280839895;
 const M_PER_FT = 0.3048;
 
-const FULL_USABLE_FUEL_L =
-  Math.round(C152_CS_AVC.standardFuelUsableL * 10) / 10;
 const START_TAXI_RUNUP_L =
   Math.round(
     c152GallonsToLiters(C152_PERFORMANCE_PRESET.startTaxiTakeoffAllowanceGal) *
@@ -512,7 +510,20 @@ function englishWarning(message: string) {
   return message;
 }
 
-export function C152ClientV3() {
+type C152ClientV3Props = {
+  registration?: "CS-AVC" | "CS-AYR";
+  basicEmptyWeightLb?: number;
+  basicEmptyMomentLbIn?: number;
+  usableFuelCapacityGal?: number;
+};
+
+export function C152ClientV3({
+  registration = "CS-AVC",
+  basicEmptyWeightLb = C152_CS_AVC.basicEmptyWeightLb,
+  basicEmptyMomentLbIn = C152_CS_AVC.basicEmptyMomentLbIn,
+  usableFuelCapacityGal = C152_CS_AVC.standardFuelUsableGal,
+}: C152ClientV3Props = {}) {
+  const fullUsableFuelL = Math.round(c152GallonsToLiters(usableFuelCapacityGal) * 10) / 10;
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [legs, setLegs] = useState<PerformanceLegInput[]>(INITIAL_LEGS);
   const [weatherBusy, setWeatherBusy] = useState(false);
@@ -523,7 +534,7 @@ export function C152ClientV3() {
   const [loading, setLoading] = useState<LoadingState>({
     pilotKg: Number(C152_PERFORMANCE_PRESET.pilotKg),
     passengerKg: Number(C152_PERFORMANCE_PRESET.passengerKg),
-    fuelL: FULL_USABLE_FUEL_L,
+    fuelL: fullUsableFuelL,
     baggageArea1Kg: Number(C152_PERFORMANCE_PRESET.baggageArea1Kg),
     baggageArea2Kg: Number(C152_PERFORMANCE_PRESET.baggageArea2Kg),
     startTaxiRunupL: START_TAXI_RUNUP_L,
@@ -532,7 +543,7 @@ export function C152ClientV3() {
   const [fuelPlan, setFuelPlan] = useState<FuelPlanningInput>(() =>
     recalculateFuelPlan({
       rateLh: C152_NAVLOG_PRESET.fuelFlowLh,
-      fuelLoadedL: FULL_USABLE_FUEL_L,
+      fuelLoadedL: fullUsableFuelL,
       taxiMin: C152_NAVLOG_PRESET.taxiMin,
       climbMin: C152_PERFORMANCE_PRESET.climbTo3000Min,
       enrouteMin: 100,
@@ -551,8 +562,11 @@ export function C152ClientV3() {
         baggageArea1Lb: c152KgToLb(loading.baggageArea1Kg),
         baggageArea2Lb: c152KgToLb(loading.baggageArea2Kg),
         startTaxiRunupGal: c152LitersToGallons(loading.startTaxiRunupL),
+        basicEmptyWeightLb,
+        basicEmptyMomentLbIn,
+        usableFuelCapacityGal,
       }),
-    [loading]
+    [loading, basicEmptyWeightLb, basicEmptyMomentLbIn, usableFuelCapacityGal]
   );
 
   const performanceResults = useMemo(
@@ -599,7 +613,7 @@ export function C152ClientV3() {
   }
 
   function updateLoadedFuel(fuelL: number) {
-    const normalized = Math.max(0, Math.min(FULL_USABLE_FUEL_L, fuelL));
+    const normalized = Math.max(0, Math.min(fullUsableFuelL, fuelL));
     setLoading((current) => ({ ...current, fuelL: normalized }));
     setFuelPlan((current) =>
       recalculateFuelPlan({ ...current, fuelLoadedL: normalized })
@@ -643,11 +657,15 @@ export function C152ClientV3() {
   }
 
   async function exportOfficialPdf() {
+    if (registration === "CS-AYR" && (!wb.overallOk || !fuelPlan.fuelSufficient)) {
+      setPdfError("Check weight, CG, baggage and fuel before exporting the CS-AYR performance sheet.");
+      return;
+    }
     setPdfBusy(true);
     setPdfError("");
     try {
       const bytes = await buildC152OfficialPerformanceSheetPdf({
-        registration: C152_CS_AVC.registration,
+        registration,
         date,
         weightBalance: wb,
         performanceResults,
@@ -656,7 +674,7 @@ export function C152ClientV3() {
       });
       downloadC152OfficialPerformanceSheetPdf(
         bytes,
-        C152_CS_AVC.registration,
+        registration,
         date
       );
     } catch (error) {
@@ -681,7 +699,7 @@ export function C152ClientV3() {
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-sky-700">
-              Cessna 152 · CS-AVC
+              Cessna 152 · {registration}
             </p>
             <h1 className="mt-1 text-2xl font-bold text-zinc-950">
               M&amp;B + Performance
@@ -691,8 +709,8 @@ export function C152ClientV3() {
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">BEW</p>
               <p className="mt-1 font-semibold">
-                {weightDual(C152_CS_AVC.basicEmptyWeightLb)} @{" "}
-                {C152_CS_AVC.basicEmptyCgDisplayIn.toFixed(2)} in
+                {weightDual(basicEmptyWeightLb)} @{" "}
+                {(basicEmptyMomentLbIn / basicEmptyWeightLb).toFixed(2)} in
               </p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
@@ -703,7 +721,7 @@ export function C152ClientV3() {
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Usable fuel</p>
-              <p className="mt-1 font-semibold">{exactFuel(FULL_USABLE_FUEL_L)}</p>
+              <p className="mt-1 font-semibold">{exactFuel(fullUsableFuelL)}</p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Demonstrated crosswind</p>
@@ -753,7 +771,7 @@ export function C152ClientV3() {
             label="Usable fuel (L)"
             value={loading.fuelL}
             min={0}
-            max={FULL_USABLE_FUEL_L}
+            max={fullUsableFuelL}
             step={0.5}
             hint={exactFuel(loading.fuelL)}
             onChange={updateLoadedFuel}
@@ -1151,7 +1169,7 @@ export function C152ClientV3() {
           <button
             type="button"
             onClick={() => void exportOfficialPdf()}
-            disabled={pdfBusy}
+            disabled={pdfBusy || (registration === "CS-AYR" && (!wb.overallOk || !fuelPlan.fuelSufficient))}
             className="rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:bg-zinc-300"
           >
             {pdfBusy ? "Generating..." : "Export RVP.CFI.066.02"}

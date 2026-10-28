@@ -31,6 +31,18 @@ export const C152_CS_AVC = {
   cruiseMaxRpmExceptTakeoffClimb: 2440,
 } as const;
 
+// Aircraft identity and POH tank options only. CS-AYR's actual weighing data and
+// installed tank configuration must come from its current aircraft records.
+export const C152_CS_AYR = {
+  registration: "CS-AYR",
+  serialNumber: "152-81575",
+  year: 1978,
+  basicEmptyWeightLb: null,
+  basicEmptyMomentLbIn: null,
+  standardFuelUsableGal: 24.5,
+  longRangeFuelUsableGal: 37.5,
+} as const;
+
 export type C152WeightBalanceInput = {
   pilotLb: number;
   passengerLb: number;
@@ -38,6 +50,9 @@ export type C152WeightBalanceInput = {
   baggageArea1Lb: number;
   baggageArea2Lb: number;
   startTaxiRunupGal?: number;
+  basicEmptyWeightLb?: number;
+  basicEmptyMomentLbIn?: number;
+  usableFuelCapacityGal?: number;
 };
 
 export type C152LoadingRow = {
@@ -305,6 +320,9 @@ export function c152ForwardCgLimitIn(weightLb: number) {
 }
 
 export function calculateC152WeightBalance(input: C152WeightBalanceInput): C152WeightBalanceResult {
+  const basicEmptyWeightLb = input.basicEmptyWeightLb ?? C152_CS_AVC.basicEmptyWeightLb;
+  const basicEmptyMomentLbIn = input.basicEmptyMomentLbIn ?? C152_CS_AVC.basicEmptyMomentLbIn;
+  const usableFuelCapacityGal = input.usableFuelCapacityGal ?? C152_CS_AVC.standardFuelUsableGal;
   const pilotLb = Math.max(0, Number(input.pilotLb || 0));
   const passengerLb = Math.max(0, Number(input.passengerLb || 0));
   const fuelGal = Math.max(0, Number(input.fuelGal || 0));
@@ -319,9 +337,9 @@ export function calculateC152WeightBalance(input: C152WeightBalanceInput): C152W
   const rows: C152LoadingRow[] = [
     {
       label: "Basic Empty Weight",
-      weightLb: C152_CS_AVC.basicEmptyWeightLb,
-      armIn: C152_CS_AVC.basicEmptyMomentLbIn / C152_CS_AVC.basicEmptyWeightLb,
-      momentLbIn: C152_CS_AVC.basicEmptyMomentLbIn,
+      weightLb: basicEmptyWeightLb,
+      armIn: basicEmptyMomentLbIn / basicEmptyWeightLb,
+      momentLbIn: basicEmptyMomentLbIn,
     },
     {
       label: "Usable Fuel",
@@ -361,7 +379,7 @@ export function calculateC152WeightBalance(input: C152WeightBalanceInput): C152W
   const aftLimitIn = 36.5;
 
   const warnings: string[] = [];
-  const fuelOk = fuelGal <= C152_CS_AVC.standardFuelUsableGal;
+  const fuelOk = fuelGal <= usableFuelCapacityGal;
   const baggageOk =
     baggageArea1Lb <= C152_CS_AVC.baggageArea1MaxLb &&
     baggageArea2Lb <= C152_CS_AVC.baggageArea2MaxLb &&
@@ -369,7 +387,7 @@ export function calculateC152WeightBalance(input: C152WeightBalanceInput): C152W
   const weightOk = takeoffWeightLb <= C152_CS_AVC.maxTakeoffWeightLb;
   const cgOk = takeoffCgIn >= forwardLimitIn && takeoffCgIn <= aftLimitIn;
 
-  if (!fuelOk) warnings.push(`Fuel utilizável excede ${C152_CS_AVC.standardFuelUsableGal} US gal (standard tanks).`);
+  if (!fuelOk) warnings.push(`Fuel utilizável excede a capacidade selecionada de ${usableFuelCapacityGal} US gal.`);
   if (!baggageOk) warnings.push("Limite de bagagem excedido: Area 1 120 lb, Area 2 40 lb, combinado 120 lb.");
   if (!weightOk) warnings.push(`Takeoff weight ${round(takeoffWeightLb)} lb excede MTOW ${C152_CS_AVC.maxTakeoffWeightLb} lb.`);
   if (!cgOk) warnings.push(`CG de descolagem ${round(takeoffCgIn, 2)} in fora de ${round(forwardLimitIn, 2)}–${aftLimitIn.toFixed(2)} in.`);

@@ -22,6 +22,7 @@ type PerformanceUsageTrackerProps = {
     | "Piper PA-28"
     | "Cessna 152";
   children: ReactNode;
+  registration?: "CS-AVC" | "CS-AYR";
 };
 
 type JsonRecord = Record<string, unknown>;
@@ -155,10 +156,11 @@ function readPerformanceResults(root: HTMLElement) {
 function buildUsageEvent(
   root: HTMLElement,
   aircraft: PerformanceUsageTrackerProps["aircraft"],
-  pilotName: string
+  pilotName: string,
+  selectedRegistration?: PerformanceUsageTrackerProps["registration"]
 ) {
   const registration =
-    fieldValue(root, ["Registration"]) ||
+    selectedRegistration || fieldValue(root, ["Registration"]) ||
     (aircraft === "Cessna 152" ? "CS-AVC" : "");
   const date = fieldValue(root, ["Flight date"]);
   const performanceResults = readPerformanceResults(root);
@@ -214,6 +216,7 @@ function isPerformanceDownloadButton(text: string) {
 export function PerformanceUsageTracker({
   aircraft,
   children,
+  registration,
 }: PerformanceUsageTrackerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const [pilotName, setPilotName] = useState("");
@@ -243,7 +246,7 @@ export function PerformanceUsageTracker({
         // Queue the event before the PDF generator/download takes over. This is
         // important on iOS/iPadOS, where opening or saving the PDF may
         // background the page before a post-download callback can run.
-        void logUsageEvent(buildUsageEvent(root, aircraft, pilotName));
+        void logUsageEvent(buildUsageEvent(root, aircraft, pilotName, registration));
       }
       return;
     }
