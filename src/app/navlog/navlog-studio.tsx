@@ -1138,6 +1138,35 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             </div>
           </div>
 
+          <div className={`mt-4 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${manualMapClickEnabled ? "border-emerald-300 bg-emerald-50" : "border-sky-200 bg-sky-50"}`}>
+            <div>
+              <p className={`text-[10px] font-bold uppercase tracking-widest ${manualMapClickEnabled ? "text-emerald-700" : "text-sky-700"}`}>
+                Manual map waypoints
+              </p>
+              <h3 className="mt-1 text-base font-semibold text-zinc-950">
+                Add a point anywhere on the map
+              </h3>
+              <p className="mt-1 text-xs leading-5 text-zinc-700">
+                No waypoint in the search? Enable map placement, then click or tap
+                the desired location on the map to add it to your route.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => {
+                if (manualMapClickEnabled) {
+                  setManualMapClickEnabled(false);
+                } else {
+                  setManualMapClickEnabled(true);
+                  document.getElementById("navlog-interactive-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                }
+              }}
+              className={`shrink-0 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 ${manualMapClickEnabled ? "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-emerald-700" : "bg-sky-700 text-white hover:bg-sky-800 focus-visible:outline-sky-700"}`}
+            >
+              {manualMapClickEnabled ? "✓ Stop adding points" : "+ Add a point on the map"}
+            </button>
+          </div>
+
           <div className="mt-4 grid gap-1 rounded-2xl bg-zinc-50 p-1 md:grid-cols-3">
             <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type an Item 15 route" onClick={() => setComposerMode("text")} />
             <ComposerTab active={composerMode === "search"} label="Find point" description="Search navigation points" onClick={() => setComposerMode("search")} />
@@ -1265,11 +1294,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
         {manualMapClickEnabled ? (
           <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-xs font-medium text-emerald-800">
-            Manual point mode is active — click anywhere on the map to add a waypoint at {addAltitude} ft.
+            ✓ Map placement is active — click or tap anywhere on the map to add a waypoint at {addAltitude} ft.
           </div>
         ) : null}
 
-        <div className="min-w-0">
+        <div id="navlog-interactive-map" className="min-w-0 scroll-mt-28">
           <NavlogMap
             points={(navlogData ?? emptyNavlogData).points}
             routeWaypoints={routeWaypoints}

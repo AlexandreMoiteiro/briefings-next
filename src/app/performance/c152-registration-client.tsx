@@ -16,7 +16,6 @@ export function C152RegistrationClient() {
   const [emptyWeightText, setEmptyWeightText] = useState("");
   const [emptyMomentText, setEmptyMomentText] = useState("");
   const [tankConfiguration, setTankConfiguration] = useState<TankConfiguration>("");
-  const [recordsConfirmed, setRecordsConfirmed] = useState(false);
 
   const emptyWeightLb = Number(emptyWeightText);
   const emptyMomentLbIn = Number(emptyMomentText);
@@ -37,7 +36,7 @@ export function C152RegistrationClient() {
       : tankConfiguration === "long-range"
         ? C152_CS_AYR.longRangeFuelUsableGal
         : null;
-  const ayrReady = emptyDataValid && usableFuelCapacityGal !== null && recordsConfirmed;
+  const ayrReady = emptyDataValid && usableFuelCapacityGal !== null;
 
   return (
     <div className="space-y-5">
@@ -63,12 +62,14 @@ export function C152RegistrationClient() {
         </div>
       </section>
 
-      {registration === "CS-AVC" ? (
+      {/* Keep both aircraft mounted when switching so previously entered data is retained. */}
+      <div hidden={registration !== "CS-AVC"}>
         <PerformanceUsageTracker aircraft="Cessna 152" registration="CS-AVC">
-          <C152ClientV3 key="CS-AVC" />
+          <C152ClientV3 />
         </PerformanceUsageTracker>
-      ) : (
-        <>
+      </div>
+
+      <div hidden={registration !== "CS-AYR"} className="space-y-5">
           <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 shadow-sm">
             <p className="text-xs font-semibold uppercase tracking-wide text-amber-800">
               CS-AYR · Cessna 152 · S/N {C152_CS_AYR.serialNumber}
@@ -91,10 +92,7 @@ export function C152RegistrationClient() {
                   max={1670}
                   step="any"
                   value={emptyWeightText}
-                  onChange={(event) => {
-                    setEmptyWeightText(event.target.value);
-                    setRecordsConfirmed(false);
-                  }}
+                  onChange={(event) => setEmptyWeightText(event.target.value)}
                   placeholder="From weighing sheet"
                   className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm"
                 />
@@ -106,10 +104,7 @@ export function C152RegistrationClient() {
                   min={0}
                   step="any"
                   value={emptyMomentText}
-                  onChange={(event) => {
-                    setEmptyMomentText(event.target.value);
-                    setRecordsConfirmed(false);
-                  }}
+                  onChange={(event) => setEmptyMomentText(event.target.value)}
                   placeholder="Full moment, not /1000"
                   className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm"
                 />
@@ -118,10 +113,7 @@ export function C152RegistrationClient() {
                 <span className="block text-xs font-semibold text-zinc-700">Installed fuel tanks</span>
                 <select
                   value={tankConfiguration}
-                  onChange={(event) => {
-                    setTankConfiguration(event.target.value as TankConfiguration);
-                    setRecordsConfirmed(false);
-                  }}
+                  onChange={(event) => setTankConfiguration(event.target.value as TankConfiguration)}
                   className="w-full rounded-xl border border-zinc-300 bg-white px-3 py-2.5 text-sm"
                 >
                   <option value="">Select verified tanks</option>
@@ -137,15 +129,11 @@ export function C152RegistrationClient() {
                   : "Enter the full weight and moment from the current aircraft record; check the units and calculated CG."}
               </p>
             ) : null}
-            <label className="mt-4 flex items-start gap-2 text-sm text-zinc-800">
-              <input
-                type="checkbox"
-                checked={recordsConfirmed}
-                onChange={(event) => setRecordsConfirmed(event.target.checked)}
-                className="mt-1 accent-sky-700"
-              />
-              <span>I have checked these values and the tank installation against CS-AYR&apos;s current records.</span>
-            </label>
+            <p role="status" className={`mt-4 rounded-xl border px-3 py-2 text-sm font-medium ${ayrReady ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-white text-amber-950"}`}>
+              {ayrReady
+                ? "✓ Aircraft data entered. The Mass & Balance and Performance calculator is ready below; edits update the calculations automatically."
+                : "Enter the aircraft's basic empty weight, full moment and verified tank configuration to open the calculator automatically. A full moment gives a plausible empty CG of approximately 29–40 in."}
+            </p>
             <p className="mt-3 text-xs leading-5 text-amber-900">
               Shared C152 performance tables are provided for planning; always verify
               the applicable aircraft POH, supplements and limitations before flight.
@@ -164,12 +152,11 @@ export function C152RegistrationClient() {
             </PerformanceUsageTracker>
           ) : (
             <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-600">
-              CS-AYR calculations and PDF export will be available once the
-              aircraft-specific data and installed fuel capacity are confirmed.
+              The CS-AYR calculator will appear here automatically when the
+              three aircraft-specific fields above are complete. No extra confirmation is needed.
             </div>
           )}
-        </>
-      )}
+      </div>
     </div>
   );
 }
