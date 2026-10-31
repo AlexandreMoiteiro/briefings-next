@@ -1138,35 +1138,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             </div>
           </div>
 
-          <div className={`mt-4 flex flex-col gap-3 rounded-2xl border p-4 sm:flex-row sm:items-center sm:justify-between ${manualMapClickEnabled ? "border-emerald-300 bg-emerald-50" : "border-sky-200 bg-sky-50"}`}>
-            <div>
-              <p className={`text-[10px] font-bold uppercase tracking-widest ${manualMapClickEnabled ? "text-emerald-700" : "text-sky-700"}`}>
-                Manual map waypoints
-              </p>
-              <h3 className="mt-1 text-base font-semibold text-zinc-950">
-                Add a point anywhere on the map
-              </h3>
-              <p className="mt-1 text-xs leading-5 text-zinc-700">
-                No waypoint in the search? Enable map placement, then click or tap
-                the desired location on the map to add it to your route.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => {
-                if (manualMapClickEnabled) {
-                  setManualMapClickEnabled(false);
-                } else {
-                  setManualMapClickEnabled(true);
-                  document.getElementById("navlog-interactive-map")?.scrollIntoView({ behavior: "smooth", block: "start" });
-                }
-              }}
-              className={`shrink-0 rounded-xl px-4 py-3 text-sm font-semibold shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2 ${manualMapClickEnabled ? "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-emerald-700" : "bg-sky-700 text-white hover:bg-sky-800 focus-visible:outline-sky-700"}`}
-            >
-              {manualMapClickEnabled ? "✓ Stop adding points" : "+ Add a point on the map"}
-            </button>
-          </div>
-
           <div className="mt-4 grid gap-1 rounded-2xl bg-zinc-50 p-1 md:grid-cols-3">
             <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type an Item 15 route" onClick={() => setComposerMode("text")} />
             <ComposerTab active={composerMode === "search"} label="Find point" description="Search navigation points" onClick={() => setComposerMode("search")} />
@@ -1262,9 +1233,19 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
         <div className="flex flex-col gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
           <div className="flex flex-wrap items-center gap-2">
-            <button type="button" onClick={() => setManualMapClickEnabled((value) => !value)} className={["rounded-xl px-3 py-2 text-sm font-semibold transition", manualMapClickEnabled ? "bg-emerald-600 text-white shadow-sm" : "border border-zinc-300 bg-white text-zinc-800 hover:border-zinc-500"].join(" ")}>
-              {manualMapClickEnabled ? "✓ Click map to add point" : "＋ Add point on map"}
-            </button>
+            <div className="flex flex-col gap-1">
+              <button
+                type="button"
+                onClick={() => setManualMapClickEnabled((value) => !value)}
+                aria-pressed={manualMapClickEnabled}
+                className={["rounded-xl px-4 py-2.5 text-sm font-bold shadow-sm transition focus-visible:outline-2 focus-visible:outline-offset-2", manualMapClickEnabled ? "bg-emerald-700 text-white hover:bg-emerald-800 focus-visible:outline-emerald-700" : "bg-sky-700 text-white hover:bg-sky-800 focus-visible:outline-sky-700"].join(" ")}
+              >
+                {manualMapClickEnabled ? "✓ Stop adding map points" : "+ Add point anywhere on map"}
+              </button>
+              <p className="max-w-64 text-[11px] leading-4 text-zinc-600">
+                Enable, then click or tap the map to place a waypoint.
+              </p>
+            </div>
             <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-1.5">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-400">New point</span>
               <input type="number" value={addAltitude} step={100} onChange={(event) => setAddAltitude(Number(event.target.value))} className="w-20 border-0 bg-transparent text-sm font-semibold outline-none" />
@@ -1298,7 +1279,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
         ) : null}
 
-        <div id="navlog-interactive-map" className="min-w-0 scroll-mt-28">
+        <div className="min-w-0">
           <NavlogMap
             points={(navlogData ?? emptyNavlogData).points}
             routeWaypoints={routeWaypoints}

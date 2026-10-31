@@ -131,8 +131,8 @@ export function C152RegistrationClient() {
             ) : null}
             <p role="status" className={`mt-4 rounded-xl border px-3 py-2 text-sm font-medium ${ayrReady ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-amber-300 bg-white text-amber-950"}`}>
               {ayrReady
-                ? "✓ Aircraft data entered. The Mass & Balance and Performance calculator is ready below; edits update the calculations automatically."
-                : "Enter the aircraft's basic empty weight, full moment and verified tank configuration to open the calculator automatically. A full moment gives a plausible empty CG of approximately 29–40 in."}
+                ? "✓ Aircraft data entered. Mass & Balance and CG results are updating automatically below."
+                : "The full Performance form is available below. Enter the basic empty weight, full moment and verified tank configuration to enable the Mass & Balance results and PDF export. Check the moment units: the calculated empty CG should be approximately 29–40 in."}
             </p>
             <p className="mt-3 text-xs leading-5 text-amber-900">
               Shared C152 performance tables are provided for planning; always verify
@@ -140,22 +140,15 @@ export function C152RegistrationClient() {
             </p>
           </section>
 
-          {ayrReady ? (
-            <PerformanceUsageTracker aircraft="Cessna 152" registration="CS-AYR">
-              <C152ClientV3
-                key={`CS-AYR-${tankConfiguration}`}
-                registration="CS-AYR"
-                basicEmptyWeightLb={emptyWeightLb}
-                basicEmptyMomentLbIn={emptyMomentLbIn}
-                usableFuelCapacityGal={usableFuelCapacityGal}
-              />
-            </PerformanceUsageTracker>
-          ) : (
-            <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-5 text-sm text-zinc-600">
-              The CS-AYR calculator will appear here automatically when the
-              three aircraft-specific fields above are complete. No extra confirmation is needed.
-            </div>
-          )}
+          <PerformanceUsageTracker aircraft="Cessna 152" registration="CS-AYR">
+            <C152ClientV3
+              key={`CS-AYR-${tankConfiguration}`}
+              registration="CS-AYR"
+              basicEmptyWeightLb={emptyDataValid ? emptyWeightLb : null}
+              basicEmptyMomentLbIn={emptyDataValid ? emptyMomentLbIn : null}
+              usableFuelCapacityGal={usableFuelCapacityGal}
+            />
+          </PerformanceUsageTracker>
       </div>
     </div>
   );

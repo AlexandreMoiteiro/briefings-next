@@ -512,9 +512,9 @@ function englishWarning(message: string) {
 
 type C152ClientV3Props = {
   registration?: "CS-AVC" | "CS-AYR";
-  basicEmptyWeightLb?: number;
-  basicEmptyMomentLbIn?: number;
-  usableFuelCapacityGal?: number;
+  basicEmptyWeightLb?: number | null;
+  basicEmptyMomentLbIn?: number | null;
+  usableFuelCapacityGal?: number | null;
 };
 
 export function C152ClientV3({
@@ -523,7 +523,21 @@ export function C152ClientV3({
   basicEmptyMomentLbIn = C152_CS_AVC.basicEmptyMomentLbIn,
   usableFuelCapacityGal = C152_CS_AVC.standardFuelUsableGal,
 }: C152ClientV3Props = {}) {
-  const fullUsableFuelL = Math.round(c152GallonsToLiters(usableFuelCapacityGal) * 10) / 10;
+  const hasBasicEmptyData =
+    typeof basicEmptyWeightLb === "number" &&
+    Number.isFinite(basicEmptyWeightLb) &&
+    basicEmptyWeightLb > 0 &&
+    typeof basicEmptyMomentLbIn === "number" &&
+    Number.isFinite(basicEmptyMomentLbIn) &&
+    basicEmptyMomentLbIn > 0;
+  const hasFuelCapacity =
+    typeof usableFuelCapacityGal === "number" &&
+    Number.isFinite(usableFuelCapacityGal) &&
+    usableFuelCapacityGal > 0;
+  const aircraftDataReady = hasBasicEmptyData && hasFuelCapacity;
+  const fullUsableFuelL = hasFuelCapacity
+    ? Math.round(c152GallonsToLiters(usableFuelCapacityGal) * 10) / 10
+    : 0;
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [legs, setLegs] = useState<PerformanceLegInput[]>(INITIAL_LEGS);
   const [weatherBusy, setWeatherBusy] = useState(false);
@@ -537,7 +551,7 @@ export function C152ClientV3({
     fuelL: fullUsableFuelL,
     baggageArea1Kg: Number(C152_PERFORMANCE_PRESET.baggageArea1Kg),
     baggageArea2Kg: Number(C152_PERFORMANCE_PRESET.baggageArea2Kg),
-    startTaxiRunupL: START_TAXI_RUNUP_L,
+    startTaxiRunupL: Math.min(START_TAXI_RUNUP_L, fullUsableFuelL),
   });
 
   const [fuelPlan, setFuelPlan] = useState<FuelPlanningInput>(() =>
@@ -555,18 +569,18 @@ export function C152ClientV3({
 
   const wb = useMemo(
     () =>
-      calculateC152WeightBalance({
+      aircraftDataReady ? calculateC152WeightBalance({
         pilotLb: c152KgToLb(loading.pilotKg),
         passengerLb: c152KgToLb(loading.passengerKg),
         fuelGal: c152LitersToGallons(loading.fuelL),
         baggageArea1Lb: c152KgToLb(loading.baggageArea1Kg),
         baggageArea2Lb: c152KgToLb(loading.baggageArea2Kg),
         startTaxiRunupGal: c152LitersToGallons(loading.startTaxiRunupL),
-        basicEmptyWeightLb,
-        basicEmptyMomentLbIn,
-        usableFuelCapacityGal,
-      }),
-    [loading, basicEmptyWeightLb, basicEmptyMomentLbIn, usableFuelCapacityGal]
+        basicEmptyWeightLb: basicEmptyWeightLb ?? undefined,
+        basicEmptyMomentLbIn: basicEmptyMomentLbIn ?? undefined,
+        usableFuelCapacityGal: usableFuelCapacityGal ?? undefined,
+      }) : null,
+    [aircraftDataReady, loading, basicEmptyWeightLb, basicEmptyMomentLbIn, usableFuelCapacityGal]
   );
 
   const performanceResults = useMemo(
@@ -582,11 +596,11 @@ export function C152ClientV3({
 
   const cgTrack = useMemo(
     () =>
-      buildC152FlightCgTrack(
+      wb ? buildC152FlightCgTrack(
         wb,
         fuelPlan.tripFuelL,
         fuelPlan.alternateFuelL
-      ),
+      ) : [],
     [wb, fuelPlan.tripFuelL, fuelPlan.alternateFuelL]
   );
 
@@ -657,6 +671,10 @@ export function C152ClientV3({
   }
 
   async function exportOfficialPdf() {
+    if (!wb) {
+      setPdfError("Enter CS-AYR's basic empty weight, moment and tank configuration before exporting.");
+      return;
+    }
     if (registration === "CS-AYR" && (!wb.overallOk || !fuelPlan.fuelSufficient)) {
       setPdfError("Check weight, CG, baggage and fuel before exporting the CS-AYR performance sheet.");
       return;
@@ -687,7 +705,7 @@ export function C152ClientV3({
   const allWarnings = Array.from(
     new Set(
       [
-        ...wb.warnings,
+        ...(wb?.warnings ?? []),
         ...performanceRows.flatMap((row) => row?.warnings ?? []),
       ].map(englishWarning)
     )
@@ -709,8 +727,9 @@ export function C152ClientV3({
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">BEW</p>
               <p className="mt-1 font-semibold">
-                {weightDual(basicEmptyWeightLb)} @{" "}
-                {(basicEmptyMomentLbIn / basicEmptyWeightLb).toFixed(2)} in
+                {hasBasicEmptyData
+                  ? `${weightDual(basicEmptyWeightLb)} @ ${(basicEmptyMomentLbIn / basicEmptyWeightLb).toFixed(2)} in`
+                  : "Waiting for aircraft data"}
               </p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
@@ -721,7 +740,7 @@ export function C152ClientV3({
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Usable fuel</p>
-              <p className="mt-1 font-semibold">{exactFuel(fullUsableFuelL)}</p>
+              <p className="mt-1 font-semibold">{hasFuelCapacity ? exactFuel(fullUsableFuelL) : "Select tank configuration"}</p>
             </div>
             <div className="rounded-xl border border-sky-200 bg-white p-3">
               <p className="text-zinc-500">Demonstrated crosswind</p>
@@ -739,10 +758,18 @@ export function C152ClientV3({
             1. Mass &amp; Balance
           </h2>
           <div className="flex flex-wrap gap-2">
-            <StatusBadge ok={wb.weightOk} label="Weight" />
-            <StatusBadge ok={wb.cgOk} label="CG" />
-            <StatusBadge ok={wb.fuelOk} label="Fuel" />
-            <StatusBadge ok={wb.baggageOk} label="Baggage" />
+            {wb ? (
+              <>
+                <StatusBadge ok={wb.weightOk} label="Weight" />
+                <StatusBadge ok={wb.cgOk} label="CG" />
+                <StatusBadge ok={wb.fuelOk} label="Fuel" />
+                <StatusBadge ok={wb.baggageOk} label="Baggage" />
+              </>
+            ) : (
+              <span className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-semibold text-amber-900">
+                Aircraft data required
+              </span>
+            )}
           </div>
         </div>
 
@@ -809,38 +836,47 @@ export function C152ClientV3({
           />
         </div>
 
-        <div className="mt-5 overflow-x-auto rounded-2xl border border-zinc-200">
-          <table className="min-w-full text-left text-xs">
-            <thead className="bg-zinc-50 text-zinc-600">
-              <tr>
-                <th className="px-3 py-2 font-semibold">Loading data</th>
-                <th className="px-3 py-2 font-semibold">Weight</th>
-                <th className="px-3 py-2 font-semibold">Arm in</th>
-                <th className="px-3 py-2 font-semibold">Moment /1000</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {wb.rows.map((row) => (
-                <tr key={row.label}>
-                  <td className="px-3 py-2 font-medium text-zinc-800">
-                    {row.label}
-                  </td>
-                  <td className="px-3 py-2">{weightDual(row.weightLb)}</td>
-                  <td className="px-3 py-2">{fixed(row.armIn, 2)}</td>
-                  <td className="px-3 py-2">
-                    {fixed(row.momentLbIn / 1000, 2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-
-        <div className="mt-4 grid gap-3 md:grid-cols-3">
-          <CgStateCard label="TO" point={cgByLabel.TO} />
-          <CgStateCard label="LDG" point={cgByLabel.LDG} />
-          <CgStateCard label="ALT" point={cgByLabel.ALT} />
-        </div>
+        {wb ? (
+          <>
+            <div className="mt-5 overflow-x-auto rounded-2xl border border-zinc-200">
+              <table className="min-w-full text-left text-xs">
+                <thead className="bg-zinc-50 text-zinc-600">
+                  <tr>
+                    <th className="px-3 py-2 font-semibold">Loading data</th>
+                    <th className="px-3 py-2 font-semibold">Weight</th>
+                    <th className="px-3 py-2 font-semibold">Arm in</th>
+                    <th className="px-3 py-2 font-semibold">Moment /1000</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-zinc-100">
+                  {wb.rows.map((row) => (
+                    <tr key={row.label}>
+                      <td className="px-3 py-2 font-medium text-zinc-800">
+                        {row.label}
+                      </td>
+                      <td className="px-3 py-2">{weightDual(row.weightLb)}</td>
+                      <td className="px-3 py-2">{fixed(row.armIn, 2)}</td>
+                      <td className="px-3 py-2">
+                        {fixed(row.momentLbIn / 1000, 2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-3">
+              <CgStateCard label="TO" point={cgByLabel.TO} />
+              <CgStateCard label="LDG" point={cgByLabel.LDG} />
+              <CgStateCard label="ALT" point={cgByLabel.ALT} />
+            </div>
+          </>
+        ) : (
+          <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            The CS-AYR Mass &amp; Balance table and CG track will calculate here
+            after you enter its basic empty weight, moment and fuel tank configuration above.
+            The rest of the Performance form is already available to fill in.
+          </div>
+        )}
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
@@ -1146,7 +1182,7 @@ export function C152ClientV3({
           </div>
         </div>
 
-        {!fuelPlan.fuelSufficient ? (
+        {hasFuelCapacity && !fuelPlan.fuelSufficient ? (
           <p className="mt-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-800">
             Shortfall:{" "}
             {operationalFuel(
@@ -1169,12 +1205,17 @@ export function C152ClientV3({
           <button
             type="button"
             onClick={() => void exportOfficialPdf()}
-            disabled={pdfBusy || (registration === "CS-AYR" && (!wb.overallOk || !fuelPlan.fuelSufficient))}
+            disabled={pdfBusy || !wb || (registration === "CS-AYR" && (!wb.overallOk || !fuelPlan.fuelSufficient))}
             className="rounded-xl bg-orange-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-orange-700 disabled:bg-zinc-300"
           >
             {pdfBusy ? "Generating..." : "Export RVP.CFI.066.02"}
           </button>
         </div>
+        {!wb ? (
+          <p className="mt-3 text-sm text-orange-900">
+            PDF export unlocks after the CS-AYR aircraft-specific values are entered.
+          </p>
+        ) : null}
         {pdfError ? (
           <p className="mt-3 text-sm font-medium text-red-700">{pdfError}</p>
         ) : null}
