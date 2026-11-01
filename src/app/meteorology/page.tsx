@@ -20,12 +20,13 @@ function ChartImage({chart}:{chart:Chart}) {
 }
 
 function ChartTimePicker({
-  items, selected, current, onSelect,
+  items, selected, current, onSelect, label,
 }: {
   items: Chart[];
   selected: Chart | undefined;
   current: Chart | undefined;
   onSelect: (path: string) => void;
+  label: string;
 }) {
   const index = selected ? items.findIndex((chart) => chart.path === selected.path) : -1;
   const previous = index > 0 ? items[index - 1] : undefined;
@@ -33,38 +34,57 @@ function ChartTimePicker({
   const isCurrent = selected?.path === current?.path;
 
   return (
-    <div className="mb-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" disabled={!previous} onClick={() => previous && onSelect(previous.path)}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 disabled:opacity-35">
-          ← Previous
-        </button>
-        <div className="min-w-0 text-center" aria-live="polite">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-zinc-500">Valid at</p>
-          <p className="mt-0.5 text-xs font-semibold text-zinc-900 sm:text-sm">{selected ? fmt(selected.validAt) : "Unavailable"}</p>
-        </div>
-        <button type="button" disabled={!next} onClick={() => next && onSelect(next.path)}
-          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-100 disabled:opacity-35">
-          Next →
-        </button>
-      </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
-        <button type="button" onClick={() => onSelect("")} disabled={!current || isCurrent}
-          className="font-semibold text-sky-700 hover:underline disabled:text-zinc-400 disabled:no-underline">
-          {isCurrent ? "Showing current period" : "Back to current period"}
-        </button>
-        <details className="w-full sm:w-auto">
-          <summary className="cursor-pointer select-none font-medium text-zinc-600 hover:text-zinc-900">Choose another time ({items.length})</summary>
-          <div className="mt-2 grid max-h-44 gap-1 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-2 sm:min-w-56">
-            {items.map((chart) => (
-              <button key={chart.path} type="button" onClick={() => onSelect(chart.path)} aria-pressed={selected?.path === chart.path}
-                className={"rounded-md px-3 py-2 text-left text-xs transition " + (selected?.path === chart.path ? "bg-zinc-900 font-semibold text-white" : "text-zinc-700 hover:bg-zinc-100")}>
-                {fmt(chart.validAt)}
-              </button>
-            ))}
+    <div className="relative mb-3 rounded-2xl border border-zinc-200 bg-zinc-50/80 px-3 py-3 sm:px-4">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0 border-l-[3px] border-sky-500 pl-3" aria-live="polite">
+          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-zinc-500">Valid at · UTC</p>
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <p className="text-sm font-bold tabular-nums text-zinc-950">{selected ? fmt(selected.validAt) : "Unavailable"}</p>
+            {isCurrent && <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">Current period</span>}
           </div>
-        </details>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <div className="inline-flex items-center gap-1 rounded-xl border border-zinc-200 bg-white p-1">
+            <button type="button" disabled={!previous} onClick={() => previous && onSelect(previous.path)}
+              aria-label={`Previous ${label} validity time`} title="Previous time"
+              className="flex h-8 w-9 items-center justify-center rounded-lg text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-30">
+              ←
+            </button>
+            <span className="h-5 w-px bg-zinc-200" aria-hidden="true" />
+            <button type="button" disabled={!next} onClick={() => next && onSelect(next.path)}
+              aria-label={`Next ${label} validity time`} title="Next time"
+              className="flex h-8 w-9 items-center justify-center rounded-lg text-base font-semibold text-zinc-700 transition hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:cursor-not-allowed disabled:opacity-30">
+              →
+            </button>
+          </div>
+          <details key={selected?.path ?? "empty"} className="group relative">
+            <summary className="flex h-10 cursor-pointer list-none select-none items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800 transition hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 [&::-webkit-details-marker]:hidden">
+              All times
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none" className="h-4 w-4 text-zinc-500 transition group-open:rotate-180">
+                <path d="m5 7.5 5 5 5-5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.7" />
+              </svg>
+            </summary>
+            <div className="absolute right-0 top-full z-30 mt-2 w-64 rounded-2xl border border-zinc-200 bg-white p-2 shadow-xl shadow-zinc-900/10">
+              <p className="px-2 py-2 text-[10px] font-bold uppercase tracking-[0.13em] text-zinc-400">Available times · UTC</p>
+              <div className="max-h-60 space-y-0.5 overflow-y-auto">
+                {items.map((chart) => (
+                  <button key={chart.path} type="button"
+                    onClick={(event) => { onSelect(chart.path); event.currentTarget.closest("details")?.removeAttribute("open"); }}
+                    aria-pressed={selected?.path === chart.path}
+                    className={"flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2.5 text-left text-xs tabular-nums transition " + (selected?.path === chart.path ? "bg-zinc-900 font-semibold text-white" : "text-zinc-700 hover:bg-zinc-100")}>
+                    <span>{fmt(chart.validAt)}</span>
+                    {chart.path === current?.path && <span className={"text-[10px] font-semibold " + (selected?.path === chart.path ? "text-emerald-200" : "text-emerald-700")}>Current</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
+      {!isCurrent && current && <button type="button" onClick={() => onSelect("")}
+        className="mt-2 text-xs font-semibold text-sky-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600">
+        ↺ Back to current period
+      </button>}
     </div>
   );
 }
@@ -119,23 +139,29 @@ export default function MeteorologyPage(){
     const items = kind === "sigwx" ? sigwx : winds;
     const onSelect = kind === "sigwx" ? setSigPath : setWindPath;
     const current = currentChart(items,now,kind === "sigwx" ? 6 : 3);
-    return <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-4">
-      <div className="mb-3 flex items-center justify-between gap-2">
-        <h2 className="text-lg font-semibold">{kind==="sigwx"?"SIGWX Low-Level":"Wind & Temperature"}</h2>
-        <button type="button" disabled={!c} onClick={()=>setFull(kind)} className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold disabled:opacity-40">Full screen</button>
+    return <section className="min-w-0 rounded-3xl border border-zinc-200 bg-white p-3 shadow-sm sm:p-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="flex min-w-0 items-center gap-3">
+          <span aria-hidden="true" className={"flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-black " + (kind === "sigwx" ? "bg-sky-100 text-sky-800" : "bg-indigo-100 text-indigo-800")}>
+            {kind === "sigwx" ? "S" : "W"}
+          </span>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-[0.13em] text-zinc-400">AEMET · Aviation weather</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-bold tracking-tight text-zinc-950 sm:text-lg">{kind==="sigwx"?"SIGWX Low-Level":"Wind & Temperature"}</h2>
+              {kind === "wind" && <span className="rounded-md bg-indigo-50 px-2 py-0.5 text-[11px] font-bold text-indigo-700">FL{fl}</span>}
+            </div>
+          </div>
+        </div>
+        <button type="button" disabled={!c} onClick={()=>setFull(kind)}
+          className="shrink-0 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-600 disabled:opacity-40">
+          ⤢ <span className="hidden sm:inline">Expand</span>
+        </button>
       </div>
-      {kind === "wind" && <div className="mb-3 flex flex-wrap gap-1.5" role="group" aria-label="Flight level">
-        {["020","050","100","150"].map((level) => (
-          <button key={level} type="button" aria-pressed={fl === level} onClick={()=>{setFl(level);setWindPath("");}}
-            className={"rounded-lg px-3 py-2 text-xs font-semibold transition " + (fl === level ? "bg-zinc-900 text-white" : "border border-zinc-200 bg-zinc-50 text-zinc-700 hover:bg-zinc-100")}>
-            FL{level}
-          </button>
-        ))}
-      </div>}
-      <ChartTimePicker items={items} selected={c} current={current} onSelect={onSelect}/>
-      {c?<button type="button" onClick={()=>setFull(kind)} aria-label="Enlarge PNG to full screen" className="block w-full cursor-zoom-in rounded-xl bg-zinc-100 p-2"><ChartImage chart={c}/></button>:
-        <p className="p-8 text-center text-sm text-zinc-500">No chart available.</p>}
-      {c&&<p className="mt-3 text-xs text-zinc-500">Valid: {fmt(c.validAt)} · © AEMET</p>}
+      <ChartTimePicker items={items} selected={c} current={current} onSelect={onSelect} label={kind === "sigwx" ? "SIGWX" : "wind and temperature"}/>
+      {c?<button type="button" onClick={()=>setFull(kind)} aria-label={`Expand ${chartName(c)} to full screen`} className="block w-full cursor-zoom-in overflow-hidden rounded-2xl border border-zinc-100 bg-zinc-50 p-2 transition hover:border-zinc-300"><ChartImage chart={c}/></button>:
+        <p className="rounded-2xl bg-zinc-50 p-8 text-center text-sm text-zinc-500">No chart available.</p>}
+      <p className="mt-3 text-right text-[11px] font-medium text-zinc-400">Official chart · © AEMET</p>
     </section>;
   };
   const fullCharts=full==="both"?ordered:full==="sigwx"?(sig?[sig]:[]):(wind?[wind]:[]);
@@ -159,12 +185,25 @@ export default function MeteorologyPage(){
     {error&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{error}{data?" Showing the most recently loaded list.":""}</p>}
     {loading?<p className="text-sm">Loading charts…</p>:!data?<p className="rounded-xl bg-white p-5 text-sm text-zinc-600">Charts could not be loaded. Please try Refresh charts.</p>:
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="inline-flex rounded-xl border border-zinc-300 p-1">
-          <button type="button" aria-pressed={!compare} onClick={()=>setCompare(false)} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(!compare?"bg-zinc-900 text-white":"text-zinc-700")}>SIGWX + Wind / Temp</button>
-          <button type="button" aria-pressed={compare} onClick={()=>setCompare(true)} className={"rounded-lg px-4 py-2 text-sm font-semibold "+(compare?"bg-zinc-900 text-white":"text-zinc-700")}>Compare charts</button>
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-zinc-200 bg-white px-4 py-3 shadow-sm">
+        <div className="flex min-w-0 flex-wrap items-center gap-2 sm:gap-3">
+          <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-zinc-400">View</span>
+          <div className="inline-flex max-w-full rounded-xl bg-zinc-100 p-1" role="group" aria-label="Chart view">
+            <button type="button" aria-pressed={!compare} onClick={()=>setCompare(false)} className={"rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm "+(!compare?"bg-white text-zinc-950 shadow-sm":"text-zinc-600 hover:text-zinc-950")}>SIGWX + Wind / Temp</button>
+            <button type="button" aria-pressed={compare} onClick={()=>setCompare(true)} className={"rounded-lg px-3 py-2 text-xs font-semibold transition sm:text-sm "+(compare?"bg-white text-zinc-950 shadow-sm":"text-zinc-600 hover:text-zinc-950")}>Compare SIGWX</button>
+          </div>
         </div>
-        {compare&&<button type="button" onClick={()=>setFull("both")} disabled={ordered.length<2} className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold disabled:opacity-40">Compare full screen</button>}
+        {!compare ? <div className="flex flex-wrap items-center gap-2.5">
+          <span className="text-[10px] font-bold uppercase tracking-[0.13em] text-zinc-400">Wind level</span>
+          <div className="inline-flex rounded-xl bg-zinc-100 p-1" role="group" aria-label="Wind and temperature flight level">
+            {["020","050","100","150"].map((level) => (
+              <button key={level} type="button" aria-pressed={fl === level} onClick={()=>{setFl(level);setWindPath("");}}
+                className={"rounded-lg px-2.5 py-2 text-xs font-semibold transition sm:px-3 " + (fl === level ? "bg-zinc-900 text-white shadow-sm" : "text-zinc-600 hover:bg-white hover:text-zinc-950")}>
+                FL{level}
+              </button>
+            ))}
+          </div>
+        </div> : <button type="button" onClick={()=>setFull("both")} disabled={ordered.length<2} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">⤢ Compare full screen</button>}
       </div>
       {!compare?<div className="grid gap-4 lg:grid-cols-2">{panel("sigwx",sig)}{panel("wind",wind)}</div>:
       <div className="space-y-3">
