@@ -39,4 +39,12 @@ export const navigationItems = [
     description: "Search aerodromes, VFR points, IFR fixes and navaids on the aviation map.",
     details: ["VFR chart", "Search", "Layers"],
   },
+  {
+    title: "Meteorology",
+    href: "/meteorology",
+    eyebrow: "Utility · AEMET",
+    group: "utility",
+    description: "View automatically collected AEMET SIGWX and wind/temperature charts, with validity times in UTC.",
+    details: ["SIGWX", "Wind & temperature", "FL020–FL150"],
+  },
 ] as const;
