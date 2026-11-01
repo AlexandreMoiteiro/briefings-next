@@ -3,6 +3,7 @@ type AdminNotificationInput = {
   heading: string;
   lines: string[];
   replyTo?: string | null;
+  idempotencyKey?: string;
 };
 
 type NotificationResult = {
@@ -43,6 +44,7 @@ export async function sendAdminNotification(
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/json",
+        ...(input.idempotencyKey ? { "Idempotency-Key": input.idempotencyKey } : {}),
       },
       body: JSON.stringify({
         from,

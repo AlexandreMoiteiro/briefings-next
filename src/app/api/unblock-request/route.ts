@@ -47,6 +47,7 @@ export async function POST(request: Request) {
     }
 
     const notification = await sendAdminNotification({
+      idempotencyKey: `briefings-unblock-${data}`,
       subject: `[Briefings] Unblock request from ${pilotName}`,
       heading: `New export unblock request from ${pilotName}`,
       lines: [
