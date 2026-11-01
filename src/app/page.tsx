@@ -3,11 +3,16 @@ import { navigationItems } from "@/lib/navigation";
 
 type NavItem = (typeof navigationItems)[number];
 
-function ToolCard({ item, index }: { item: NavItem; index?: number }) {
+function ToolCard({ item, index, featured = false }: { item: NavItem; index?: number; featured?: boolean }) {
   return (
     <Link
       href={item.href}
-      className="group rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-zinc-400 hover:shadow-md"
+      className={[
+        "group block h-full rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+        featured
+          ? "min-h-52 border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white sm:p-7 hover:border-sky-400"
+          : "border-zinc-200 bg-white hover:border-zinc-400",
+      ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
@@ -21,7 +26,7 @@ function ToolCard({ item, index }: { item: NavItem; index?: number }) {
               {item.eyebrow}
             </p>
           </div>
-          <h2 className="mt-3 text-xl font-semibold tracking-tight text-zinc-950">
+          <h2 className={"mt-3 font-semibold tracking-tight text-zinc-950 " + (featured ? "text-2xl sm:text-3xl" : "text-xl")}>
             {item.title}
           </h2>
         </div>
@@ -45,8 +50,9 @@ function ToolCard({ item, index }: { item: NavItem; index?: number }) {
 }
 
 export default function HomePage() {
-  const flightTools = navigationItems.slice(0, 3);
-  const mapTools = navigationItems.slice(3);
+  const flightTools = navigationItems.filter((item) => item.group === "workflow");
+  const mapTools = navigationItems.filter((item) => item.group === "utility" && item.href !== "/meteorology");
+  const meteorology = navigationItems.find((item) => item.href === "/meteorology");
 
   return (
     <div className="space-y-10">
@@ -83,6 +89,11 @@ export default function HomePage() {
           {mapTools.map((item) => (
             <ToolCard key={item.href} item={item} />
           ))}
+          {meteorology ? (
+            <div className="md:col-span-2">
+              <ToolCard item={meteorology} featured />
+            </div>
+          ) : null}
         </div>
       </section>
     </div>
