@@ -50,7 +50,12 @@ export async function GET(request:NextRequest) {
     });
     if(!response.ok)return NextResponse.json({error:"Imagem indisponível"},{status:response.status===404?404:502});
     const buffer=await response.arrayBuffer();
-    return new NextResponse(buffer,{headers:{"Content-Type":"image/png","Cache-Control":"private, max-age=300","X-Content-Type-Options":"nosniff"}});
+    return new NextResponse(buffer,{headers:{
+      "Content-Type":"image/png",
+      "Content-Disposition":`inline; filename="${pieces[1]}"`,
+      "Cache-Control":"private, max-age=300",
+      "X-Content-Type-Options":"nosniff",
+    }});
   }
   try{
     const [sigwx,wind]=await Promise.all([list("sigwx"),list("wind-temp")]);
