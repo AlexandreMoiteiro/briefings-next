@@ -62,6 +62,7 @@ export async function POST(request: Request) {
             : "Message";
 
     const notification = await sendAdminNotification({
+      idempotencyKey: `briefings-feedback-${data}`,
       subject: `[Briefings] ${category}${subject ? `: ${subject}` : ""}`,
       heading: `New ${category.toLowerCase()} from ${name}`,
       replyTo: email || null,
