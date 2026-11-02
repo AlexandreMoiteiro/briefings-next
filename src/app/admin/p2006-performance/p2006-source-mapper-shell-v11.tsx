@@ -5,7 +5,13 @@ import {
   P2006T_REGISTRATIONS,
   type P2006TRegistration,
 } from "@/lib/performance/p2006t-fleet";
+import {
+  P2006T_ADDITIONAL_TABLES,
+  P2006T_ADDITIONAL_TABLE_STORAGE_KEY,
+  P2006T_LEGACY_OEI_STORAGE_KEY,
+} from "@/lib/performance/p2006t-additional-table-mapper";
 import { P2006TSourceMapper } from "./p2006-source-mapper";
+import { migrateLegacyP2006TPerformanceCaptures } from "./p2006-base-grid-storage";
 import {
   STAGES,
   type Capture,
@@ -17,6 +23,8 @@ import {
 const STORAGE_KEY = "briefings_p2006_guided_mapper_v6";
 const GRID_META_KEY = "briefings_p2006_auto_grid_meta_v17";
 const MIGRATION_KEY = "briefings_p2006_merged_page_one_shell_v11";
+const PERFORMANCE_MIGRATION_KEY =
+  "briefings_p2006_completed_performance_grids_v29";
 const OLD_PAGE_ONE_PREFIX = "shared:form-page-1-fields:";
 const NEW_PAGE_ONE_PREFIX = "shared:mass-balance-graph:";
 const LEGACY_PANEL_TOKEN = "shared:mass-balance-graph:panel-";
@@ -31,6 +39,7 @@ type ImportSummary = {
   kept: number;
   removed: number;
   migrated: number;
+  performanceMigrated: number;
   source: string;
 };
 
@@ -132,7 +141,8 @@ function migratePageOneCaptures(input: CaptureStore) {
 }
 
 function cleanCaptures(input: CaptureStore) {
-  const migratedInput = migratePageOneCaptures(input);
+  const performanceMigration = migrateLegacyP2006TPerformanceCaptures(input);
+  const migratedInput = migratePageOneCaptures(performanceMigration.captures);
   const allowed = validKeys();
   const hadLegacyPanels = Object.keys(migratedInput.captures).some((key) =>
     key.includes(LEGACY_PANEL_TOKEN)
@@ -153,8 +163,9 @@ function cleanCaptures(input: CaptureStore) {
   return {
     captures: cleaned,
     kept: Object.keys(cleaned).length,
-    removed: Object.keys(input).length - Object.keys(cleaned).length,
+    removed: Math.max(0, Object.keys(input).length - Object.keys(cleaned).length),
     migrated: migratedInput.migrated,
+    performanceMigrated: performanceMigration.migrated,
   };
 }
 
@@ -172,14 +183,20 @@ export function P2006TSourceMapperShellV11() {
     const perAircraft = STAGES.filter(
       (stage) => stage.type === "performance"
     ).reduce((sum, stage) => sum + stage.steps.length, 0);
-    return shared + perAircraft * P2006T_REGISTRATIONS.length;
+    const additionalPerAircraft = P2006T_ADDITIONAL_TABLES.length;
+    return (
+      shared +
+      (perAircraft + additionalPerAircraft) * P2006T_REGISTRATIONS.length
+    );
   }, []);
 
   useEffect(() => {
     const saved = window.localStorage.getItem(STORAGE_KEY);
     const alreadyMigrated = window.localStorage.getItem(MIGRATION_KEY) === "1";
+    const performanceAlreadyMigrated =
+      window.localStorage.getItem(PERFORMANCE_MIGRATION_KEY) === "1";
 
-    if (saved && !alreadyMigrated) {
+    if (saved && (!alreadyMigrated || !performanceAlreadyMigrated)) {
       try {
         const cleaned = cleanCaptures(JSON.parse(saved) as CaptureStore);
         window.localStorage.setItem(
@@ -187,10 +204,12 @@ export function P2006TSourceMapperShellV11() {
           JSON.stringify(cleaned.captures)
         );
         window.localStorage.setItem(MIGRATION_KEY, "1");
+        window.localStorage.setItem(PERFORMANCE_MIGRATION_KEY, "1");
         setSummary({
           kept: cleaned.kept,
           removed: cleaned.removed,
           migrated: cleaned.migrated,
+          performanceMigrated: cleaned.performanceMigrated,
           source: "existing browser progress",
         });
       } catch {
@@ -212,10 +231,12 @@ export function P2006TSourceMapperShellV11() {
         JSON.stringify(cleaned.captures)
       );
       window.localStorage.setItem(MIGRATION_KEY, "1");
+      window.localStorage.setItem(PERFORMANCE_MIGRATION_KEY, "1");
       setSummary({
         kept: cleaned.kept,
         removed: cleaned.removed,
         migrated: cleaned.migrated,
+        performanceMigrated: cleaned.performanceMigrated,
         source: file.name,
       });
       setMapperKey((value) => value + 1);
@@ -225,6 +246,7 @@ export function P2006TSourceMapperShellV11() {
         kept: 0,
         removed: 0,
         migrated: 0,
+        performanceMigrated: 0,
         source: "Invalid JSON file",
       });
     } finally {
@@ -235,8 +257,17 @@ export function P2006TSourceMapperShellV11() {
   function clearProgress() {
     window.localStorage.removeItem(STORAGE_KEY);
     window.localStorage.removeItem(GRID_META_KEY);
+    window.localStorage.removeItem(P2006T_ADDITIONAL_TABLE_STORAGE_KEY);
+    window.localStorage.removeItem(P2006T_LEGACY_OEI_STORAGE_KEY);
     window.localStorage.setItem(MIGRATION_KEY, "1");
-    setSummary({ kept: 0, removed: 0, migrated: 0, source: "blank map" });
+    window.localStorage.setItem(PERFORMANCE_MIGRATION_KEY, "1");
+    setSummary({
+      kept: 0,
+      removed: 0,
+      migrated: 0,
+      performanceMigrated: 0,
+      source: "blank map",
+    });
     setMapperKey((value) => value + 1);
   }
 
@@ -249,12 +280,13 @@ export function P2006TSourceMapperShellV11() {
               Resume existing audit work
             </p>
             <h2 className="mt-1 text-lg font-semibold text-zinc-950">
-              Form page 1 and M&amp;B now share one physical page
+              Existing mappings are preserved
             </h2>
             <p className="mt-1 max-w-4xl text-sm leading-6 text-zinc-600">
-              Importing an older JSON moves the four page-one field rectangles into
-              the M&amp;B page automatically. Existing graph points, guide lines and
-              page-two fields are preserved.
+              Older take-off and landing column, row and grid-confirmation captures
+              are converted to the current automatic-grid format. Existing Form page
+              1 and M&amp;B coordinates are also retained. Starting blank clears every
+              take-off, landing, climb, OEI and cruise mapping together.
             </p>
           </div>
 
@@ -292,8 +324,9 @@ export function P2006TSourceMapperShellV11() {
           </span>
           {summary ? (
             <span className="rounded-full bg-white px-3 py-1 font-semibold">
-              {summary.source}: {summary.kept} kept · {summary.migrated} moved to
-              page 1 · {summary.removed} removed
+              {summary.source}: {summary.kept} kept · {summary.performanceMigrated}{" "}
+              performance grids restored · {summary.migrated} moved to page 1 ·{" "}
+              {summary.removed} obsolete items removed
             </span>
           ) : null}
         </div>

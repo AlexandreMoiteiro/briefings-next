@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { P2006TMissionClient } from "./p2006t-mission-client";
-import { StandardAircraftClientV3 } from "./standard-aircraft-client-v3";
+import { StandardAircraftClientV4 } from "./standard-aircraft-client-v4";
 
 type PerformanceMode = "P2006T" | "P2008" | "PA28";
 
@@ -39,10 +39,10 @@ export function PerformanceRouterClient() {
 
       {mode === "P2006T" ? <P2006TMissionClient /> : null}
       {mode === "P2008" ? (
-        <StandardAircraftClientV3 aircraft="Tecnam P2008" />
+        <StandardAircraftClientV4 aircraft="Tecnam P2008" />
       ) : null}
       {mode === "PA28" ? (
-        <StandardAircraftClientV3 aircraft="Piper PA-28" />
+        <StandardAircraftClientV4 aircraft="Piper PA-28" />
       ) : null}
     </div>
   );

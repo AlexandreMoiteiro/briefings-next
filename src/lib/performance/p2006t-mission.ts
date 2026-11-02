@@ -2,8 +2,8 @@ import type { P2006TFleetAircraft } from "@/lib/performance/p2006t-fleet";
 
 export const P2006T_FUEL = {
   totalCapacityL: 200,
-  usableCapacityL: 194.4,
-  unusableFuelL: 5.6,
+  usableCapacityL: 200,
+  unusableFuelL: 0,
   densityKgL: 0.72,
   armM: 0.755,
 } as const;
@@ -115,11 +115,7 @@ function fuelForMinutes(minutes: number, rateLh: number) {
 }
 
 export function usableFuelFromTotal(totalFuelInTanksL: number) {
-  return clamp(
-    Number(totalFuelInTanksL || 0) - P2006T_FUEL.unusableFuelL,
-    0,
-    P2006T_FUEL.usableCapacityL
-  );
+  return clamp(Number(totalFuelInTanksL || 0), 0, P2006T_FUEL.totalCapacityL);
 }
 
 export function calculateP2006TFuelPlan(
@@ -150,7 +146,7 @@ export function calculateP2006TFuelPlan(
 
   return {
     usableLoadedL,
-    unusableFuelL: P2006T_FUEL.unusableFuelL,
+    unusableFuelL: 0,
     taxiFuelL,
     climbFuelL,
     enrouteFuelL,
@@ -217,7 +213,8 @@ export function calculateP2006TMission({
     fuelTimes,
     rates
   );
-  const frontKg = Math.max(0, loading.studentKg) + Math.max(0, loading.instructorKg);
+  const frontKg =
+    Math.max(0, loading.studentKg) + Math.max(0, loading.instructorKg);
   const zeroFuelMassKg =
     Math.max(0, loading.emptyMassKg) +
     frontKg +
@@ -271,9 +268,7 @@ export function calculateP2006TMission({
     );
   }
   if (zeroFuelMassKg > maximumZeroFuelMassKg) {
-    warnings.push(
-      `Zero-fuel mass exceeds ${maximumZeroFuelMassKg} kg.`
-    );
+    warnings.push(`Zero-fuel mass exceeds ${maximumZeroFuelMassKg} kg.`);
   }
   for (const point of points) {
     if (!point.withinMassLimit) {
@@ -289,7 +284,9 @@ export function calculateP2006TMission({
   }
   if (!fuel.fuelSufficient) {
     warnings.push(
-      `Usable fuel is short by ${whole(fuel.requiredUsableFuelL - fuel.usableLoadedL)} L.`
+      `Fuel is short by ${whole(
+        fuel.requiredUsableFuelL - fuel.usableLoadedL
+      )} L.`
     );
   }
 

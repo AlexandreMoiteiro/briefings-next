@@ -13,13 +13,13 @@ export const navlogAircraftProfiles = {
   ...baseProfiles,
   "Tecnam P2006T": {
     ...baseProfiles["Tecnam P2006T"],
-    startEfob: 194,
+    startEfob: 200,
   },
 };
 
 export const navlogDefaultSetup: NavlogSetupForm = {
   ...baseDefaultSetup,
-  startEfob: 194,
+  startEfob: 200,
 };
 
 const blankCustomProfile = {
