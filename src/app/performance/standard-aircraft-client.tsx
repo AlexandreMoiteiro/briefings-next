@@ -39,6 +39,7 @@ import {
   buildP2008PerformancePdfV2,
   downloadP2008PerformancePdfV2,
 } from "@/lib/pdf/p2008-performance-pdf-v2";
+import { RunwayAssessmentCard } from "./runway-assessment-card";
 
 const INITIAL_LEGS: PerformanceLegInput[] = [
   { role: "Departure", icao: "LPSO", tempC: 15, qnhHpa: 1013, windFrom: 240, windKt: 8, forecastHourUtc: 9 },
@@ -85,36 +86,6 @@ function NumberField({
         className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
       />
     </label>
-  );
-}
-
-function ComplianceBadge({
-  label,
-  requiredM,
-  availableM,
-}: {
-  label: string;
-  requiredM: number;
-  availableM: number;
-}) {
-  const omRequiredM = whole(requiredM * 1.25);
-  const compliant = availableM >= omRequiredM;
-  return (
-    <div
-      className={[
-        "rounded-xl border p-3 text-xs",
-        compliant
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-800",
-      ].join(" ")}
-    >
-      <p className="font-semibold">
-        {label}: {compliant ? "COMPLIANT" : "NOT COMPLIANT"}
-      </p>
-      <p className="mt-1">
-        POH {whole(requiredM)} m · 125% {omRequiredM} m · available {whole(availableM)} m
-      </p>
-    </div>
   );
 }
 
@@ -223,6 +194,7 @@ export function StandardAircraftClient({
     role: PerformanceLegRole,
     patch: Partial<PerformanceLegInput>
   ) {
+    setWeatherStatus("");
     setLegs((current) =>
       current.map((leg) => (leg.role === role ? { ...leg, ...patch } : leg))
     );
@@ -336,42 +308,37 @@ export function StandardAircraftClient({
 
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl border border-sky-200 bg-sky-50 p-5 shadow-sm">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+      <section className="rounded-3xl border border-sky-200 bg-sky-50/60 p-5 shadow-sm">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <h2 className="text-xl font-semibold text-zinc-950">Weather</h2>
+            <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">01 · Flight conditions</p>
+            <h2 className="mt-1 text-xl font-semibold text-zinc-950">Date, aerodromes & weather</h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Load the forecast or edit each aerodrome manually.
+              First select when and where you fly. Then update the weather for those choices.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={updateWeather}
-            disabled={weatherBusy || !date}
-            className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
-          >
-            {weatherBusy ? "Updating..." : "Update weather"}
-          </button>
+          <span className="rounded-xl border border-sky-200 bg-white px-3 py-2 text-xs text-sky-800">Forecasts are planning inputs · verify before flight</span>
         </div>
-        <label className="mt-4 block max-w-xs space-y-1">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
-            Flight date
-          </span>
-          <input
-            type="date"
-            value={date}
-            onChange={(event) => setDate(event.target.value)}
-            className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm"
-          />
-        </label>
-        <div className="mt-4 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 rounded-2xl border border-sky-200 bg-white p-4">
+          <label className="block min-w-0 flex-1 space-y-1 sm:max-w-xs">
+            <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">1 · Flight date</span>
+            <input
+              type="date"
+              value={date}
+              onChange={(event) => { setDate(event.target.value); setWeatherStatus(""); }}
+              className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm"
+            />
+          </label>
+        </div>
+        <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-sky-800">2 · Select aerodromes and expected UTC times</p>
+        <div className="mt-2 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {legs.map((leg) => {
             const result = performanceResults.find(
               (item) => item.leg.role === leg.role
             );
             return (
               <div key={leg.role} className="rounded-2xl border border-sky-200 bg-white p-4">
-                <p className="font-semibold text-zinc-950">{roleLabel(leg.role)}</p>
+                <p className="text-sm font-bold text-zinc-950">{roleLabel(leg.role)}</p>
                 <div className="mt-3 grid gap-3 sm:grid-cols-2">
                   <label className="space-y-1 sm:col-span-2">
                     <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">ICAO</span>
@@ -388,11 +355,23 @@ export function StandardAircraftClient({
                     </select>
                   </label>
                   <NumberField label="UTC hour" value={leg.forecastHourUtc ?? 9} min={0} max={23} onChange={(value) => updateLeg(leg.role, { forecastHourUtc: value })} />
-                  <NumberField label="Temperature C" value={leg.tempC} onChange={(value) => updateLeg(leg.role, { tempC: value })} />
-                  <NumberField label="QNH hPa" value={leg.qnhHpa} min={900} max={1050} onChange={(value) => updateLeg(leg.role, { qnhHpa: value })} />
-                  <NumberField label="Wind from" value={leg.windFrom} min={0} max={360} step={10} onChange={(value) => updateLeg(leg.role, { windFrom: value })} />
-                  <NumberField label="Wind kt" value={leg.windKt} min={0} onChange={(value) => updateLeg(leg.role, { windKt: value })} />
                 </div>
+                <div className="mt-4 rounded-xl bg-zinc-50 p-3 text-xs text-zinc-600">
+                  <span className="block font-semibold text-zinc-900">Current weather inputs</span>
+                  <span className="mt-1 block">{leg.tempC} °C · QNH {leg.qnhHpa} hPa</span>
+                  <span className="block">Wind {String(leg.windFrom).padStart(3, "0")}° / {leg.windKt} kt</span>
+                </div>
+                <details className="group mt-3 rounded-xl border border-zinc-200">
+                  <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-semibold text-zinc-700">
+                    <span>Edit weather inputs manually</span><span className="text-zinc-400 group-open:rotate-180">⌄</span>
+                  </summary>
+                  <div className="grid gap-3 border-t border-zinc-100 p-3 sm:grid-cols-2">
+                    <NumberField label="Temperature °C" value={leg.tempC} onChange={(value) => updateLeg(leg.role, { tempC: value })} />
+                    <NumberField label="QNH hPa" value={leg.qnhHpa} min={900} max={1050} onChange={(value) => updateLeg(leg.role, { qnhHpa: value })} />
+                    <NumberField label="Wind from °" value={leg.windFrom} min={0} max={360} step={10} onChange={(value) => updateLeg(leg.role, { windFrom: value })} />
+                    <NumberField label="Wind kt" value={leg.windKt} min={0} onChange={(value) => updateLeg(leg.role, { windKt: value })} />
+                  </div>
+                </details>
                 {result?.bestRunway ? (
                   <p className="mt-3 text-xs text-zinc-500">
                     RWY {result.bestRunway.id} · PA {whole(result.pressureAltitudeFt)} ft · slope {(result.bestRunway.slope_pc ?? 0).toFixed(1)}%
@@ -402,11 +381,27 @@ export function StandardAircraftClient({
             );
           })}
         </div>
-        {weatherStatus ? <p className="mt-3 text-sm text-zinc-600">{weatherStatus}</p> : null}
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-zinc-900">3 · Load the forecast</p>
+            <p className="mt-1 text-xs text-zinc-600">Uses the selected date, aerodromes and UTC hours. You can still adjust individual values above.</p>
+          </div>
+          <button
+            type="button"
+            onClick={updateWeather}
+            disabled={weatherBusy || !date}
+            className="shrink-0 rounded-xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
+          >
+            {weatherBusy ? "Updating..." : "Update weather"}
+          </button>
+        </div>
+        {weatherStatus ? <p role="status" className="mt-3 rounded-xl bg-white px-3 py-2 text-sm text-sky-900">{weatherStatus}</p> : <p className="mt-3 text-xs text-amber-800">Initial weather numbers are placeholders. Use “Update weather” or enter verified values manually before relying on the calculation.</p>}
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold text-zinc-950">Aircraft and loading</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">02 · Mass & balance</p>
+        <h2 className="mt-1 text-xl font-semibold text-zinc-950">Aircraft and loading</h2>
+        <p className="mt-1 text-sm text-zinc-500">Set the registration, occupants and fuel on board. The calculated masses update below.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <label className="space-y-1">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">Registration</span>
@@ -463,7 +458,9 @@ export function StandardAircraftClient({
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold text-zinc-950">Fuel planning</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">03 · Fuel</p>
+        <h2 className="mt-1 text-xl font-semibold text-zinc-950">Fuel planning</h2>
+        <p className="mt-1 text-sm text-zinc-500">Enter expected time in each phase. Required fuel, reserve and extra fuel are calculated separately.</p>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <NumberField label="Consumption L/h" value={fuelPlan.rateLh} min={0} step={0.5} onChange={(value) => updateFuelPlan("rateLh", value)} />
           <NumberField label="Taxi min" value={fuelPlan.taxiMin} min={0} onChange={(value) => updateFuelPlan("taxiMin", value)} />
@@ -489,28 +486,19 @@ export function StandardAircraftClient({
       </section>
 
       <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm">
-        <h2 className="text-xl font-semibold text-zinc-950">Aerodrome performance</h2>
+        <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">04 · Runway checks</p>
+        <h2 className="mt-1 text-xl font-semibold text-zinc-950">Aerodrome & runway limits</h2>
+        <p className="mt-1 max-w-3xl text-sm text-zinc-500">The main check follows the flight: <strong>takeoff at departure</strong>, <strong>landing at destination and alternates</strong>. The other calculation remains available under each card.</p>
+        <div className="mt-3 rounded-xl border border-sky-100 bg-sky-50 p-3 text-xs leading-5 text-sky-900">
+          <strong>How to read this:</strong> “Required” includes a 25% margin over the calculated POH distance. Compare it with the runway distance available (TODA for takeoff, LDA for landing). “Remaining” is the margin still available. Always verify runway data and the approved aircraft procedure.
+        </div>
         <div className="mt-4 grid gap-4 md:grid-cols-2">
           {aircraft === "Piper PA-28"
             ? pa28Rows.map((row) => (
-                <div key={`${row.role}-${row.icao}`} className="rounded-2xl border border-zinc-200 p-4">
-                  <p className="font-semibold text-zinc-950">{roleLabel(row.role)} · {row.icao}</p>
-                  <p className="mt-1 text-sm text-zinc-500">RWY {row.runway} · PA {whole(row.paFt)} ft</p>
-                  <div className="mt-3 grid gap-2">
-                    <ComplianceBadge label="Takeoff" requiredM={row.toM} availableM={row.todaM} />
-                    <ComplianceBadge label="Landing" requiredM={row.ldgM} availableM={row.ldaM} />
-                  </div>
-                </div>
+                <RunwayAssessmentCard key={`${row.role}-${row.icao}`} role={row.role} icao={row.icao} runway={row.runway} paFt={row.paFt} takeoffM={row.toM} landingM={row.ldgM} todaM={row.todaM} ldaM={row.ldaM} />
               ))
             : tecnamRows.map((row) => (
-                <div key={`${row.role}-${row.icao}`} className="rounded-2xl border border-zinc-200 p-4">
-                  <p className="font-semibold text-zinc-950">{roleLabel(row.role)} · {row.icao}</p>
-                  <p className="mt-1 text-sm text-zinc-500">RWY {row.runway} · PA {whole(row.paFt)} ft</p>
-                  <div className="mt-3 grid gap-2">
-                    <ComplianceBadge label="Takeoff" requiredM={row.takeoff50M} availableM={row.todaM} />
-                    <ComplianceBadge label="Landing" requiredM={row.landing50M} availableM={row.ldaM} />
-                  </div>
-                </div>
+                <RunwayAssessmentCard key={`${row.role}-${row.icao}`} role={row.role} icao={row.icao} runway={row.runway} paFt={row.paFt} takeoffM={row.takeoff50M} landingM={row.landing50M} todaM={row.todaM} ldaM={row.ldaM} />
               ))}
         </div>
       </section>

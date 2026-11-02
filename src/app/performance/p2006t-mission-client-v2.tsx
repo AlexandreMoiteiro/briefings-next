@@ -47,6 +47,7 @@ import {
   downloadP2006TPerformancePdfV3,
   type P2006TPdfOptions,
 } from "@/lib/pdf/p2006t-performance-pdf-v3";
+import { RunwayAssessmentCard } from "./runway-assessment-card";
 
 const INITIAL_LEGS: PerformanceLegInput[] = [
   {
@@ -232,38 +233,6 @@ function Toggle({
   );
 }
 
-function Compliance({
-  label,
-  available,
-  calculated,
-}: {
-  label: string;
-  available: number;
-  calculated: number;
-}) {
-  const required = whole(calculated * 1.25);
-  const used = whole((required / Math.max(1, available)) * 100);
-  const ok = available >= required;
-  return (
-    <div
-      className={[
-        "rounded-xl border px-3 py-2 text-xs",
-        ok
-          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-          : "border-red-200 bg-red-50 text-red-800",
-      ].join(" ")}
-    >
-      <p className="font-semibold">
-        {label}: {ok ? "COMPLIANT" : "NOT COMPLIANT"}
-      </p>
-      <p className="mt-1">
-        {required} m with 25% margin · {whole(available)} m available · about{" "}
-        {used}% of the runway
-      </p>
-    </div>
-  );
-}
-
 export function P2006TMissionClientV2() {
   const [registration, setRegistration] =
     useState<P2006TRegistration>("D-GSEV");
@@ -399,6 +368,7 @@ export function P2006TMissionClientV2() {
     role: PerformanceLegRole,
     patch: Partial<PerformanceLegInput>
   ) {
+    setWeatherStatus("");
     setLegs((current) =>
       current.map((leg) => (leg.role === role ? { ...leg, ...patch } : leg))
     );
@@ -496,19 +466,10 @@ export function P2006TMissionClientV2() {
   return (
     <div className="space-y-6">
       <Card
-        title="Weather"
-        subtitle="Load the aerodrome forecast and the approximate temperature at the planned cruise level before checking performance."
-        action={
-          <button
-            type="button"
-            onClick={updateWeather}
-            disabled={weatherBusy}
-            className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300"
-          >
-            {weatherBusy ? "Updating..." : "Update weather"}
-          </button>
-        }
+        title="01 · Date, aerodromes & weather"
+        subtitle="Start by setting the flight date, cruise level, aerodromes and UTC hours. Fetch the corresponding forecast only after those selections."
       >
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-sky-700">1 · Date & cruise assumptions</p>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
           <label className="space-y-1.5">
             <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
@@ -517,7 +478,7 @@ export function P2006TMissionClientV2() {
             <input
               type="date"
               value={date}
-              onChange={(event) => setDate(event.target.value)}
+              onChange={(event) => { setDate(event.target.value); setWeatherStatus(""); }}
               className="w-full rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-sm"
             />
           </label>
@@ -566,7 +527,8 @@ export function P2006TMissionClientV2() {
           />
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        <p className="mb-2 mt-5 text-xs font-semibold uppercase tracking-wider text-sky-700">2 · Aerodromes & expected UTC times</p>
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {legs.map((leg) => (
             <div
               key={leg.role}
@@ -608,36 +570,35 @@ export function P2006TMissionClientV2() {
                     patchLeg(leg.role, { forecastHourUtc: value })
                   }
                 />
-                <NumberField
-                  label="OAT C"
-                  value={leg.tempC}
-                  onChange={(value) => patchLeg(leg.role, { tempC: value })}
-                />
-                <NumberField
-                  label="QNH"
-                  value={leg.qnhHpa}
-                  onChange={(value) => patchLeg(leg.role, { qnhHpa: value })}
-                />
-                <NumberField
-                  label="Wind from"
-                  value={leg.windFrom}
-                  min={0}
-                  max={360}
-                  onChange={(value) => patchLeg(leg.role, { windFrom: value })}
-                />
-                <NumberField
-                  label="Wind kt"
-                  value={leg.windKt}
-                  min={0}
-                  onChange={(value) => patchLeg(leg.role, { windKt: value })}
-                />
               </div>
+              <div className="mt-3 rounded-xl bg-white p-3 text-xs text-zinc-600">
+                <span className="block font-semibold text-zinc-900">Current inputs</span>
+                {leg.tempC} °C · QNH {leg.qnhHpa} hPa · Wind {String(leg.windFrom).padStart(3, "0")}°/{leg.windKt} kt
+              </div>
+              <details className="group mt-3 rounded-xl border border-zinc-200 bg-white">
+                <summary className="flex cursor-pointer list-none items-center justify-between px-3 py-2.5 text-xs font-semibold text-zinc-700">Edit weather inputs manually <span className="text-zinc-400 group-open:rotate-180">⌄</span></summary>
+                <div className="grid gap-3 border-t border-zinc-100 p-3 sm:grid-cols-2">
+                  <NumberField label="OAT °C" value={leg.tempC} onChange={(value) => patchLeg(leg.role, { tempC: value })} />
+                  <NumberField label="QNH hPa" value={leg.qnhHpa} onChange={(value) => patchLeg(leg.role, { qnhHpa: value })} />
+                  <NumberField label="Wind from °" value={leg.windFrom} min={0} max={360} onChange={(value) => patchLeg(leg.role, { windFrom: value })} />
+                  <NumberField label="Wind kt" value={leg.windKt} min={0} onChange={(value) => patchLeg(leg.role, { windKt: value })} />
+                </div>
+              </details>
             </div>
           ))}
         </div>
+        <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-sky-200 bg-sky-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-sky-950">3 · Fetch weather for this flight</p>
+            <p className="mt-1 text-xs text-sky-800">Uses the date, cruise altitude, aerodromes and UTC hours selected above.</p>
+          </div>
+          <button type="button" onClick={updateWeather} disabled={weatherBusy || !date} className="shrink-0 rounded-xl bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300">
+            {weatherBusy ? "Updating..." : "Update weather"}
+          </button>
+        </div>
         {weatherStatus ? (
-          <p className="mt-3 text-sm text-zinc-600">{weatherStatus}</p>
-        ) : null}
+          <p role="status" className="mt-3 text-sm text-sky-800">{weatherStatus}</p>
+        ) : <p className="mt-3 text-xs text-amber-800">Initial weather numbers are placeholders. Fetch a forecast or enter verified conditions before using the calculated limits.</p>}
       </Card>
 
       <Card
@@ -938,7 +899,7 @@ export function P2006TMissionClientV2() {
 
       <Card
         title="Aerodrome performance"
-        subtitle="The displayed runway percentage includes the 25% OM/POH planning margin."
+        subtitle="Follow the flight: takeoff at departure, landing at destination and alternates. Compare the calculated required distance (including the 25% planning margin) with TODA or LDA. Other checks are available on each card."
       >
         {calculating ? (
           <p className="text-sm text-zinc-500">Calculating...</p>
@@ -946,32 +907,18 @@ export function P2006TMissionClientV2() {
         <div className="grid gap-4 md:grid-cols-2">
           {results.map((result) =>
             result.ok ? (
-              <div
+              <RunwayAssessmentCard
                 key={result.role}
-                className="rounded-2xl border border-zinc-200 p-4"
-              >
-                <p className="font-semibold text-zinc-950">
-                  {roleLabel(result.role)} · {result.icao} · RWY{" "}
-                  {result.runway}
-                </p>
-                <p className="mt-1 text-sm text-zinc-500">
-                  {whole(result.takeoffWeightKg)} kg · PA{" "}
-                  {whole(result.paFt)} ft · OAT {whole(result.oatC)} C · wind{" "}
-                  {whole(result.windFrom)}/{whole(result.windKt)} kt
-                </p>
-                <div className="mt-3 grid gap-2">
-                  <Compliance
-                    label="Takeoff"
-                    available={result.todaM}
-                    calculated={result.takeoff50M}
-                  />
-                  <Compliance
-                    label="Landing"
-                    available={result.ldaM}
-                    calculated={result.landing50M}
-                  />
-                </div>
-              </div>
+                role={result.role}
+                icao={result.icao}
+                runway={result.runway}
+                paFt={result.paFt}
+                takeoffM={result.takeoff50M}
+                landingM={result.landing50M}
+                todaM={result.todaM}
+                ldaM={result.ldaM}
+                detail={`${whole(result.takeoffWeightKg)} kg · OAT ${whole(result.oatC)} °C · wind ${whole(result.windFrom)}°/${whole(result.windKt)} kt`}
+              />
             ) : (
               <div
                 key={result.role}

@@ -253,11 +253,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [setup, setSetup] = useState<NavlogSetupForm>(initialProfile);
   const [navlogData, setNavlogData] = useState<NavlogDataBundle | null>(null);
   const [perfectRoutes, setPerfectRoutes] = useState<PerfectRoute[]>([]);
+  const [routeLibraryAvailable, setRouteLibraryAvailable] = useState(true);
   const [dataError, setDataError] = useState<string | null>(null);
 
   const [composerMode, setComposerMode] = useState<ComposerMode>("saved");
   const [reviewMode, setReviewMode] = useState<ReviewMode>("waypoints");
-  const [showLayers, setShowLayers] = useState(false);
   const [showPerformance, setShowPerformance] = useState(false);
   const [manualMapClickEnabled, setManualMapClickEnabled] = useState(false);
   const [windConfirmed, setWindConfirmed] = useState(false);
@@ -324,7 +324,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       try {
         const [data, routes] = await Promise.all([
           loadAllNavlogData(),
-          loadSupabasePerfectRoutes(),
+          loadSupabasePerfectRoutes().catch((error: unknown) => {
+            console.warn("Saved route library is unavailable:", error);
+            if (!cancelled) setRouteLibraryAvailable(false);
+            return [] as PerfectRoute[];
+          }),
         ]);
         if (cancelled) return;
         setNavlogData(data);
@@ -876,8 +880,13 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   return (
     <div className="navlog-studio space-y-5">
       <section className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
-        <div className="grid gap-px overflow-hidden rounded-t-2xl bg-zinc-200 sm:grid-cols-2 lg:grid-cols-6">
-          <div className="bg-white p-3 lg:col-span-1">
+        <div className="border-b border-zinc-200 px-4 py-4 sm:px-5">
+          <p className="text-xs font-bold uppercase tracking-wider text-sky-700">01 · Flight setup</p>
+          <h2 className="mt-1 text-xl font-semibold text-zinc-950">Set up the flight before building the route</h2>
+          <p className="mt-1 text-sm text-zinc-500">Start time, fuel, time on the ground and wind all affect the NavLog totals. Review these values first.</p>
+        </div>
+        <div className="grid gap-px overflow-hidden bg-zinc-200 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="bg-white p-4">
             <FieldLabel>Registration</FieldLabel>
             {isCustomAircraft ? (
               <input
@@ -912,7 +921,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             )}
           </div>
 
-          <label className="bg-white p-3">
+          <label className="bg-white p-4">
             <FieldLabel>Callsign</FieldLabel>
             <input
               value={setup.callsign}
@@ -921,7 +930,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             />
           </label>
 
-          <label className="bg-white p-3">
+          <label className="bg-white p-4">
             <FieldLabel>Off-block</FieldLabel>
             <input
               type="time"
@@ -929,10 +938,29 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               onChange={(event) => updateSetup("startClock", event.target.value)}
               className="h-10 w-full border-0 bg-transparent p-0 text-base font-semibold outline-none"
             />
+            <span className="mt-1 block text-[11px] text-zinc-500">Time leaving the parking stand (UTC).</span>
           </label>
 
-          <div className="bg-white p-3">
-            <FieldLabel>Start EFOB</FieldLabel>
+          <div className="bg-white p-4">
+            <FieldLabel>Ground / taxi time <HelpTip label="Ground time" text="Minutes between off-block and takeoff for startup, taxi and checks. They are added to block time, and corresponding fuel is subtracted from EFOB. Time spent over a waypoint is entered later in waypoint review." /></FieldLabel>
+            <div className="flex items-center gap-3">
+              <input
+                type="number"
+                min={0}
+                max={120}
+                step={1}
+                value={setup.taxiMin}
+                onChange={(event) => updateSetup("taxiMin", Math.max(0, Math.min(120, Number(event.target.value) || 0)))}
+                className="h-10 w-20 rounded-lg border border-zinc-200 bg-white px-3 text-base font-semibold tabular-nums outline-none focus:border-sky-500"
+              />
+              <span className="text-sm text-zinc-500">min</span>
+              <button type="button" onClick={() => updateSetup("taxiMin", initialProfile.taxiMin)} disabled={setup.taxiMin === initialProfile.taxiMin} className="ml-auto text-xs font-medium text-sky-800 underline-offset-2 hover:underline disabled:opacity-30">Reset</button>
+            </div>
+            <p className="mt-1 text-[11px] leading-4 text-zinc-500">Before takeoff · included in block time and fuel.</p>
+          </div>
+
+          <div className="bg-white p-4">
+            <FieldLabel>Start EFOB <HelpTip label="Start EFOB" text="Estimated fuel on board at off-block. Enter actual usable fuel in litres. The NavLog subtracts taxi, route and time-over consumption to estimate the fuel remaining at each point." /></FieldLabel>
             <div className="flex items-center gap-2">
               <input
                 type="number"
@@ -944,9 +972,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               />
               <span className="text-xs text-zinc-400">L</span>
             </div>
+            <p className="mt-1 text-[11px] leading-4 text-zinc-500">Usable fuel at off-block · before taxi.</p>
           </div>
 
-          <div className="bg-white p-3 lg:col-span-2">
+          <div className="bg-white p-4">
             <div className="flex items-center justify-between gap-3">
               <FieldLabel>
                 Route wind
@@ -1012,45 +1041,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
         ) : null}
 
-        <div className="border-t border-sky-200 bg-sky-50 px-4 py-4 sm:px-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <p className="text-sm font-bold text-sky-950">Ground / taxi allowance</p>
-              <p className="mt-1 text-xs leading-5 text-sky-800">
-                Time before takeoff. Included in the calculated block time and fuel burn.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <label className="flex items-center gap-2 rounded-xl border border-sky-300 bg-white px-3 py-2 shadow-sm">
-                <span className="sr-only">Ground / taxi allowance in minutes</span>
-                <input
-                  type="number"
-                  min={0}
-                  max={120}
-                  step={1}
-                  value={setup.taxiMin}
-                  onChange={(event) =>
-                    updateSetup("taxiMin", Math.max(0, Math.min(120, Number(event.target.value) || 0)))
-                  }
-                  className="w-16 border-0 bg-transparent text-right text-lg font-bold tabular-nums text-sky-950 outline-none"
-                />
-                <span className="text-sm font-medium text-sky-700">min</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => updateSetup("taxiMin", initialProfile.taxiMin)}
-                disabled={setup.taxiMin === initialProfile.taxiMin}
-                className="rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs font-semibold text-sky-800 transition hover:border-sky-400 disabled:cursor-default disabled:opacity-40"
-              >
-                Reset to {initialProfile.taxiMin} min
-              </button>
-            </div>
-          </div>
-        </div>
-
         <details className="group border-t border-zinc-200">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-            <span>More mission details & aircraft assumptions</span>
+            <span>Optional flight details & aircraft assumptions <span className="ml-2 hidden text-xs font-normal text-zinc-500 sm:inline">Cruise TAS {setup.cruiseTas} kt · Fuel flow {setup.fuelFlowLh} L/h · ROC {setup.rocFpm} ft/min</span></span>
             <span className="text-zinc-400 transition group-open:rotate-180">⌄</span>
           </summary>
           <div className="border-t border-zinc-100 bg-zinc-50/70 p-4">
@@ -1092,7 +1085,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 pt-4">
               <div>
                 <p className="text-sm font-semibold text-zinc-900">Aircraft assumptions</p>
-                <p className="text-xs text-zinc-500">TAS, common fuel flow and climb/descent rates. Ground/taxi time is editable above.</p>
+                <p className="text-xs text-zinc-500">TAS, common fuel flow and climb/descent rates. These assumptions change NavLog times and fuel.</p>
               </div>
               <button type="button" onClick={() => setShowPerformance((value) => !value)} className="rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700">
                 {showPerformance ? "Hide assumptions" : "Edit assumptions"}
@@ -1126,8 +1119,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
         <div className="border-b border-zinc-200 p-4 sm:p-5">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
-              <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Route studio</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Build your route</h2>
+              <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">02 · Route</p>
+              <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Choose or build your route</h2>
+              <p className="mt-1 text-sm text-zinc-500">Start from a saved route, paste an Item 15 route, or find and add individual waypoints. You can combine these methods.</p>
             </div>
             <div className="grid grid-cols-5 gap-px overflow-hidden rounded-xl bg-zinc-200 text-center text-xs">
               <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">WP</span><strong>{routeWaypoints.length}</strong></div>
@@ -1139,16 +1133,16 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
           </div>
 
           <div className="mt-4 grid gap-1 rounded-2xl bg-zinc-50 p-1 md:grid-cols-3">
-            <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type an Item 15 route" onClick={() => setComposerMode("text")} />
-            <ComposerTab active={composerMode === "search"} label="Find point" description="Search navigation points" onClick={() => setComposerMode("search")} />
             <ComposerTab
               active={composerMode === "saved"}
               label="Saved routes"
-              description="Open your route library"
+              description="Choose an existing route"
               badge={perfectRoutes.length}
               featured
               onClick={() => setComposerMode("saved")}
             />
+            <ComposerTab active={composerMode === "text"} label="Route text" description="Paste or type an Item 15 route" onClick={() => setComposerMode("text")} />
+            <ComposerTab active={composerMode === "search"} label="Find point / NAVAID" description="Search and add a waypoint" onClick={() => setComposerMode("search")} />
           </div>
 
           {composerMode === "text" ? (
@@ -1200,6 +1194,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                       {perfectRoutes.length} saved
                     </span>
                   </div>
+                  {!routeLibraryAvailable ? (
+                    <div className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-900">The shared route library is unavailable in this environment. You can still build a route using “Route text” or “Find point / NAVAID”.</div>
+                  ) : null}
                   <input value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search routes…" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
                   <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-zinc-200">
                     {filteredPerfectRoutes.length === 0 ? (
@@ -1219,12 +1216,12 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                   <FieldLabel>Save current route</FieldLabel>
                   <input value={routeSaveName} onChange={(event) => setRouteSaveName(event.target.value)} placeholder="Route name" className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm" />
                   <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={createSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2} className="rounded-lg bg-zinc-950 px-2 py-2 text-xs font-semibold text-white disabled:bg-zinc-300">Save new</button>
-                    <button type="button" onClick={updateSavedRoute} disabled={routeSaveBusy || !selectedRouteId || routeWaypoints.length < 2} className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-xs font-semibold disabled:opacity-40">Update</button>
+                    <button type="button" onClick={createSavedRoute} disabled={!routeLibraryAvailable || routeSaveBusy || routeWaypoints.length < 2} className="rounded-lg bg-zinc-950 px-2 py-2 text-xs font-semibold text-white disabled:bg-zinc-300">Save new</button>
+                    <button type="button" onClick={updateSavedRoute} disabled={!routeLibraryAvailable || routeSaveBusy || !selectedRouteId || routeWaypoints.length < 2} className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-xs font-semibold disabled:opacity-40">Update</button>
                   </div>
                   <p className="mt-2 text-xs leading-5 text-zinc-500">Selected: {selectedPerfectRoute?.name || "none"}</p>
                   {routeSaveStatus ? <p className="mt-2 text-xs font-medium text-zinc-700">{routeSaveStatus}</p> : null}
-                  <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy || !selectedRouteId} className="mt-3 text-xs font-medium text-red-600 disabled:opacity-30">Delete selected saved route</button>
+                  <button type="button" onClick={deleteSavedRoute} disabled={!routeLibraryAvailable || routeSaveBusy || !selectedRouteId} className="mt-3 text-xs font-medium text-red-600 disabled:opacity-30">Delete selected saved route</button>
                 </div>
               </div>
             </div>
@@ -1253,25 +1250,28 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             </div>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => updateSetup("showReferencePoints", !setup.showReferencePoints)} className={["rounded-xl border px-3 py-2 text-sm font-medium", setup.showReferencePoints ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-700"].join(" ")}>
-              Reference points {setup.showReferencePoints ? "on" : "off"}
-            </button>
-            <button type="button" onClick={() => setShowLayers((value) => !value)} className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700">Layers {showLayers ? "▴" : "▾"}</button>
-          </div>
+          <p className="max-w-sm text-xs leading-5 text-zinc-600">The map below shows the working route. Select reference layers just below to reveal NAVAIDs and other nearby points.</p>
         </div>
 
-        {showLayers ? (
-          <div className="flex flex-wrap items-center gap-2 border-b border-zinc-200 bg-white px-4 py-3">
-            <span className="mr-1 text-xs font-semibold uppercase tracking-wide text-zinc-400">Reference layers</span>
+        <div className="border-b border-zinc-200 bg-white px-4 py-4">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="mr-2 min-w-52">
+              <p className="text-sm font-semibold text-zinc-900">Map references & NAVAIDs</p>
+              <p className="text-[11px] text-zinc-500">Choose what to display around your route.</p>
+            </div>
+            <label className="flex items-center gap-2 rounded-full border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-medium text-zinc-700">
+              <input type="checkbox" checked={setup.showReferencePoints} onChange={(event) => updateSetup("showReferencePoints", event.target.checked)} />
+              Show reference points
+            </label>
             {navlogReferenceLayers.map((layer) => (
-              <label key={layer} className="flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-1.5 text-xs font-medium text-zinc-700">
-                <input type="checkbox" checked={setup.referenceLayers.includes(layer)} onChange={(event) => toggleReferenceLayer(layer, event.target.checked)} />
-                {layer}
+              <label key={layer} className="flex items-center gap-2 rounded-full border border-zinc-200 px-3 py-2 text-xs font-medium text-zinc-700">
+                <input type="checkbox" checked={setup.referenceLayers.includes(layer)} onChange={(event) => toggleReferenceLayer(layer, event.target.checked)} disabled={!setup.showReferencePoints} />
+                {layer === "VOR" ? "VOR / NAVAIDs" : layer}
               </label>
             ))}
           </div>
-        ) : null}
+          <p className="mt-2 text-xs text-sky-800"><strong>Map display only:</strong> enabling VOR/IFR/VFR here does not add points to your route. To use a NAVAID as a waypoint, choose “Find point / NAVAID” above. To set a VOR reference for a leg, use the waypoint review below.</p>
+        </div>
 
         {manualMapClickEnabled ? (
           <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2 text-center text-xs font-medium text-emerald-800">
@@ -1316,8 +1316,8 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
         <div className="flex flex-col gap-4 border-b border-zinc-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Review</p>
-            <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Working route & calculated NavLog</h2>
+            <p className="text-xs font-semibold uppercase tracking-wider text-sky-700">03 · Review & export</p>
+            <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Review waypoints, optional alternate & NavLog</h2>
             <p className="mt-1 truncate text-sm text-zinc-500">Item 15: {routeItem15(routeWaypoints) || "—"}</p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -1335,6 +1335,41 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             Wind is not confirmed. Heading, groundspeed, ETE and EFOB values should be reviewed after confirming the route wind.
           </div>
         ) : null}
+
+        <div className="border-b border-zinc-200 bg-sky-50/50 p-4 sm:p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-base font-semibold text-zinc-950">Alternate route planning</p>
+                <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-sky-800">Optional</span>
+              </div>
+              <p className="mt-1 text-sm leading-6 text-zinc-700">An alternate is an aerodrome you can divert to if landing at your destination is not possible. Add the alternate as the next part of your route, then mark the <strong>destination/decision point</strong> where that diversion begins.</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-600">The app then estimates how long you can hold at that point while keeping enough fuel to reach the alternate plus a 45-minute final reserve. This is a fuel-planning aid; it does not determine if an alternate is legally or operationally required.</p>
+            </div>
+            <label className="w-full shrink-0 space-y-1 lg:w-64">
+              <span className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Diversion starts after...</span>
+              <select
+                value={routeWaypoints.find((waypoint) => waypoint.alternateMarker)?.id ?? ""}
+                disabled={routeWaypoints.length < 3}
+                onChange={(event) => {
+                  const selectedId = event.target.value;
+                  const currentId = routeWaypoints.find((waypoint) => waypoint.alternateMarker)?.id;
+                  if (selectedId && selectedId !== currentId) toggleAlternateMarker(selectedId);
+                  if (!selectedId && currentId) toggleAlternateMarker(currentId);
+                }}
+                className="w-full rounded-xl border border-sky-200 bg-white px-3 py-2.5 text-sm font-medium text-zinc-900 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                <option value="">No alternate selected</option>
+                {routeWaypoints.slice(0, -1).map((waypoint, index) => (
+                  <option key={waypoint.id} value={waypoint.id}>{index + 1} · {waypoint.point.code || waypoint.point.name || "Waypoint"}</option>
+                ))}
+              </select>
+              <span className="block text-[11px] leading-5 text-zinc-500">
+                {routeWaypoints.length < 3 ? "Add at least three waypoints (departure, destination, alternate) to enable this." : "Leave as ‘No alternate’ if this check is not needed."}
+              </span>
+            </label>
+          </div>
+        </div>
 
         {alternatePlanning ? (
           <div className={["m-4 rounded-2xl border p-4 text-sm", holdMaxClass(alternatePlanning.status)].join(" ")}>
@@ -1355,7 +1390,14 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
         ) : null}
 
         {reviewMode === "waypoints" ? (
-          <div className="overflow-x-auto">
+          <div>
+            <div className="grid gap-3 border-b border-zinc-200 bg-white p-4 text-xs sm:grid-cols-3">
+              <div className="rounded-xl border border-zinc-200 p-3"><p className="font-bold text-zinc-900">Time over</p><p className="mt-1 leading-5 text-zinc-500">Extra time at a waypoint for circuits, local practice or waiting. Unlike ground/taxi time, it happens in flight and affects fuel on the following legs.</p></div>
+              <div className="rounded-xl border border-zinc-200 p-3"><p className="font-bold text-zinc-900">VOR reference</p><p className="mt-1 leading-5 text-zinc-500">AUTO picks a tracking reference. Choose FIXED to force a specific VOR for that waypoint. This affects the NavLog reference, not the map layers above.</p></div>
+              <div className="rounded-xl border border-zinc-200 p-3"><p className="font-bold text-zinc-900">TOC / TOD</p><p className="mt-1 leading-5 text-zinc-500">Top of climb / top of descent markers are added automatically when route altitude changes. Check rates in aircraft assumptions above.</p></div>
+            </div>
+            <p className="border-b border-zinc-100 px-4 py-2 text-[11px] text-zinc-500">Tip: the waypoint table scrolls horizontally on narrow screens. Each row lets you change altitude, time over, wind, VOR and notes.</p>
+            <div className="overflow-x-auto">
             {routeWaypoints.length === 0 ? (
               <div className="p-6 text-sm text-zinc-500">Build or load a route to edit its waypoints.</div>
             ) : (
@@ -1486,6 +1528,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 </tbody>
               </table>
             )}
+            </div>
           </div>
         ) : null}
 

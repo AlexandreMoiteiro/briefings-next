@@ -9,7 +9,6 @@ import {
   type P2006TDownloadMode,
 } from "@/lib/pdf/p2006t-download-mode";
 import { P2006TMissionClientV9 } from "./p2006t-mission-client-v9";
-import { enhanceAerodromePerformance } from "./aerodrome-performance-ui";
 
 const DOWNLOADS: Array<{
   mode: P2006TDownloadMode;
@@ -113,7 +112,6 @@ export function P2006TMissionClientV10() {
     if (!root) return;
 
     const sync = () => {
-      enhanceAerodromePerformance(root);
       hideUnusableFuel(root);
 
       const section = pdfSection(root);
