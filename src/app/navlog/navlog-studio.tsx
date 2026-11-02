@@ -919,6 +919,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 ))}
               </select>
             )}
+            <p className="mt-1 text-[11px] leading-4 text-zinc-500">Confirm this is the same aircraft used in Performance.</p>
           </div>
 
           <label className="bg-white p-4">
@@ -950,13 +951,14 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 max={120}
                 step={1}
                 value={setup.taxiMin}
+                aria-label="Ground and taxi time in minutes"
                 onChange={(event) => updateSetup("taxiMin", Math.max(0, Math.min(120, Number(event.target.value) || 0)))}
                 className="h-10 w-20 rounded-lg border border-zinc-200 bg-white px-3 text-base font-semibold tabular-nums outline-none focus:border-sky-500"
               />
               <span className="text-sm text-zinc-500">min</span>
               <button type="button" onClick={() => updateSetup("taxiMin", initialProfile.taxiMin)} disabled={setup.taxiMin === initialProfile.taxiMin} className="ml-auto text-xs font-medium text-sky-800 underline-offset-2 hover:underline disabled:opacity-30">Reset</button>
             </div>
-            <p className="mt-1 text-[11px] leading-4 text-zinc-500">Before takeoff · included in block time and fuel.</p>
+            <p className="mt-1 text-[11px] leading-4 text-zinc-500">Before takeoff · included in block time and fuel. Match the taxi time in Performance; values are entered separately.</p>
           </div>
 
           <div className="bg-white p-4">
@@ -1345,6 +1347,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               </div>
               <p className="mt-1 text-sm leading-6 text-zinc-700">An alternate is an aerodrome you can divert to if landing at your destination is not possible. Add the alternate as the next part of your route, then mark the <strong>destination/decision point</strong> where that diversion begins.</p>
               <p className="mt-1 text-xs leading-5 text-zinc-600">The app then estimates how long you can hold at that point while keeping enough fuel to reach the alternate plus a 45-minute final reserve. This is a fuel-planning aid; it does not determine if an alternate is legally or operationally required.</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-600">This is different from the alternate runway checks in Performance: those check landing distances, while this checks the fuel for the route to the alternate. Neither section automatically fills the other.</p>
             </div>
             <label className="w-full shrink-0 space-y-1 lg:w-64">
               <span className="block text-[11px] font-semibold uppercase tracking-wide text-zinc-600">Diversion starts after...</span>

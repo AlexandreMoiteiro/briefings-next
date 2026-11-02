@@ -41,7 +41,7 @@ function classifySection(value: string): SectionKind | null {
   }
   if (text.includes("m&b + performance")) return "reference";
   if (text.includes("fuel planning")) return "fuel";
-  if (text.includes("aerodrome performance")) return "aerodrome";
+  if (text.includes("aerodrome performance") || text.includes("aerodrome & runway limits")) return "aerodrome";
   if (
     text.includes("pdf contents") ||
     text.includes("pdf downloads") ||
@@ -72,9 +72,16 @@ function decoratePerformance(root: HTMLElement) {
     recognized.push(section);
 
     const title = SECTION_TITLES[kind];
-    if (title) {
+    const authoredHeading = heading.textContent?.trim() ?? "";
+    const preserveAuthoredTitle = /^\d+\s*·/.test(authoredHeading) ||
+      authoredHeading.includes("Date, aerodromes & weather") ||
+      authoredHeading.includes("Aerodrome & runway limits");
+    if (title && !preserveAuthoredTitle) {
       heading.dataset.performanceTitle = title;
       heading.setAttribute("aria-label", title);
+    } else {
+      delete heading.dataset.performanceTitle;
+      heading.removeAttribute("aria-label");
     }
   });
 
