@@ -23,12 +23,51 @@ function duplicateRoute(route: ManagedRoute): ManagedRoute {
 
 const textInput = "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 focus:border-zinc-900 focus:outline-none";
 
+function RoutePreview({ points }: { points: PerfectRouteWaypointRaw[] }) {
+  const projected = useMemo(() => {
+    const valid = points.filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon));
+    if (!valid.length) return [];
+    const avgLat = valid.reduce((sum, point) => sum + point.lat, 0) / valid.length;
+    const longitudeScale = Math.max(0.01, Math.cos(avgLat * Math.PI / 180));
+    const values = valid.map((point) => ({ x: point.lon * longitudeScale, y: -point.lat, code: point.code || point.name || "WP" }));
+    const minX = Math.min(...values.map((point) => point.x));
+    const maxX = Math.max(...values.map((point) => point.x));
+    const minY = Math.min(...values.map((point) => point.y));
+    const maxY = Math.max(...values.map((point) => point.y));
+    const scale = Math.min(530 / Math.max(maxX - minX, 0.001), 125 / Math.max(maxY - minY, 0.001));
+    return values.map((point) => ({
+      x: 320 + (point.x - (minX + maxX) / 2) * scale,
+      y: 95 + (point.y - (minY + maxY) / 2) * scale,
+      code: point.code,
+    }));
+  }, [points]);
+
+  if (projected.length < 2) return <p className="text-xs text-zinc-500">Sem pontos suficientes para visualizar.</p>;
+  return (
+    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 px-4 pt-3 pb-2">
+      <svg viewBox="0 0 640 185" role="img" aria-label="Esquema geográfico dos pontos da rota" className="h-auto w-full">
+        <polyline points={projected.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#52525b" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
+        {projected.map((point, index) => (
+          <circle key={index} cx={point.x} cy={point.y} r={index === 0 || index === projected.length - 1 ? 5 : 3.5} fill={index === 0 ? "#18181b" : "white"} stroke="#18181b" strokeWidth="1.5" />
+        ))}
+        {[0, projected.length - 1].map((index) => (
+          <text key={index} x={projected[index].x} y={projected[index].y + (index === 0 ? -12 : 18)} textAnchor="middle" fill="#18181b" fontSize="12" fontWeight="600">
+            {projected[index].code.slice(0, 16)}
+          </text>
+        ))}
+      </svg>
+      <p className="text-center text-[11px] text-zinc-500">Esquema do percurso · não substitui uma carta aeronáutica</p>
+    </div>
+  );
+}
+
 export function AdminNavlogRoutes() {
   const [routes, setRoutes] = useState<ManagedRoute[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ManagedRoute | null>(null);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all" | "default" | "other">("all");
+  const [categoryFilter, setCategoryFilter] = useState<"all" | "VFR" | "IFR" | "none">("all");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
@@ -71,10 +110,13 @@ export function AdminNavlogRoutes() {
     const needle = search.trim().toLocaleLowerCase();
     return routes.filter((route) =>
       (filter === "all" || (filter === "default") === route.is_default) &&
+      (categoryFilter === "all" || (categoryFilter === "none" ? !route.category : route.category === categoryFilter)) &&
       (!needle || [route.name, route.route_text, route.description].some((part) => part?.toLocaleLowerCase().includes(needle)))
     );
-  }, [routes, search, filter]);
+  }, [routes, search, filter, categoryFilter]);
   const totalDefaults = routes.filter((route) => route.is_default).length;
+  const countVfr = routes.filter((route) => route.category === "VFR").length;
+  const countIfr = routes.filter((route) => route.category === "IFR").length;
   const isDirty = draft && JSON.stringify(draft) !== JSON.stringify(routes.find((route) => route.id === selectedId));
 
   function chooseRoute(route: ManagedRoute) {
@@ -100,6 +142,29 @@ export function AdminNavlogRoutes() {
     });
   }
 
+  async function toggleDefault(route: ManagedRoute) {
+    if (saving) return;
+    if (!window.confirm(`${route.is_default ? "Retirar" : "Adicionar"} «${route.name}» ${route.is_default ? "das" : "às"} rotas por defeito? Esta alteração fica guardada na base de dados partilhada.`)) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/navlog-routes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...route, is_default: !route.is_default, waypoints: null, description: route.description ?? "" }),
+      });
+      if (!response.ok) throw new Error("Não foi possível alterar a classificação.");
+      setRoutes((current) => current.map((item) => item.id === route.id ? { ...item, is_default: !route.is_default } : item));
+      if (draft?.id === route.id && !isDirty) setDraft({ ...draft, is_default: !route.is_default });
+      setNotice(`«${route.name}» ${route.is_default ? "removida das" : "adicionada às"} rotas por defeito.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível alterar a rota.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function save() {
     if (!draft || saving) return;
     setNotice("");
@@ -113,6 +178,7 @@ export function AdminNavlogRoutes() {
       setError("Confirma o nome e os pontos da rota (códigos, latitudes e longitudes válidos).");
       return;
     }
+    if (!window.confirm("Guardar as alterações na base de dados partilhada? As alterações aos dados da rota também podem aparecer no website atual.")) return;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/navlog-routes", {
@@ -149,39 +215,72 @@ export function AdminNavlogRoutes() {
             <span aria-current="page" className="rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white">Rotas</span>
           </nav>
         </header>
-        <p className="rounded-xl border border-zinc-200 bg-white p-4 text-sm leading-6 text-zinc-700">
-          <strong>{totalDefaults}</strong> rotas por defeito de <strong>{routes.length}</strong> públicas.
-          Nenhuma das rotas antigas é atribuída a ti automaticamente: ativa a opção apenas nas que verificaste.
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {([
+            ["Rotas públicas", routes.length],
+            ["Briefings", totalDefaults],
+            ["VFR", countVfr],
+            ["IFR", countIfr],
+          ] as const).map(([label, count]) => (
+            <div key={label} className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
+              <p className="text-xs text-zinc-500">{label}</p>
+              <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-950">{count}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs leading-5 text-zinc-500">
+          As rotas importadas não têm autoria confirmada. Marca como «Briefings» apenas as que reconheces. Atenção: guardar edições altera a base de dados partilhada com o website atual.
         </p>
         {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
-        <div className="grid items-start gap-5 lg:grid-cols-[340px_minmax(0,1fr)]">
+        <div className="grid items-start gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
           <section className="rounded-2xl border border-zinc-200 bg-white p-4">
-            <label htmlFor="route-search" className="block text-sm font-medium text-zinc-900">Encontrar rota</label>
-            <input id="route-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Nome, origem ou percurso" className={`${textInput} mt-2`} />
+            <div className="mb-3 flex items-baseline justify-between gap-2">
+              <h2 className="text-base font-semibold text-zinc-950">Biblioteca</h2>
+              <span className="text-xs tabular-nums text-zinc-500">{shown.length} de {routes.length}</span>
+            </div>
+            <label htmlFor="route-search" className="sr-only">Encontrar rota</label>
+            <input id="route-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar rota ou waypoint…" className={textInput} />
             <div className="mt-3 flex gap-2 text-xs">
               {([ ["all", "Todas"], ["default", "Por defeito"], ["other", "Outras"] ] as const).map(([value, label]) => (
                 <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value}
                   className={`rounded-lg px-3 py-2 ${filter === value ? "bg-zinc-950 text-white" : "border border-zinc-200 text-zinc-600"}`}>{label}</button>
               ))}
             </div>
+            <label className="mt-3 flex items-center justify-between gap-2 text-xs font-medium text-zinc-600">
+              Tipo de voo
+              <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-xs text-zinc-800">
+                <option value="all">Todos</option><option value="VFR">VFR</option><option value="IFR">IFR</option><option value="none">Por classificar</option>
+              </select>
+            </label>
             <div className="mt-3 max-h-[65vh] overflow-y-auto border-t border-zinc-100">
               {loading ? <p className="p-3 text-sm text-zinc-500">A carregar…</p> : shown.length === 0 ? <p className="p-3 text-sm text-zinc-500">Sem resultados.</p> : shown.map((route) => (
-                <button key={route.id} type="button" onClick={() => chooseRoute(route)} aria-pressed={selectedId === route.id}
-                  className={`block w-full border-b border-zinc-100 px-3 py-3 text-left hover:bg-zinc-50 ${selectedId === route.id ? "bg-zinc-100" : ""}`}>
-                  <span className="block truncate text-sm font-medium text-zinc-900">{route.name}</span>
-                  <span className="mt-1 block text-xs text-zinc-500">{route.waypoints.length} pontos {route.category ? `· ${route.category}` : ""}{route.is_default ? " · Por defeito" : ""}</span>
-                </button>
+                <div key={route.id} className={`flex items-center gap-1 border-b border-zinc-100 pr-2 last:border-0 ${selectedId === route.id ? "bg-zinc-100" : ""}`}>
+                  <button type="button" onClick={() => chooseRoute(route)} aria-pressed={selectedId === route.id}
+                    className="min-w-0 flex-1 px-3 py-3 text-left hover:bg-zinc-50">
+                    <span className="block truncate text-sm font-medium text-zinc-900">{route.name}</span>
+                    <span className="mt-1 block text-xs text-zinc-500">{route.waypoints.length} pontos {route.category ? `· ${route.category}` : "· Sem tipo"}</span>
+                  </button>
+                  <button type="button" onClick={() => void toggleDefault(route)} disabled={saving}
+                    title={route.is_default ? "Remover das rotas Briefings" : "Marcar como rota Briefings"}
+                    aria-label={`${route.is_default ? "Desmarcar" : "Marcar"} ${route.name} como rota Briefings`}
+                    aria-pressed={route.is_default}
+                    className={`shrink-0 rounded-lg px-2.5 py-2 text-lg disabled:opacity-30 ${route.is_default ? "text-zinc-950" : "text-zinc-300 hover:text-zinc-700"}`}>
+                    {route.is_default ? "★" : "☆"}
+                  </button>
+                </div>
               ))}
             </div>
+            <p className="mt-3 text-xs text-zinc-500">★ Rota escolhida para a biblioteca Briefings</p>
           </section>
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
             {!draft ? <p className="py-12 text-center text-sm text-zinc-500">Seleciona uma rota à esquerda para a editar.</p> : (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
-                  <div><h2 className="text-lg font-semibold text-zinc-950">Editar rota</h2><p className="mt-1 text-xs text-zinc-500">As alterações só são aplicadas quando guardares.</p></div>
+                  <div><h2 className="text-lg font-semibold text-zinc-950">{draft.name}</h2><p className="mt-1 text-xs text-zinc-500">{draft.waypoints.length} pontos · {draft.category ?? "Tipo por definir"}{draft.is_default ? " · Rota Briefings" : ""}</p></div>
                   <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar"}</button>
                 </div>
+                <RoutePreview points={draft.waypoints} />
                 <label className="block text-sm font-medium text-zinc-700">Nome
                   <input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={`${textInput} mt-1`} />
                 </label>
