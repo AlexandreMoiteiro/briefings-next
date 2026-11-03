@@ -14,7 +14,7 @@ function respond(body: object, status = 200) {
 
 export async function POST(request: Request) {
   // Only the server validates the bearer token and determines the profile owner.
-  const match = /^Bearer\\s+(.+)$/i.exec(request.headers.get("authorization") ?? "");
+  const match = /^Bearer\s+(.+)$/i.exec(request.headers.get("authorization") ?? "");
   const accessToken = match?.[1]?.trim();
   if (!accessToken) return respond({ error: "Please sign in with Google first." }, 401);
 
