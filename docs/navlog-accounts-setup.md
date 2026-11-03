@@ -6,8 +6,10 @@ their username or email. Only signed-in pilots can save routes privately.
 
 ## Required private Vercel environment variables
 
-- `SUPABASE_SERVICE_ROLE_KEY`: copy from the project's Supabase API keys page.
-  Configure as a **server-only** secret. Do not prefix with `NEXT_PUBLIC_`.
+- `SUPABASE_SECRET_KEY`: copy an `sb_secret_...` key from the project's
+  Supabase Settings → API Keys page. Configure as a **server-only** secret.
+  Legacy `SUPABASE_SERVICE_ROLE_KEY` is accepted too, but deprecated.
+  Do not prefix either key with `NEXT_PUBLIC_`.
 - `NAVLOG_PIN_PEPPER`: a new, random, secret string at least 32 characters long.
   Generate it with `openssl rand -hex 32`. Keep the value safely; rotating it
   invalidates all existing four-number PINs until users reset them.
