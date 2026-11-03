@@ -16,5 +16,7 @@ create policy "Read NavLog public library"
   on public.navlog_perfect_routes for select to anon, authenticated
   using (is_public = true);
 
-revoke insert, update, delete on public.navlog_perfect_routes from anon, authenticated;
+-- The legacy table also grants TRUNCATE/TRIGGER/REFERENCES to browser roles.
+-- Remove *all* privileges first, then restore only read access.
+revoke all privileges on public.navlog_perfect_routes from anon, authenticated;
 grant select on public.navlog_perfect_routes to anon, authenticated;
