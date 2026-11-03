@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import type { PerfectRouteWaypointRaw } from "@/lib/navlog-saved-routes";
 
@@ -23,43 +23,10 @@ function duplicateRoute(route: ManagedRoute): ManagedRoute {
 
 const textInput = "w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm text-zinc-950 focus:border-zinc-900 focus:outline-none";
 
-function RoutePreview({ points }: { points: PerfectRouteWaypointRaw[] }) {
-  const projected = useMemo(() => {
-    const valid = points.filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon));
-    if (!valid.length) return [];
-    const avgLat = valid.reduce((sum, point) => sum + point.lat, 0) / valid.length;
-    const longitudeScale = Math.max(0.01, Math.cos(avgLat * Math.PI / 180));
-    const values = valid.map((point) => ({ x: point.lon * longitudeScale, y: -point.lat, code: point.code || point.name || "WP" }));
-    const minX = Math.min(...values.map((point) => point.x));
-    const maxX = Math.max(...values.map((point) => point.x));
-    const minY = Math.min(...values.map((point) => point.y));
-    const maxY = Math.max(...values.map((point) => point.y));
-    const scale = Math.min(530 / Math.max(maxX - minX, 0.001), 125 / Math.max(maxY - minY, 0.001));
-    return values.map((point) => ({
-      x: 320 + (point.x - (minX + maxX) / 2) * scale,
-      y: 95 + (point.y - (minY + maxY) / 2) * scale,
-      code: point.code,
-    }));
-  }, [points]);
-
-  if (projected.length < 2) return <p className="text-xs text-zinc-500">Sem pontos suficientes para visualizar.</p>;
-  return (
-    <div className="overflow-hidden rounded-xl border border-zinc-200 bg-zinc-50 px-4 pt-3 pb-2">
-      <svg viewBox="0 0 640 185" role="img" aria-label="Esquema geográfico dos pontos da rota" className="h-auto w-full">
-        <polyline points={projected.map((point) => `${point.x},${point.y}`).join(" ")} fill="none" stroke="#52525b" strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
-        {projected.map((point, index) => (
-          <circle key={index} cx={point.x} cy={point.y} r={index === 0 || index === projected.length - 1 ? 5 : 3.5} fill={index === 0 ? "#18181b" : "white"} stroke="#18181b" strokeWidth="1.5" />
-        ))}
-        {[0, projected.length - 1].map((index) => (
-          <text key={index} x={projected[index].x} y={projected[index].y + (index === 0 ? -12 : 18)} textAnchor="middle" fill="#18181b" fontSize="12" fontWeight="600">
-            {projected[index].code.slice(0, 16)}
-          </text>
-        ))}
-      </svg>
-      <p className="text-center text-[11px] text-zinc-500">Esquema do percurso · não substitui uma carta aeronáutica</p>
-    </div>
-  );
-}
+const AdminRouteMap = dynamic(
+  () => import("./admin-route-map").then((module) => module.AdminRouteMap),
+  { ssr: false, loading: () => <div className="flex h-[310px] items-center justify-center rounded-xl border border-zinc-200 bg-zinc-50 text-sm text-zinc-500">A carregar mapa…</div> }
+);
 
 export function AdminNavlogRoutes() {
   const [routes, setRoutes] = useState<ManagedRoute[]>([]);
@@ -82,8 +49,8 @@ export function AdminNavlogRoutes() {
       const result = await response.json() as { routes: ManagedRoute[] };
       setRoutes(result.routes);
       const nextId = selected ?? selectedId;
-      const next = result.routes.find((route) => route.id === nextId);
-      if (next) setDraft(duplicateRoute(next));
+      const next = result.routes.find((route) => route.id === nextId) ?? result.routes[0];
+      if (next) { setSelectedId(next.id); setDraft(duplicateRoute(next)); }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Erro ao carregar rotas.");
     } finally {
@@ -97,7 +64,13 @@ export function AdminNavlogRoutes() {
       .then(async (response) => {
         if (!response.ok) throw new Error("Não foi possível carregar as rotas. Volta a iniciar sessão no Admin.");
         const result = await response.json() as { routes: ManagedRoute[] };
-        if (active) setRoutes(result.routes);
+        if (active) {
+          setRoutes(result.routes);
+          if (result.routes.length > 0) {
+            setSelectedId(result.routes[0].id);
+            setDraft(duplicateRoute(result.routes[0]));
+          }
+        }
       })
       .catch((cause) => {
         if (active) setError(cause instanceof Error ? cause.message : "Erro ao carregar rotas.");
@@ -200,21 +173,16 @@ export function AdminNavlogRoutes() {
   }
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6">
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-9">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Admin · NavLog</p>
+            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">NavLog · Biblioteca</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">Gestão de rotas</h1>
             <p className="mt-2 max-w-2xl text-sm text-zinc-600">
-              Escolhe as rotas oficiais do Briefings, classifica-as em VFR ou IFR e corrige o percurso quando necessário.
+              Revê cada percurso no mapa, escolhe as rotas que devem aparecer no Briefings e classifica-as como VFR ou IFR.
             </p>
           </div>
-          <nav aria-label="Admin" className="flex gap-2 text-sm">
-            <Link href="/admin" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Visão geral</Link>
-            <span aria-current="page" className="rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white">Rotas</span>
-            <Link href="/admin/accounts" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Contas</Link>
-          </nav>
         </header>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {([
@@ -229,9 +197,9 @@ export function AdminNavlogRoutes() {
             </div>
           ))}
         </div>
-        <p className="text-xs leading-5 text-zinc-500">
-          As rotas importadas não têm autoria confirmada. Marca como «Briefings» apenas as que reconheces. Atenção: guardar edições altera a base de dados partilhada com o website atual.
-        </p>
+        <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs leading-5 text-zinc-600">
+          <strong className="text-zinc-900">Como usar:</strong> seleciona uma rota na lista, verifica o trajeto no mapa, ajusta o nome ou tipo e ativa «Rota Briefings» apenas nas que reconheces como tuas. As alterações são guardadas na base de dados partilhada.
+        </div>
         {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
         <div className="grid items-start gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
@@ -260,7 +228,7 @@ export function AdminNavlogRoutes() {
                   <button type="button" onClick={() => chooseRoute(route)} aria-pressed={selectedId === route.id}
                     className="min-w-0 flex-1 px-3 py-3 text-left hover:bg-zinc-50">
                     <span className="block truncate text-sm font-medium text-zinc-900">{route.name}</span>
-                    <span className="mt-1 block text-xs text-zinc-500">{route.waypoints.length} pontos {route.category ? `· ${route.category}` : "· Sem tipo"}</span>
+                    <span className="mt-1 block truncate text-xs text-zinc-500">{route.waypoints.length} pontos {route.category ? `· ${route.category}` : "· Sem tipo"} · {route.waypoints[0]?.code ?? "?"} → {route.waypoints.at(-1)?.code ?? "?"}</span>
                   </button>
                   <button type="button" onClick={() => void toggleDefault(route)} disabled={saving}
                     title={route.is_default ? "Remover das rotas Briefings" : "Marcar como rota Briefings"}
@@ -272,16 +240,16 @@ export function AdminNavlogRoutes() {
                 </div>
               ))}
             </div>
-            <p className="mt-3 text-xs text-zinc-500">★ Rota escolhida para a biblioteca Briefings</p>
+            <p className="mt-3 text-xs text-zinc-500">★ Visível na biblioteca Briefings · ☆ Ainda por validar</p>
           </section>
           <section className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
-            {!draft ? <p className="py-12 text-center text-sm text-zinc-500">Seleciona uma rota à esquerda para a editar.</p> : (
+            {!draft ? <p className="py-12 text-center text-sm text-zinc-500">Seleciona uma rota para veres o percurso num mapa e editares os dados.</p> : (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
                   <div><h2 className="text-lg font-semibold text-zinc-950">{draft.name}</h2><p className="mt-1 text-xs text-zinc-500">{draft.waypoints.length} pontos · {draft.category ?? "Tipo por definir"}{draft.is_default ? " · Rota Briefings" : ""}</p></div>
                   <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar"}</button>
                 </div>
-                <RoutePreview points={draft.waypoints} />
+                <AdminRouteMap points={draft.waypoints} />
                 <label className="block text-sm font-medium text-zinc-700">Nome
                   <input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={`${textInput} mt-1`} />
                 </label>

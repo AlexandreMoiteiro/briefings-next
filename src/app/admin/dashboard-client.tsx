@@ -2,8 +2,6 @@
 
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 
 const UsageEventMap = dynamic(
   () =>
@@ -308,7 +306,6 @@ function PerformanceAerodromes({ payload }: { payload: JsonRecord }) {
 }
 
 export function AdminDashboard() {
-  const router = useRouter();
   const [rows,setRows]=useState<UsageEventRow[]>([]);
   const [pageOpens,setPageOpens]=useState<DailyPageOpens[]>([]);
   const [pageOpensError,setPageOpensError]=useState("");
@@ -333,12 +330,10 @@ export function AdminDashboard() {
     finally{setBusy(false);}
   }
 
-  async function handleLogout(){
-    await fetch("/api/admin/session",{method:"DELETE",credentials:"same-origin",cache:"no-store"});
-    router.refresh();
-  }
-
-  useEffect(()=>{void loadEvents();},[]);
+  useEffect(() => {
+    const timer = window.setTimeout(() => { void loadEvents(); }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   const filteredRows = useMemo(() => {
     const searchText = search.trim().toLowerCase();
@@ -398,30 +393,22 @@ export function AdminDashboard() {
 
   return (
     <div className="space-y-4">
-    <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6 lg:px-8">
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-8">
       <section className="mx-auto max-w-[1500px] space-y-6">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">
-              Admin
+              Geral · Estatísticas
             </p>
             <h1 className="mt-1 text-4xl font-semibold tracking-tight text-zinc-950">
-              Usage dashboard
+              Atividade do website
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-500">
-              Latest {EVENT_LIMIT} events from NavLog, Performance, Briefing and
-              Area Map, with route and aerodrome visualisation when coordinates
-              are available.
+              Histórico de atividade do Briefings: os últimos {EVENT_LIMIT} eventos de NavLog, Performance, Briefing e Area Map.
             </p>
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <Link href="/admin/accounts" className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100">
-              User accounts
-            </Link>
-            <Link href="/admin/navlog-routes" className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100">
-              NavLog routes
-            </Link>
             <button
               type="button"
               onClick={() => loadEvents()}
@@ -429,10 +416,6 @@ export function AdminDashboard() {
               className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white transition hover:bg-zinc-800 disabled:bg-zinc-300"
             >
               {busy ? "Refreshing..." : "Refresh"}
-            </button>
-            <button type="button" onClick={()=>void handleLogout()}
-              className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-100">
-              Lock
             </button>
 
 

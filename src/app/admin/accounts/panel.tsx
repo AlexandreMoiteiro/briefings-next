@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 type Account = {
@@ -101,19 +100,14 @@ export function AdminAccountsPanel() {
   const selectedAccount = accounts.find((account) => account.user_id === selected);
 
   return (
-    <main className="min-h-screen bg-zinc-50 px-4 py-8 sm:px-6">
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-9">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Admin · NavLog</p>
+            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">NavLog · Utilizadores</p>
             <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">Contas de utilizadores</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">Identifica os utilizadores, confirma os seus usernames e acompanha a utilização das rotas privadas.</p>
           </div>
-          <nav aria-label="Admin" className="flex flex-wrap gap-2 text-sm">
-            <Link href="/admin" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Visão geral</Link>
-            <Link href="/admin/navlog-routes" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Rotas</Link>
-            <span aria-current="page" className="rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white">Contas</span>
-          </nav>
         </header>
 
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

@@ -105,7 +105,7 @@ export function NavlogAccountPanel({
         <form onSubmit={(event) => void emailSubmit(event)} className="mt-5 space-y-4">
           {mode === "login" ? (
             <label className="block text-sm text-zinc-700">Username or email
-              <input type="text" autoComplete="username" required value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="e.g. MOITEIRO" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+              <input type="text" autoComplete="username" required value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Your username or email" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
             </label>
           ) : (
             <label className="block text-sm text-zinc-700">Email address
@@ -114,8 +114,8 @@ export function NavlogAccountPanel({
           )}
           {mode === "signup" ? (
             <label className="block text-sm text-zinc-700">Choose your username
-              <input type="text" autoComplete="nickname" required minLength={3} maxLength={24} pattern="[A-Za-z0-9._-]{3,24}" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="e.g. MOITEIRO" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
-              <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Tip: use your FlightLogger name so other pilots can recognise you. Any available username is fine.</span>
+              <input type="text" autoComplete="nickname" required minLength={3} maxLength={24} pattern="[A-Za-z0-9._-]{3,24}" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="FlightLogger username (recommended)" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+              <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Recommended: use your FlightLogger username. You can choose any available username.</span>
             </label>
           ) : null}
           {mode !== "reset" ? (

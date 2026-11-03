@@ -223,7 +223,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
-  const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "community" | "personal">("featured");
+  const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "personal">("featured");
   const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [showSaveRouteForm, setShowSaveRouteForm] = useState(false);
   const [pointSearch, setPointSearch] = useState("");
@@ -748,10 +748,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
     const query = routeSearch.trim().toUpperCase();
     const routes = routeLibraryScope === "personal"
       ? personalRoutes
-      : perfectRoutes.filter((route) => (
-        (routeLibraryScope === "featured" ? route.verifiedCreator === true : route.verifiedCreator !== true)
-        && (routeCategory === "all" || route.category === routeCategory)
-      ));
+      : perfectRoutes.filter((route) => route.verifiedCreator === true && (routeCategory === "all" || route.category === routeCategory));
     if (!query) return routes;
     return routes.filter((route) => route.name.toUpperCase().includes(query));
   }, [perfectRoutes, personalRoutes, routeSearch, routeLibraryScope, routeCategory]);
@@ -1216,13 +1213,12 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-semibold text-white">1</span>
               <div>
                 <h3 className="text-base font-semibold text-zinc-950">Choose an existing route</h3>
-                <p className="mt-0.5 text-sm leading-6 text-zinc-600">The quickest way to start. Select a route made available by Briefings, another public route, or one you saved yourself.</p>
+                <p className="mt-0.5 text-sm leading-6 text-zinc-600">The quickest way to start. Choose a route selected by Briefings, or open one from your private collection.</p>
               </div>
             </div>
-              <div className="grid gap-2 sm:grid-cols-3" aria-label="Route collections">
+              <div className="grid gap-2 sm:grid-cols-2" aria-label="Route collections">
                   {([
                     ["featured", "Briefings routes", verifiedRouteCount, "Selected by the site owner"],
-                    ["community", "Other public routes", perfectRoutes.length - verifiedRouteCount, "Added by visitors; not verified"],
                     ["personal", "My saved routes", personalRoutes.length, "Private to your account"],
                   ] as const).map(([scope, label, count, description]) => (
                     <button key={scope} type="button" onClick={() => { setRouteLibraryScope(scope); setRouteSearch(""); }} aria-pressed={routeLibraryScope === scope}
@@ -1254,14 +1250,8 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                     <p>{routeLibraryScope === "personal" && !accountUser
                       ? "Sign in to view your private routes."
                       : routeLibraryScope === "featured" && verifiedRouteCount === 0
-                        ? "The Briefings routes are being reviewed and selected."
+                        ? "The Briefings routes are being reviewed and selected. Please try again soon."
                         : "No matching routes."}</p>
-                    {routeLibraryScope === "featured" && verifiedRouteCount === 0 && perfectRoutes.length > 0 ? (
-                      <button type="button" onClick={() => setRouteLibraryScope("community")}
-                        className="mt-3 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
-                        Browse {perfectRoutes.length} other public routes
-                      </button>
-                    ) : null}
                     {routeLibraryScope === "personal" && !accountUser ? (
                       <button type="button" onClick={onOpenAccount} className="mt-3 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">Sign in / Create account</button>
                     ) : null}
@@ -1277,7 +1267,6 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                   </button>
                 ))}
               </div>
-              {routeLibraryScope === "community" ? <p className="text-xs leading-5 text-zinc-500">Other public routes may have been added by visitors. Always verify AIP, NOTAMs, weather and airspace before flying.</p> : null}
             </div>
 
             <div className="mt-7 grid gap-4 lg:grid-cols-2">
