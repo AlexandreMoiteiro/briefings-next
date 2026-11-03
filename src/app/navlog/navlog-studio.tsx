@@ -1,7 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { User } from "@supabase/supabase-js";
 import { logUsageEvent } from "@/lib/usage-events";
 import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 import { C152_CS_AYR } from "@/lib/performance/c152-performance";
@@ -16,14 +17,17 @@ import {
   routeItem15,
 } from "@/lib/navlog-engine";
 import {
-  createSupabasePerfectRoute,
-  deleteSupabasePerfectRoute,
+  createPersonalRoute,
+  deletePersonalRoute,
+  loadPersonalRoutes,
   loadSupabasePerfectRoutes,
   perfectRouteToWaypoints,
   routeToText,
-  updateSupabasePerfectRoute,
+  updatePersonalRoute,
   type PerfectRoute,
 } from "@/lib/navlog-saved-routes";
+import { supabase } from "@/lib/supabase/client";
+import { NavlogAccountPanel } from "./navlog-account-panel";
 import {
   applyAircraftProfile,
   CUSTOM_AIRCRAFT_TYPE,
@@ -253,6 +257,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [setup, setSetup] = useState<NavlogSetupForm>(initialProfile);
   const [navlogData, setNavlogData] = useState<NavlogDataBundle | null>(null);
   const [perfectRoutes, setPerfectRoutes] = useState<PerfectRoute[]>([]);
+  const [personalRoutes, setPersonalRoutes] = useState<PerfectRoute[]>([]);
+  const [accountUser, setAccountUser] = useState<User | null>(null);
+  const accountIdRef = useRef<string | null>(null);
+  const [accountReady, setAccountReady] = useState(!supabase);
+  const [personalRoutesError, setPersonalRoutesError] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
 
   const [composerMode, setComposerMode] = useState<ComposerMode>("saved");
@@ -265,6 +274,8 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
+  const [routeLibraryScope, setRouteLibraryScope] = useState<"library" | "personal">("library");
+  const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [pointSearch, setPointSearch] = useState("");
   const [routeText, setRouteText] = useState("");
   const [routeWarnings, setRouteWarnings] = useState<string[]>([]);
@@ -306,6 +317,8 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   useEffect(() => {
     const next = profileForAircraft(aircraftType);
+    // A different aircraft changes the setup profile of this existing studio.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSetup((current) => ({
       ...applyAircraftProfile(current, aircraftType),
       startEfob: aircraftType === "Tecnam P2006T" ? 200 : next.startEfob,
@@ -342,6 +355,34 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (!supabase) return;
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      const nextId = session?.user?.id ?? null;
+      if (accountIdRef.current !== nextId) {
+        accountIdRef.current = nextId;
+        setPersonalRoutes([]);
+        setPersonalRoutesError("");
+      }
+      setAccountUser(session?.user ?? null);
+      setAccountReady(true);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const accountUserId = accountUser?.id;
+  useEffect(() => {
+    if (!accountUserId) return;
+    let cancelled = false;
+    void loadPersonalRoutes().then((routes) => {
+      if (!cancelled) setPersonalRoutes(routes);
+    }).catch((error) => {
+      console.error(error);
+      if (!cancelled) setPersonalRoutesError("Could not load your routes. Please retry signing in.");
+    });
+    return () => { cancelled = true; };
+  }, [accountUserId]);
 
   function updateSetup<K extends keyof NavlogSetupForm>(
     key: K,
@@ -516,6 +557,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }
 
   async function createSavedRoute() {
+    if (!accountUser) {
+      setRouteSaveStatus("Sign in to save a private copy of this route.");
+      return;
+    }
     if (!routeSaveName.trim()) {
       setRouteSaveStatus("Enter a route name.");
       return;
@@ -527,13 +572,12 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
     setRouteSaveBusy(true);
     setRouteSaveStatus("");
     try {
-      const created = await createSupabasePerfectRoute(routeSaveName, routeWaypoints);
-      setPerfectRoutes((current) =>
-        [...current, created].sort((a, b) => a.name.localeCompare(b.name))
-      );
+      const created = await createPersonalRoute(routeSaveName, routeWaypoints);
+      setPersonalRoutes((current) => [created, ...current]);
       setSelectedRouteId(created.id);
       setRouteSaveName(created.name);
-      setRouteSaveStatus("Route saved.");
+      setRouteLibraryScope("personal");
+      setRouteSaveStatus("Saved privately to your account.");
     } catch (error) {
       console.error(error);
       setRouteSaveStatus("Could not save the route.");
@@ -543,9 +587,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }
 
   async function updateSavedRoute() {
-    const selected = perfectRoutes.find((route) => route.id === selectedRouteId);
+    const selected = personalRoutes.find((route) => route.id === selectedRouteId);
     if (!selected) {
-      setRouteSaveStatus("Select a saved route to update.");
+      setRouteSaveStatus("Select one of your routes to update. Public library routes are read-only.");
       return;
     }
     if (!routeSaveName.trim() || routeWaypoints.length < 2) {
@@ -555,15 +599,13 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
     setRouteSaveBusy(true);
     setRouteSaveStatus("");
     try {
-      const updated = await updateSupabasePerfectRoute(
+      const updated = await updatePersonalRoute(
         selected.id,
         routeSaveName,
         routeWaypoints
       );
-      setPerfectRoutes((current) =>
-        current
-          .map((route) => (route.id === updated.id ? updated : route))
-          .sort((a, b) => a.name.localeCompare(b.name))
+      setPersonalRoutes((current) =>
+        [updated, ...current.filter((route) => route.id !== updated.id)]
       );
       setSelectedRouteId(updated.id);
       setRouteSaveName(updated.name);
@@ -577,7 +619,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }
 
   async function deleteSavedRoute() {
-    const selected = perfectRoutes.find((route) => route.id === selectedRouteId);
+    const selected = personalRoutes.find((route) => route.id === selectedRouteId);
     if (!selected) return;
     const confirmed = window.prompt(
       `Permanently delete "${selected.name}" from saved routes? Type DELETE to continue.`
@@ -585,11 +627,10 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
     if (confirmed !== "DELETE") return;
     setRouteSaveBusy(true);
     try {
-      await deleteSupabasePerfectRoute(selected.id);
-      const remaining = perfectRoutes.filter((route) => route.id !== selected.id);
-      setPerfectRoutes(remaining);
-      setSelectedRouteId(remaining[0]?.id ?? "");
-      setRouteSaveName(remaining[0]?.name ?? "");
+      await deletePersonalRoute(selected.id);
+      setPersonalRoutes((current) => current.filter((route) => route.id !== selected.id));
+      setSelectedRouteId("");
+      setRouteSaveName("");
       setRouteSaveStatus("Route deleted.");
     } catch (error) {
       console.error(error);
@@ -713,11 +754,14 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   const filteredPerfectRoutes = useMemo(() => {
     const query = routeSearch.trim().toUpperCase();
-    if (!query) return perfectRoutes;
-    return perfectRoutes.filter((route) => route.name.toUpperCase().includes(query));
-  }, [perfectRoutes, routeSearch]);
+    const routes = routeLibraryScope === "library"
+      ? perfectRoutes.filter((route) => routeCategory === "all" || route.category === routeCategory)
+      : personalRoutes;
+    if (!query) return routes;
+    return routes.filter((route) => route.name.toUpperCase().includes(query));
+  }, [perfectRoutes, personalRoutes, routeSearch, routeLibraryScope, routeCategory]);
 
-  const selectedPerfectRoute = perfectRoutes.find((route) => route.id === selectedRouteId);
+  const selectedPersonalRoute = personalRoutes.find((route) => route.id === selectedRouteId);
 
   const vorOptions = useMemo(() => {
     if (!navlogData) return [];
@@ -1143,9 +1187,9 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <ComposerTab active={composerMode === "search"} label="Find point" description="Search navigation points" onClick={() => setComposerMode("search")} />
             <ComposerTab
               active={composerMode === "saved"}
-              label="Saved routes"
-              description="Open your route library"
-              badge={perfectRoutes.length}
+              label="Route library"
+              description="Public routes and your own"
+              badge={perfectRoutes.length + personalRoutes.length}
               featured
               onClick={() => setComposerMode("saved")}
             />
@@ -1186,28 +1230,37 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
             <div className="mt-4 space-y-3">
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div>
-                  <div className="mb-3 flex items-end justify-between gap-3">
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <p className="text-sm font-semibold text-zinc-950">Open route library</p>
-                        <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-zinc-500">
-                          Community suggestions
-                        </span>
-                      </div>
-                      <p className="mt-0.5 text-xs text-zinc-500">These are route suggestions shared by other users, not validated flight plans. Anyone can contribute. Before using one, check the route, altitudes and timings against the weather, NOTAMs and all other conditions applicable to your flight.</p>
-                    </div>
-                    <span className="shrink-0 rounded-full bg-zinc-950 px-2.5 py-1 text-xs font-semibold text-white">
-                      {perfectRoutes.length} saved
-                    </span>
+                  <div className="mb-3 flex flex-wrap gap-2">
+                    <button type="button" aria-pressed={routeLibraryScope === "library"} onClick={() => setRouteLibraryScope("library")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "library" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
+                      Public library ({perfectRoutes.length})
+                    </button>
+                    <button type="button" aria-pressed={routeLibraryScope === "personal"} onClick={() => setRouteLibraryScope("personal")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "personal" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
+                      My routes ({personalRoutes.length})
+                    </button>
                   </div>
+                  {routeLibraryScope === "library" ? (
+                    <>
+                      <div className="mb-2 flex items-center gap-2">
+                        {(["all", "VFR", "IFR"] as const).map((category) => (
+                          <button key={category} type="button" aria-pressed={routeCategory === category} onClick={() => setRouteCategory(category)} className={`rounded-md px-2.5 py-1.5 text-xs ${routeCategory === category ? "bg-zinc-200 font-semibold text-zinc-950" : "text-zinc-500 hover:text-zinc-900"}`}>
+                            {category === "all" ? "All" : category}
+                          </button>
+                        ))}
+                      </div>
+                      <p className="mb-3 text-xs leading-5 text-zinc-500">Suggested routes only, not validated flight plans. VFR/IFR filters show labelled routes; all others remain under All. Always verify AIP, NOTAMs, weather and altitudes.</p>
+                    </>
+                  ) : (
+                    <p className="mb-3 text-xs leading-5 text-zinc-500">Your private routes are only available to your account.</p>
+                  )}
                   <input value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search routes…" className="h-11 w-full rounded-xl border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
                   <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-zinc-200">
+                    {personalRoutesError && routeLibraryScope === "personal" ? <p role="alert" className="p-3 text-xs text-red-700">{personalRoutesError}</p> : null}
                     {filteredPerfectRoutes.length === 0 ? (
-                      <p className="p-4 text-sm text-zinc-500">No saved routes match.</p>
+                      <p className="p-4 text-sm text-zinc-500">{routeLibraryScope === "personal" && !accountUser ? "Sign in to see your routes." : "No routes match."}</p>
                     ) : (
                       filteredPerfectRoutes.map((route) => (
                         <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)} className={["flex w-full items-center justify-between gap-3 border-b border-zinc-100 px-3 py-2.5 text-left last:border-0 hover:bg-zinc-50", selectedRouteId === route.id ? "bg-zinc-50" : "bg-white"].join(" ")}>
-                          <span><strong className="block text-sm">{route.name || "Untitled route"}</strong><span className="text-xs text-zinc-400">{route.waypoints.length} waypoints</span></span>
+                          <span><strong className="block text-sm">{route.name || "Untitled route"}</strong><span className="text-xs text-zinc-400">{route.waypoints.length} waypoints{route.category ? ` · ${route.category}` : ""}</span></span>
                           <span className="text-xs font-semibold text-zinc-500">Use →</span>
                         </button>
                       ))
@@ -1215,17 +1268,22 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                   </div>
                 </div>
 
-                <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                  <FieldLabel>Save current route</FieldLabel>
-                  <input value={routeSaveName} onChange={(event) => setRouteSaveName(event.target.value)} placeholder="Route name" className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm" />
-                  <div className="mt-2 grid grid-cols-2 gap-2">
-                    <button type="button" onClick={createSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2} className="rounded-lg bg-zinc-950 px-2 py-2 text-xs font-semibold text-white disabled:bg-zinc-300">Save new</button>
-                    <button type="button" onClick={updateSavedRoute} disabled={routeSaveBusy || !selectedRouteId || routeWaypoints.length < 2} className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-xs font-semibold disabled:opacity-40">Update</button>
+                <div className="space-y-3">
+                  <NavlogAccountPanel user={accountUser} ready={accountReady} />
+                  {accountUser ? (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
+                      <FieldLabel>Save current route</FieldLabel>
+                      <input value={routeSaveName} onChange={(event) => setRouteSaveName(event.target.value)} maxLength={100} placeholder="Route name" className="h-10 w-full rounded-lg border border-zinc-200 bg-white px-3 text-sm" />
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button type="button" onClick={createSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg bg-zinc-950 px-2 py-2 text-xs font-semibold text-white disabled:bg-zinc-300">Save new</button>
+                        <button type="button" onClick={updateSavedRoute} disabled={routeSaveBusy || !selectedPersonalRoute || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg border border-zinc-300 bg-white px-2 py-2 text-xs font-semibold disabled:opacity-40">Update</button>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-zinc-500">{selectedPersonalRoute ? `Editing: ${selectedPersonalRoute.name}` : "Save a private copy of the current route."}</p>
+                      {routeSaveStatus ? <p role="status" className="mt-2 text-xs font-medium text-zinc-700">{routeSaveStatus}</p> : null}
+                      {selectedPersonalRoute ? <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy} className="mt-3 text-xs font-medium text-red-700 disabled:opacity-30">Delete my selected route</button> : null}
+                    </div>
+                  ) : null}
                   </div>
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">Selected: {selectedPerfectRoute?.name || "none"}</p>
-                  {routeSaveStatus ? <p className="mt-2 text-xs font-medium text-zinc-700">{routeSaveStatus}</p> : null}
-                  <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy || !selectedRouteId} className="mt-3 text-xs font-medium text-red-600 disabled:opacity-30">Delete selected saved route</button>
-                </div>
               </div>
             </div>
           ) : null}

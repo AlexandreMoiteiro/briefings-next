@@ -27,13 +27,15 @@ export type PerfectRoute = {
   id: string;
   name: string;
   waypoints: PerfectRouteWaypointRaw[];
-  source: "supabase";
+  source: "library" | "personal";
+  category?: "VFR" | "IFR";
 };
 
 type SupabasePerfectRouteRow = {
   id: string;
   name: string;
   waypoints: PerfectRouteWaypointRaw[];
+  tags?: string[] | null;
 };
 
 function requireSupabase() {
@@ -69,12 +71,20 @@ function normalizeVorPref(value: unknown): "AUTO" | "FIXED" {
   return cleanText(value).toUpperCase() === "FIXED" ? "FIXED" : "AUTO";
 }
 
-function rowToPerfectRoute(route: SupabasePerfectRouteRow): PerfectRoute {
+function rowToPerfectRoute(
+  route: SupabasePerfectRouteRow,
+  source: PerfectRoute["source"]
+): PerfectRoute {
+  const taggedIfr = route.tags?.some((tag) => tag.toUpperCase() === "IFR");
+  const taggedVfr = route.tags?.some((tag) => tag.toUpperCase() === "VFR");
+  const namedIfr = /\bIFR\b/i.test(route.name);
+  const category = taggedIfr || namedIfr ? "IFR" : taggedVfr ? "VFR" : undefined;
   return {
     id: route.id,
     name: route.name,
     waypoints: Array.isArray(route.waypoints) ? route.waypoints : [],
-    source: "supabase",
+    source,
+    ...(source === "library" ? { category } : {}),
   };
 }
 
@@ -83,7 +93,8 @@ export async function loadSupabasePerfectRoutes(): Promise<PerfectRoute[]> {
 
   const { data, error } = await client
     .from("navlog_perfect_routes")
-    .select("id,name,waypoints")
+    .select("id,name,waypoints,tags")
+    .eq("is_public", true)
     .order("name", { ascending: true });
 
   if (error) {
@@ -91,8 +102,20 @@ export async function loadSupabasePerfectRoutes(): Promise<PerfectRoute[]> {
   }
 
   return ((data ?? []) as SupabasePerfectRouteRow[])
-    .map(rowToPerfectRoute)
+    .map((route) => rowToPerfectRoute(route, "library"))
     .filter((route) => route.waypoints.length > 0);
+}
+
+export async function loadPersonalRoutes(): Promise<PerfectRoute[]> {
+  const client = requireSupabase();
+  const { data, error } = await client
+    .from("navlog_user_routes")
+    .select("id,name,waypoints")
+    .order("updated_at", { ascending: false });
+
+  if (error) throw error;
+  return ((data ?? []) as SupabasePerfectRouteRow[])
+    .map((route) => rowToPerfectRoute(route, "personal"));
 }
 
 export function routeWaypointsToPerfectRouteRaw(
@@ -117,7 +140,7 @@ export function routeWaypointsToPerfectRouteRaw(
   }));
 }
 
-export async function createSupabasePerfectRoute(
+export async function createPersonalRoute(
   name: string,
   waypoints: NavlogRouteWaypoint[]
 ): Promise<PerfectRoute> {
@@ -126,11 +149,10 @@ export async function createSupabasePerfectRoute(
   const payload = {
     name: name.trim(),
     waypoints: routeWaypointsToPerfectRouteRaw(waypoints),
-    is_public: true,
   };
 
   const { data, error } = await client
-    .from("navlog_perfect_routes")
+    .from("navlog_user_routes")
     .insert(payload)
     .select("id,name,waypoints")
     .single();
@@ -139,10 +161,10 @@ export async function createSupabasePerfectRoute(
     throw error;
   }
 
-  return rowToPerfectRoute(data as SupabasePerfectRouteRow);
+  return rowToPerfectRoute(data as SupabasePerfectRouteRow, "personal");
 }
 
-export async function updateSupabasePerfectRoute(
+export async function updatePersonalRoute(
   id: string,
   name: string,
   waypoints: NavlogRouteWaypoint[]
@@ -152,11 +174,10 @@ export async function updateSupabasePerfectRoute(
   const payload = {
     name: name.trim(),
     waypoints: routeWaypointsToPerfectRouteRaw(waypoints),
-    updated_at: new Date().toISOString(),
   };
 
   const { data, error } = await client
-    .from("navlog_perfect_routes")
+    .from("navlog_user_routes")
     .update(payload)
     .eq("id", id)
     .select("id,name,waypoints")
@@ -166,14 +187,14 @@ export async function updateSupabasePerfectRoute(
     throw error;
   }
 
-  return rowToPerfectRoute(data as SupabasePerfectRouteRow);
+  return rowToPerfectRoute(data as SupabasePerfectRouteRow, "personal");
 }
 
-export async function deleteSupabasePerfectRoute(id: string) {
+export async function deletePersonalRoute(id: string) {
   const client = requireSupabase();
 
   const { error } = await client
-    .from("navlog_perfect_routes")
+    .from("navlog_user_routes")
     .delete()
     .eq("id", id);
 
