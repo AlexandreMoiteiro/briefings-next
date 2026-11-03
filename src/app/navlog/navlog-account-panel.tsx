@@ -21,24 +21,6 @@ export function NavlogAccountPanel({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
-  async function socialSignIn(provider: "google" | "azure") {
-    if (!supabase || busy) return;
-    setBusy(true);
-    setMessage("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider,
-      options: {
-        redirectTo: `${window.location.origin}/navlog`,
-        ...(provider === "azure" ? { scopes: "email" } : {}),
-      },
-    });
-    if (error) {
-      setMessage(`${provider === "azure" ? "Microsoft" : "Google"} sign-in is not available yet. ${error.message}`);
-      setBusy(false);
-    }
-    // A successful OAuth request navigates to the identity provider.
-  }
-
   async function emailSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || busy) return;
@@ -107,42 +89,30 @@ export function NavlogAccountPanel({
 
   return (
     <div>
-      <p className="mb-5 text-sm leading-6 text-zinc-600">Sign in to keep your NavLog routes in your own account. You can still use public routes without signing in.</p>
-      <div className="space-y-2">
-        <button type="button" disabled={busy} onClick={() => void socialSignIn("google")} className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-50 disabled:opacity-50">
-          <span aria-hidden className="flex size-6 items-center justify-center rounded-full border border-zinc-300 text-sm font-bold">G</span>
-          Continue with Google
-        </button>
-        <button type="button" disabled={busy} onClick={() => void socialSignIn("azure")} className="flex w-full items-center justify-center gap-3 rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-50 disabled:opacity-50">
-          <span aria-hidden className="grid size-5 grid-cols-2 gap-0.5"><span className="bg-zinc-700" /><span className="bg-zinc-700" /><span className="bg-zinc-700" /><span className="bg-zinc-700" /></span>
-          Continue with Microsoft
-        </button>
-      </div>
-      {message ? <p role="alert" className="mt-3 text-xs leading-5 text-red-700">{message}</p> : null}
-      <details className="mt-6 border-t border-zinc-200 pt-4">
-        <summary className="cursor-pointer text-sm font-medium text-zinc-600">Use email and password instead</summary>
-        <p className="mt-3 text-xs leading-5 text-zinc-500">New email accounts require a configured mail service. Google and Microsoft do not require a separate mail domain.</p>
-        <div className="mt-3 flex gap-4 border-b border-zinc-200 text-xs">
+      <p className="mb-5 text-sm leading-6 text-zinc-600">Save your NavLog routes privately and open them on any device. Public routes remain available without an account.</p>
+      <div className="border-b border-zinc-200">
+        <div className="flex gap-6 text-sm">
           <button type="button" onClick={() => { setMode("login"); setMessage(""); }} aria-pressed={mode === "login"} className={`pb-2 ${mode === "login" ? "border-b-2 border-zinc-950 font-semibold" : "text-zinc-500"}`}>Sign in</button>
           <button type="button" onClick={() => { setMode("signup"); setMessage(""); }} aria-pressed={mode === "signup"} className={`pb-2 ${mode === "signup" ? "border-b-2 border-zinc-950 font-semibold" : "text-zinc-500"}`}>Create account</button>
         </div>
-        <form onSubmit={(event) => void emailSubmit(event)} className="mt-3 space-y-3">
-          <label className="block text-xs text-zinc-600">Email
-            <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+      </div>
+        <form onSubmit={(event) => void emailSubmit(event)} className="mt-5 space-y-4">
+          <label className="block text-sm text-zinc-700">Email address
+            <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
           </label>
           {mode !== "reset" ? (
-            <label className="block text-xs text-zinc-600">Password
-              <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={mode === "signup" ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+            <label className="block text-sm text-zinc-700">Password {mode === "signup" ? "(at least 8 characters)" : ""}
+              <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={mode === "signup" ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
             </label>
           ) : null}
-          <button type="submit" disabled={busy} className="w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-sm font-semibold text-white disabled:opacity-40">
+          <button type="submit" disabled={busy} className="w-full rounded-lg bg-zinc-950 px-3 py-3 text-sm font-semibold text-white disabled:opacity-40">
             {busy ? "Please wait…" : mode === "login" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
           </button>
         </form>
+        {message ? <p role="status" className="mt-4 text-sm leading-6 text-zinc-700">{message}</p> : null}
         <button type="button" onClick={() => { setMode(mode === "reset" ? "login" : "reset"); setMessage(""); }} className="mt-3 text-xs text-zinc-600 underline underline-offset-2">
           {mode === "reset" ? "Back to sign in" : "Forgot password?"}
         </button>
-      </details>
     </div>
   );
 }

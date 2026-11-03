@@ -3,6 +3,7 @@
 import dynamic from "next/dynamic";
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 const UsageEventMap = dynamic(
   () =>
@@ -415,6 +416,9 @@ export function AdminDashboard() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link href="/admin/navlog-routes" className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100">
+              NavLog routes
+            </Link>
             <button
               type="button"
               onClick={() => loadEvents()}

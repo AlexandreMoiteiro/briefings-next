@@ -344,7 +344,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
           typeof item.point?.lon === "number" && Number.isFinite(item.point.lon)
         );
         if (validWaypoints.length > 0) {
-          // Restore the editor after an OAuth redirect in the same browser tab.
+          // Restore the editor after visiting the account page in the same browser tab.
           // eslint-disable-next-line react-hooks/set-state-in-effect
           setRouteWaypoints(validWaypoints);
           setRouteText(typeof previous.routeText === "string" ? previous.routeText : "");
@@ -383,6 +383,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
         if (cancelled) return;
         setNavlogData(data);
         setPerfectRoutes(routes);
+        if (routes.some((route) => route.verifiedCreator)) setRouteLibraryScope("featured");
         setSelectedRouteId(routes[0]?.id ?? "");
         setRouteSaveName(routes[0]?.name ?? "");
       } catch (error) {
@@ -1342,7 +1343,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                       <p className="text-sm font-semibold text-zinc-900">Save your routes</p>
                       <p className="mt-1 text-xs leading-5 text-zinc-500">Sign in to save a private copy and reopen it on another device.</p>
-                      <button type="button" onClick={onOpenAccount} className="mt-3 w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-xs font-semibold text-white">Sign in / Register</button>
+                      <button type="button" onClick={onOpenAccount} className="mt-3 w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-xs font-semibold text-white">Sign in or create account</button>
                     </div>
                   )}
                   </div>

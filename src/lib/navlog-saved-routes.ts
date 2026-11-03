@@ -4,9 +4,6 @@ import type {
   NavlogSetupForm,
 } from "@/lib/navlog";
 import { supabase } from "@/lib/supabase/client";
-import { verifiedNavlogRouteIds } from "@/lib/navlog-verified-routes";
-
-const verifiedRouteIds = new Set<string>(verifiedNavlogRouteIds);
 
 export type PerfectRouteWaypointRaw = {
   code?: string;
@@ -44,6 +41,12 @@ type SupabasePerfectRouteRow = {
   source?: string;
 };
 
+type RouteCuration = {
+  route_id: string;
+  is_default: boolean;
+  category: "VFR" | "IFR" | null;
+};
+
 function requireSupabase() {
   if (!supabase) {
     throw new Error("Supabase is not configured in .env.local.");
@@ -79,37 +82,43 @@ function normalizeVorPref(value: unknown): "AUTO" | "FIXED" {
 
 function rowToPerfectRoute(
   route: SupabasePerfectRouteRow,
-  source: PerfectRoute["source"]
+  source: PerfectRoute["source"],
+  curation?: RouteCuration
 ): PerfectRoute {
   const taggedIfr = route.tags?.some((tag) => tag.toUpperCase() === "IFR");
   const taggedVfr = route.tags?.some((tag) => tag.toUpperCase() === "VFR");
   const namedIfr = /\bIFR\b/i.test(route.name);
-  const category = taggedIfr || namedIfr ? "IFR" : taggedVfr ? "VFR" : undefined;
+  const category = curation
+    ? curation.category ?? undefined
+    : (taggedIfr || namedIfr ? "IFR" : taggedVfr ? "VFR" : undefined);
   return {
     id: route.id,
     name: route.name,
     waypoints: Array.isArray(route.waypoints) ? route.waypoints : [],
     source,
     ...(source === "library" ? { category } : {}),
-    ...(source === "library" ? { verifiedCreator: verifiedRouteIds.has(route.id), origin: route.source } : {}),
+    ...(source === "library" ? { verifiedCreator: curation?.is_default === true, origin: route.source } : {}),
   };
 }
 
 export async function loadSupabasePerfectRoutes(): Promise<PerfectRoute[]> {
   const client = requireSupabase();
 
-  const { data, error } = await client
-    .from("navlog_perfect_routes")
-    .select("id,name,waypoints,tags,source")
-    .eq("is_public", true)
-    .order("name", { ascending: true });
+  const [routes, curation] = await Promise.all([
+    client.from("navlog_perfect_routes")
+      .select("id,name,waypoints,tags,source")
+      .eq("is_public", true)
+      .order("name", { ascending: true }),
+    client.from("navlog_route_curation")
+      .select("route_id,is_default,category"),
+  ]);
 
-  if (error) {
-    throw error;
-  }
+  if (routes.error) throw routes.error;
+  if (curation.error) throw curation.error;
+  const curated = new Map(((curation.data ?? []) as RouteCuration[]).map((row) => [row.route_id, row]));
 
-  return ((data ?? []) as SupabasePerfectRouteRow[])
-    .map((route) => rowToPerfectRoute(route, "library"))
+  return ((routes.data ?? []) as SupabasePerfectRouteRow[])
+    .map((route) => rowToPerfectRoute(route, "library", curated.get(route.id)))
     .filter((route) => route.waypoints.length > 0);
 }
 
