@@ -5,10 +5,14 @@
 - The 95 existing routes in `public.navlog_perfect_routes` remain available to everyone as a **public suggestion library**. The new UI does not write to this table.
 - Visitors can still plan a route without registering.
 - Supabase Auth email/password sign-up, sign-in, sign-out and reset-password flow.
+- Visible sign-in / register action at the top of NavLog, with Google and Microsoft
+  sign-in as the primary options (provider configuration still required).
 - Each signed-in user can create, edit and delete only their own routes in `public.navlog_user_routes`.
 - Private routes have PostgreSQL Row Level Security policies on `auth.uid()`; anonymous users have no table grants.
 - Database caps: 100 routes per account, 120 waypoints and 64 KiB per saved route; automatic deletion when an Auth user is deleted.
 - No new paid service or new Supabase project was created.
+- Route provenance is not inferable from old import metadata. See
+  [social sign-in and route provenance](navlog-social-auth-and-route-provenance.md).
 
 ## Configure Auth emails before opening registration publicly
 

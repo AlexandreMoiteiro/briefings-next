@@ -4,6 +4,9 @@ import type {
   NavlogSetupForm,
 } from "@/lib/navlog";
 import { supabase } from "@/lib/supabase/client";
+import { verifiedNavlogRouteIds } from "@/lib/navlog-verified-routes";
+
+const verifiedRouteIds = new Set<string>(verifiedNavlogRouteIds);
 
 export type PerfectRouteWaypointRaw = {
   code?: string;
@@ -29,6 +32,8 @@ export type PerfectRoute = {
   waypoints: PerfectRouteWaypointRaw[];
   source: "library" | "personal";
   category?: "VFR" | "IFR";
+  verifiedCreator?: boolean;
+  origin?: string;
 };
 
 type SupabasePerfectRouteRow = {
@@ -36,6 +41,7 @@ type SupabasePerfectRouteRow = {
   name: string;
   waypoints: PerfectRouteWaypointRaw[];
   tags?: string[] | null;
+  source?: string;
 };
 
 function requireSupabase() {
@@ -85,6 +91,7 @@ function rowToPerfectRoute(
     waypoints: Array.isArray(route.waypoints) ? route.waypoints : [],
     source,
     ...(source === "library" ? { category } : {}),
+    ...(source === "library" ? { verifiedCreator: verifiedRouteIds.has(route.id), origin: route.source } : {}),
   };
 }
 
@@ -93,7 +100,7 @@ export async function loadSupabasePerfectRoutes(): Promise<PerfectRoute[]> {
 
   const { data, error } = await client
     .from("navlog_perfect_routes")
-    .select("id,name,waypoints,tags")
+    .select("id,name,waypoints,tags,source")
     .eq("is_public", true)
     .order("name", { ascending: true });
 

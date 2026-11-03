@@ -27,7 +27,6 @@ import {
   type PerfectRoute,
 } from "@/lib/navlog-saved-routes";
 import { supabase } from "@/lib/supabase/client";
-import { NavlogAccountPanel } from "./navlog-account-panel";
 import {
   applyAircraftProfile,
   CUSTOM_AIRCRAFT_TYPE,
@@ -67,6 +66,7 @@ const emptyNavlogData: NavlogDataBundle = {
 
 const LITERS_PER_US_GALLON = 3.785411784;
 const FINAL_RESERVE_MIN = 45;
+const NAVLOG_SESSION_DRAFT_KEY = "briefings_navlog_draft_v1";
 
 function formatFuelDisplay(liters: number) {
   const roundedLiters = Math.max(0, Math.round(liters || 0));
@@ -252,7 +252,7 @@ function profileForAircraft(aircraftType: NavlogAircraftType) {
     : profile;
 }
 
-export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftType }) {
+export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: NavlogAircraftType; onOpenAccount: () => void }) {
   const initialProfile = useMemo(() => profileForAircraft(aircraftType), [aircraftType]);
   const [setup, setSetup] = useState<NavlogSetupForm>(initialProfile);
   const [navlogData, setNavlogData] = useState<NavlogDataBundle | null>(null);
@@ -260,7 +260,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [personalRoutes, setPersonalRoutes] = useState<PerfectRoute[]>([]);
   const [accountUser, setAccountUser] = useState<User | null>(null);
   const accountIdRef = useRef<string | null>(null);
-  const [accountReady, setAccountReady] = useState(!supabase);
   const [personalRoutesError, setPersonalRoutesError] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
 
@@ -274,7 +273,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
-  const [routeLibraryScope, setRouteLibraryScope] = useState<"library" | "personal">("library");
+  const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "community" | "personal">("community");
   const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [pointSearch, setPointSearch] = useState("");
   const [routeText, setRouteText] = useState("");
@@ -284,6 +283,7 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   const [routeSaveBusy, setRouteSaveBusy] = useState(false);
   const [addAltitude, setAddAltitude] = useState(initialProfile.defaultAltitude);
   const [routeWaypoints, setRouteWaypoints] = useState<NavlogRouteWaypoint[]>([]);
+  const [draftRestored, setDraftRestored] = useState(false);
   const [draggedWaypointId, setDraggedWaypointId] = useState<string | null>(null);
   const [dragOverWaypointId, setDragOverWaypointId] = useState<string | null>(null);
 
@@ -331,6 +331,47 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
   }, [aircraftType]);
 
   useEffect(() => {
+    try {
+      const previous = JSON.parse(window.sessionStorage.getItem(NAVLOG_SESSION_DRAFT_KEY) ?? "null") as {
+        aircraftType?: NavlogAircraftType;
+        waypoints?: NavlogRouteWaypoint[];
+        routeText?: string;
+      } | null;
+      if (previous?.aircraftType === aircraftType && Array.isArray(previous.waypoints)) {
+        const validWaypoints = previous.waypoints.slice(0, 120).filter((item) =>
+          typeof item?.id === "string" &&
+          typeof item.point?.lat === "number" && Number.isFinite(item.point.lat) &&
+          typeof item.point?.lon === "number" && Number.isFinite(item.point.lon)
+        );
+        if (validWaypoints.length > 0) {
+          // Restore the editor after an OAuth redirect in the same browser tab.
+          // eslint-disable-next-line react-hooks/set-state-in-effect
+          setRouteWaypoints(validWaypoints);
+          setRouteText(typeof previous.routeText === "string" ? previous.routeText : "");
+        }
+      }
+    } catch {
+      // Ignore invalid browser data and start with a fresh route.
+    }
+    setDraftRestored(true);
+    // The selected aircraft is restored by NavlogClientStable on page mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    if (!draftRestored) return;
+    try {
+      window.sessionStorage.setItem(NAVLOG_SESSION_DRAFT_KEY, JSON.stringify({
+        aircraftType,
+        waypoints: routeWaypoints,
+        routeText,
+      }));
+    } catch {
+      // Planning must keep working if browser storage is unavailable or full.
+    }
+  }, [draftRestored, aircraftType, routeWaypoints, routeText]);
+
+  useEffect(() => {
     let cancelled = false;
 
     async function load() {
@@ -366,7 +407,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
         setPersonalRoutesError("");
       }
       setAccountUser(session?.user ?? null);
-      setAccountReady(true);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -754,13 +794,17 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
 
   const filteredPerfectRoutes = useMemo(() => {
     const query = routeSearch.trim().toUpperCase();
-    const routes = routeLibraryScope === "library"
-      ? perfectRoutes.filter((route) => routeCategory === "all" || route.category === routeCategory)
-      : personalRoutes;
+    const routes = routeLibraryScope === "personal"
+      ? personalRoutes
+      : perfectRoutes.filter((route) => (
+        (routeLibraryScope === "featured" ? route.verifiedCreator === true : route.verifiedCreator !== true)
+        && (routeCategory === "all" || route.category === routeCategory)
+      ));
     if (!query) return routes;
     return routes.filter((route) => route.name.toUpperCase().includes(query));
   }, [perfectRoutes, personalRoutes, routeSearch, routeLibraryScope, routeCategory]);
 
+  const verifiedRouteCount = perfectRoutes.filter((route) => route.verifiedCreator).length;
   const selectedPersonalRoute = personalRoutes.find((route) => route.id === selectedRouteId);
 
   const vorOptions = useMemo(() => {
@@ -1231,14 +1275,17 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
               <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_280px]">
                 <div>
                   <div className="mb-3 flex flex-wrap gap-2">
-                    <button type="button" aria-pressed={routeLibraryScope === "library"} onClick={() => setRouteLibraryScope("library")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "library" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
-                      Public library ({perfectRoutes.length})
+                    <button type="button" aria-pressed={routeLibraryScope === "featured"} onClick={() => setRouteLibraryScope("featured")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "featured" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
+                      Briefings routes ({verifiedRouteCount})
+                    </button>
+                    <button type="button" aria-pressed={routeLibraryScope === "community"} onClick={() => setRouteLibraryScope("community")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "community" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
+                      Community ({perfectRoutes.length - verifiedRouteCount})
                     </button>
                     <button type="button" aria-pressed={routeLibraryScope === "personal"} onClick={() => setRouteLibraryScope("personal")} className={`rounded-lg px-3 py-2 text-xs font-semibold ${routeLibraryScope === "personal" ? "bg-zinc-950 text-white" : "border border-zinc-200 bg-white text-zinc-600"}`}>
                       My routes ({personalRoutes.length})
                     </button>
                   </div>
-                  {routeLibraryScope === "library" ? (
+                  {routeLibraryScope !== "personal" ? (
                     <>
                       <div className="mb-2 flex items-center gap-2">
                         {(["all", "VFR", "IFR"] as const).map((category) => (
@@ -1247,7 +1294,11 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                           </button>
                         ))}
                       </div>
-                      <p className="mb-3 text-xs leading-5 text-zinc-500">Suggested routes only, not validated flight plans. VFR/IFR filters show labelled routes; all others remain under All. Always verify AIP, NOTAMs, weather and altitudes.</p>
+                      <p className="mb-3 text-xs leading-5 text-zinc-500">
+                        {routeLibraryScope === "featured"
+                          ? "Routes personally confirmed by the site owner. Always check current AIP, NOTAMs, weather and altitudes."
+                          : "Unverified shared routes, which may have been submitted by other users. Not validated flight plans; verify before use."}
+                      </p>
                     </>
                   ) : (
                     <p className="mb-3 text-xs leading-5 text-zinc-500">Your private routes are only available to your account.</p>
@@ -1256,7 +1307,13 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                   <div className="mt-2 max-h-64 overflow-y-auto rounded-xl border border-zinc-200">
                     {personalRoutesError && routeLibraryScope === "personal" ? <p role="alert" className="p-3 text-xs text-red-700">{personalRoutesError}</p> : null}
                     {filteredPerfectRoutes.length === 0 ? (
-                      <p className="p-4 text-sm text-zinc-500">{routeLibraryScope === "personal" && !accountUser ? "Sign in to see your routes." : "No routes match."}</p>
+                      <p className="p-4 text-sm text-zinc-500">
+                        {routeLibraryScope === "personal" && !accountUser
+                          ? "Sign in to see your routes."
+                          : routeLibraryScope === "featured" && verifiedRouteCount === 0
+                            ? "The original Briefings routes are being identified. No route has been attributed to the owner without confirmation."
+                            : "No routes match."}
+                      </p>
                     ) : (
                       filteredPerfectRoutes.map((route) => (
                         <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)} className={["flex w-full items-center justify-between gap-3 border-b border-zinc-100 px-3 py-2.5 text-left last:border-0 hover:bg-zinc-50", selectedRouteId === route.id ? "bg-zinc-50" : "bg-white"].join(" ")}>
@@ -1269,7 +1326,6 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                 </div>
 
                 <div className="space-y-3">
-                  <NavlogAccountPanel user={accountUser} ready={accountReady} />
                   {accountUser ? (
                     <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-3">
                       <FieldLabel>Save current route</FieldLabel>
@@ -1282,7 +1338,13 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                       {routeSaveStatus ? <p role="status" className="mt-2 text-xs font-medium text-zinc-700">{routeSaveStatus}</p> : null}
                       {selectedPersonalRoute ? <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy} className="mt-3 text-xs font-medium text-red-700 disabled:opacity-30">Delete my selected route</button> : null}
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                      <p className="text-sm font-semibold text-zinc-900">Save your routes</p>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Sign in to save a private copy and reopen it on another device.</p>
+                      <button type="button" onClick={onOpenAccount} className="mt-3 w-full rounded-lg bg-zinc-950 px-3 py-2.5 text-xs font-semibold text-white">Sign in / Register</button>
+                    </div>
+                  )}
                   </div>
               </div>
             </div>
