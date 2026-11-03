@@ -30,7 +30,7 @@ export function deriveNavlogPassword(email: string, pin: string) {
   // Domain separation: a PIN or email is never sent as the Supabase password.
   return `briefings-pin-v1-${createHmac("sha256", requirePinSecret())
     .update(`password:${normalized}:${pin}`)
-    .digest("hex")}`;
+    .digest("base64url")}`;
 }
 
 export function navlogAuthRateKey(value: string) {
