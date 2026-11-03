@@ -65,6 +65,30 @@ export function NavlogAccountPanel({
     }
   }
 
+  async function resendConfirmation() {
+    if (!supabase || busy) return;
+    const address = email.trim();
+    if (!address) {
+      setMessage("Enter your email address above to resend the confirmation.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      const { error } = await supabase.auth.resend({
+        type: "signup",
+        email: address,
+        options: { emailRedirectTo: `${window.location.origin}/navlog` },
+      });
+      if (error) throw error;
+      setMessage("Confirmation requested. Check your inbox and spam folder. If no email arrives, check the Mailjet delivery logs.");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "Could not resend the confirmation. Try again later.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function signOut() {
     if (!supabase) return;
     setBusy(true);
@@ -129,6 +153,11 @@ export function NavlogAccountPanel({
           </button>
         </form>
         {message ? <p role="status" className="mt-4 text-sm leading-6 text-zinc-700">{message}</p> : null}
+        {mode === "signup" ? (
+          <button type="button" disabled={busy} onClick={() => void resendConfirmation()} className="mt-3 block text-xs text-zinc-600 underline underline-offset-2 disabled:opacity-40">
+            Resend confirmation email
+          </button>
+        ) : null}
         <button type="button" onClick={() => { setMode(mode === "reset" ? "login" : "reset"); setMessage(""); }} className="mt-3 text-xs text-zinc-600 underline underline-offset-2">
           {mode === "reset" ? "Back to sign in" : "Forgot password?"}
         </button>
