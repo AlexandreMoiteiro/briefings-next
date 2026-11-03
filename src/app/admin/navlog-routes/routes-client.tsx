@@ -213,6 +213,7 @@ export function AdminNavlogRoutes() {
           <nav aria-label="Admin" className="flex gap-2 text-sm">
             <Link href="/admin" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Visão geral</Link>
             <span aria-current="page" className="rounded-lg bg-zinc-950 px-4 py-2 font-medium text-white">Rotas</span>
+            <Link href="/admin/accounts" className="rounded-lg border border-zinc-200 bg-white px-4 py-2 text-zinc-700 hover:bg-zinc-100">Contas</Link>
           </nav>
         </header>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">

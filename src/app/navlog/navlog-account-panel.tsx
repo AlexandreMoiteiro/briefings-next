@@ -17,7 +17,9 @@ export function NavlogAccountPanel({
 }) {
   const [mode, setMode] = useState<AccountMode>("login");
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [username, setUsername] = useState("");
+  const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -33,24 +35,28 @@ export function NavlogAccountPanel({
         });
         if (error) throw error;
         setMessage("If this email has an account, a password reset link will be sent.");
-      } else if (mode === "signup") {
-        const { data, error } = await supabase.auth.signUp({
-          email: email.trim(),
-          password,
-          options: { emailRedirectTo: `${window.location.origin}/navlog` },
-        });
-        if (error) throw error;
-        setPassword("");
-        setMessage(data.session
-          ? "Your account is ready."
-          : "Check your email to confirm the account, then sign in.");
       } else {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: email.trim(), password,
+        const response = await fetch("/api/navlog/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(mode === "signup"
+            ? { action: "signup", email: email.trim(), username: username.trim(), pin }
+            : { action: "login", identifier: identifier.trim(), pin }),
         });
-        if (error) throw error;
-        setPassword("");
-        onClose();
+        const result = await response.json() as {
+          error?: string;
+          session?: { access_token: string; refresh_token: string } | null;
+          requiresConfirmation?: boolean;
+        };
+        if (!response.ok) throw new Error(result.error ?? "Sign-in failed.");
+        setPin("");
+        if (result.session) {
+          const { error } = await supabase.auth.setSession(result.session);
+          if (error) throw error;
+          onClose();
+        } else {
+          setMessage("Check your email to confirm your account, then sign in using your username and PIN.");
+        }
       }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Sign-in failed. Please retry.");
@@ -97,12 +103,25 @@ export function NavlogAccountPanel({
         </div>
       </div>
         <form onSubmit={(event) => void emailSubmit(event)} className="mt-5 space-y-4">
-          <label className="block text-sm text-zinc-700">Email address
-            <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
-          </label>
+          {mode === "login" ? (
+            <label className="block text-sm text-zinc-700">Username or email
+              <input type="text" autoComplete="username" required value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="e.g. MOITEIRO" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+            </label>
+          ) : (
+            <label className="block text-sm text-zinc-700">Email address
+              <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+            </label>
+          )}
+          {mode === "signup" ? (
+            <label className="block text-sm text-zinc-700">Choose your username
+              <input type="text" autoComplete="nickname" required minLength={3} maxLength={24} pattern="[A-Za-z0-9._-]{3,24}" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="e.g. MOITEIRO" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+              <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Tip: use your FlightLogger name so other pilots can recognise you. Any available username is fine.</span>
+            </label>
+          ) : null}
           {mode !== "reset" ? (
-            <label className="block text-sm text-zinc-700">Password {mode === "signup" ? "(at least 8 characters)" : ""}
-              <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} minLength={mode === "signup" ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
+            <label className="block text-sm text-zinc-700">4-digit PIN
+              <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} required value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm tracking-widest text-zinc-950" />
+              {mode === "signup" ? <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Exactly four numbers. Avoid easy sequences like 1234 or your birthday.</span> : null}
             </label>
           ) : null}
           <button type="submit" disabled={busy} className="w-full rounded-lg bg-zinc-950 px-3 py-3 text-sm font-semibold text-white disabled:opacity-40">

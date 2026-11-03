@@ -1,8 +1,6 @@
 "use client";
 
 import { useEffect, useState, type MouseEvent as ReactMouseEvent } from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import {
   AircraftPicker,
@@ -15,6 +13,7 @@ import { SelectedAircraftCard } from "@/components/selected-aircraft-card";
 import { checkExportAccess } from "@/lib/export-access";
 import type { NavlogAircraftType } from "@/lib/navlog";
 import { supabase } from "@/lib/supabase/client";
+import { NavlogAccountPanel } from "./navlog-account-panel";
 import { NavlogStudio } from "./navlog-studio";
 
 type Aircraft = NavlogAircraftType;
@@ -66,13 +65,14 @@ function aircraftChoice(value: Aircraft) {
 }
 
 export function NavlogClientStable() {
-  const router = useRouter();
   const [aircraft, setAircraft] = useState<Aircraft>("Tecnam P2006T");
   const [started, setStarted] = useState(false);
   const [showPicker, setShowPicker] = useState(true);
   const [pilotName, setPilotName] = useState("");
   const [blockedDialogOpen, setBlockedDialogOpen] = useState(false);
+  const [accountOpen, setAccountOpen] = useState(false);
   const [accountUser, setAccountUser] = useState<User | null>(null);
+  const [accountReady, setAccountReady] = useState(!supabase);
 
   useEffect(() => {
     // Pilot name is an optional browser preference, read after hydration.
@@ -100,9 +100,22 @@ export function NavlogClientStable() {
     if (!supabase) return;
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setAccountUser(session?.user ?? null);
+      setAccountReady(true);
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!accountOpen) return;
+    const oldOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const onEscape = (event: KeyboardEvent) => { if (event.key === "Escape") setAccountOpen(false); };
+    window.addEventListener("keydown", onEscape);
+    return () => {
+      document.body.style.overflow = oldOverflow;
+      window.removeEventListener("keydown", onEscape);
+    };
+  }, [accountOpen]);
 
   function updatePilotName(value: string) {
     setPilotName(value);
@@ -149,9 +162,9 @@ export function NavlogClientStable() {
 
   const selected = aircraftChoice(aircraft);
   const accountAction = (
-    <Link href="/navlog/account" className="inline-flex items-center rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-50">
-      {accountUser ? "My account" : "Sign in"}
-    </Link>
+    <button type="button" onClick={() => setAccountOpen(true)} className="inline-flex items-center rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
+      {accountUser ? "My account" : "Sign in / Create account"}
+    </button>
   );
 
   return (
@@ -180,7 +193,7 @@ export function NavlogClientStable() {
             documentLabel="NavLog"
           />
 
-          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => router.push("/navlog/account")} />
+          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => setAccountOpen(true)} />
         </div>
       ) : null}
 
@@ -190,6 +203,21 @@ export function NavlogClientStable() {
         onPilotNameChange={updatePilotName}
         onClose={() => setBlockedDialogOpen(false)}
       />
+      {accountOpen ? (
+        <div className="fixed inset-0 z-[100] flex items-start justify-center overflow-y-auto bg-zinc-950/60 p-4 pt-[8vh] sm:items-center sm:pt-4"
+          onMouseDown={(event) => { if (event.currentTarget === event.target) setAccountOpen(false); }}>
+          <section role="dialog" aria-modal="true" aria-labelledby="navlog-account-dialog-title" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl sm:p-8">
+            <div className="mb-5 flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">Briefings · NavLog</p>
+                <h2 id="navlog-account-dialog-title" className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">{accountUser ? "My account" : "Your NavLog account"}</h2>
+              </div>
+              <button type="button" onClick={() => setAccountOpen(false)} aria-label="Close sign-in window" className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xl leading-none text-zinc-600 hover:bg-zinc-50">×</button>
+            </div>
+            <NavlogAccountPanel user={accountUser} ready={accountReady} onClose={() => setAccountOpen(false)} />
+          </section>
+        </div>
+      ) : null}
     </div>
   );
 }

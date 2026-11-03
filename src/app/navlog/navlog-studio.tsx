@@ -54,7 +54,6 @@ const NavlogMap = dynamic(
   }
 );
 
-type ComposerMode = "text" | "search" | "saved";
 type ReviewMode = "waypoints" | "navlog";
 
 const emptyNavlogData: NavlogDataBundle = {
@@ -180,35 +179,6 @@ function NumberField({
   );
 }
 
-function ComposerTab({
-  active,
-  label,
-  badge,
-  onClick,
-}: {
-  active: boolean;
-  label: string;
-  badge?: string | number;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      aria-pressed={active}
-      className={[
-        "inline-flex min-h-11 items-center justify-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition-colors",
-        active
-          ? "border-zinc-950 text-zinc-950"
-          : "border-transparent text-zinc-500 hover:border-zinc-300 hover:text-zinc-900",
-      ].join(" ")}
-    >
-      {label}
-      {badge !== undefined ? <span className="text-xs tabular-nums text-zinc-400">{badge}</span> : null}
-    </button>
-  );
-}
-
 function AlternateStartButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   const help =
     "Marks this waypoint as the start of the alternate segment. In the NavLog, HOLD MAX XX min is the maximum waiting time available here before leaving for the alternate while preserving alternate trip fuel plus the 45 min final reserve. HM repeats that time in the NavLog and MIN in EFOB shows the minimum fuel that must remain at this point. Green means the planned Time over fits, amber means it exceeds the available margin, and red means alternate + reserve fuel is insufficient. Check the operational minima that apply to the flight.";
@@ -244,7 +214,6 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
   const [personalRoutesError, setPersonalRoutesError] = useState("");
   const [dataError, setDataError] = useState<string | null>(null);
 
-  const [composerMode, setComposerMode] = useState<ComposerMode>("saved");
   const [reviewMode, setReviewMode] = useState<ReviewMode>("waypoints");
   const [showLayers, setShowLayers] = useState(false);
   const [showPerformance, setShowPerformance] = useState(false);
@@ -254,7 +223,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
-  const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "community" | "personal">("community");
+  const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "community" | "personal">("featured");
   const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [showSaveRouteForm, setShowSaveRouteForm] = useState(false);
   const [pointSearch, setPointSearch] = useState("");
@@ -1209,93 +1178,64 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-1 border-b border-zinc-200">
-            <ComposerTab active={composerMode === "text"} label="Route text" onClick={() => setComposerMode("text")} />
-            <ComposerTab active={composerMode === "search"} label="Find point" onClick={() => setComposerMode("search")} />
-            <ComposerTab
-              active={composerMode === "saved"}
-              label="Library"
-              onClick={() => setComposerMode("saved")}
-            />
+          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-zinc-900">Save routes to your own profile</p>
+              <p className="mt-0.5 text-xs text-zinc-600">Keep your flight plans private and reopen them on any device.</p>
+            </div>
+            {accountUser ? (
+              <button type="button" onClick={() => setShowSaveRouteForm((value) => !value)} aria-expanded={showSaveRouteForm}
+                className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white">
+                {showSaveRouteForm ? "Close saving" : "Save my route"}
+              </button>
+            ) : (
+              <button type="button" onClick={onOpenAccount} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white">
+                Sign in / Create account
+              </button>
+            )}
           </div>
 
-          {composerMode === "text" ? (
-            <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-stretch">
-              <textarea value={routeText} onChange={(event) => setRouteText(event.target.value)} placeholder="LPSO NSA MAGUM PORCA…" className="min-h-24 w-full resize-y rounded-2xl border border-zinc-200 bg-white px-4 py-3 text-sm leading-6 outline-none focus:border-zinc-500" />
-              <div className="grid grid-cols-2 gap-2 lg:w-44 lg:grid-cols-1">
-                <button type="button" onClick={replaceRouteFromText} disabled={!navlogData} className="rounded-xl bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:bg-zinc-300">Use route</button>
-                <button type="button" onClick={appendRouteFromText} disabled={!navlogData} className="rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-700 disabled:opacity-40">Append</button>
-              </div>
-              {routeWarnings.length > 0 ? (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 lg:col-span-2">
-                  {routeWarnings.map((warning) => <p key={warning} className="text-xs text-amber-800">{warning}</p>)}
-                </div>
+          {accountUser && showSaveRouteForm ? (
+            <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+              <label className="min-w-48 flex-1 text-xs font-medium text-zinc-600">Route name
+                <input value={routeSaveName} onChange={(event) => setRouteSaveName(event.target.value)} maxLength={100} placeholder="Give this route a name" className="mt-1 h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm" />
+              </label>
+              <button type="button" onClick={createSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">Save new</button>
+              {selectedPersonalRoute ? (
+                <>
+                  <button type="button" onClick={updateSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 disabled:opacity-40">Update</button>
+                  <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy} className="px-2 py-2.5 text-sm text-red-700 disabled:opacity-40">Delete</button>
+                </>
               ) : null}
             </div>
           ) : null}
+          {routeSaveStatus ? <p role="status" className="mt-2 text-xs text-zinc-700">{routeSaveStatus}</p> : null}
 
-          {composerMode === "search" ? (
-            <div className="mt-4">
-              <input value={pointSearch} onChange={(event) => setPointSearch(event.target.value)} placeholder="Search LPSO, MAGUM, ESP, VOR, IFR…" className="h-12 w-full rounded-2xl border border-zinc-200 bg-white px-4 text-sm outline-none focus:border-zinc-500" />
-              <div className="mt-3 grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 xl:grid-cols-3">
-                {dataError ? <p className="text-sm text-red-700">{dataError}</p> : null}
-                {!dataError && pointSearch.trim() && pointResults.length === 0 ? <p className="text-sm text-zinc-500">No matching points.</p> : null}
-                {pointResults.map((point) => (
-                  <button key={`${point.src}-${point.code}-${point.lat}-${point.lon}`} type="button" onClick={() => addPoint(point)} className="flex items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2.5 text-left transition hover:border-zinc-400">
-                    <span className="min-w-0"><strong className="block text-sm">{point.code || "CUSTOM"}</strong><span className="block truncate text-xs text-zinc-500">{point.name} · {point.src}</span></span>
-                    <span className="text-lg text-zinc-400">＋</span>
-                  </button>
-                ))}
+          <div className="mt-6 space-y-3">
+            <div className="flex items-start gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-semibold text-white">1</span>
+              <div>
+                <h3 className="text-base font-semibold text-zinc-950">Choose an existing route</h3>
+                <p className="mt-0.5 text-sm leading-6 text-zinc-600">The quickest way to start. Select a route made available by Briefings, another public route, or one you saved yourself.</p>
               </div>
             </div>
-          ) : null}
-
-          {composerMode === "saved" ? (
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="inline-flex flex-wrap gap-1 rounded-lg border border-zinc-200 p-1" aria-label="Route collections">
+              <div className="grid gap-2 sm:grid-cols-3" aria-label="Route collections">
                   {([
-                    ["featured", "Briefings", verifiedRouteCount],
-                    ["community", "Shared", perfectRoutes.length - verifiedRouteCount],
-                    ["personal", "Mine", personalRoutes.length],
-                  ] as const).map(([scope, label, count]) => (
+                    ["featured", "Briefings routes", verifiedRouteCount, "Selected by the site owner"],
+                    ["community", "Other public routes", perfectRoutes.length - verifiedRouteCount, "Added by visitors; not verified"],
+                    ["personal", "My saved routes", personalRoutes.length, "Private to your account"],
+                  ] as const).map(([scope, label, count, description]) => (
                     <button key={scope} type="button" onClick={() => { setRouteLibraryScope(scope); setRouteSearch(""); }} aria-pressed={routeLibraryScope === scope}
-                      className={`rounded-md px-3 py-1.5 text-sm transition-colors ${routeLibraryScope === scope ? "bg-zinc-950 font-medium text-white" : "text-zinc-600 hover:bg-zinc-100"}`}>
-                      {label} <span className={routeLibraryScope === scope ? "text-zinc-300" : "text-zinc-400"}>({count})</span>
+                      className={`rounded-xl border p-3 text-left transition-colors ${routeLibraryScope === scope ? "border-zinc-950 bg-zinc-50" : "border-zinc-200 bg-white hover:border-zinc-400"}`}>
+                      <span className="block text-sm font-semibold text-zinc-950">{label} <span className="font-normal tabular-nums text-zinc-500">({count})</span></span>
+                      <span className="mt-1 block text-xs leading-5 text-zinc-500">{description}</span>
                     </button>
                   ))}
-                </div>
-                {accountUser ? (
-                  <button type="button" onClick={() => setShowSaveRouteForm((value) => !value)} aria-expanded={showSaveRouteForm}
-                    className="text-sm font-medium text-zinc-800 underline underline-offset-4 hover:text-zinc-950">
-                    {showSaveRouteForm ? "Close" : "+ Save current route"}
-                  </button>
-                ) : (
-                  <button type="button" onClick={onOpenAccount} className="text-sm font-medium text-zinc-700 underline underline-offset-4 hover:text-zinc-950">
-                    Sign in to save your routes
-                  </button>
-                )}
               </div>
-
-              {accountUser && showSaveRouteForm ? (
-                <div className="flex flex-wrap items-end gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-3">
-                  <label className="min-w-48 flex-1 text-xs font-medium text-zinc-600">Route name
-                    <input value={routeSaveName} onChange={(event) => setRouteSaveName(event.target.value)} maxLength={100} placeholder="Give this route a name" className="mt-1 h-10 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm" />
-                  </label>
-                  <button type="button" onClick={createSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-medium text-white disabled:opacity-40">Save new</button>
-                  {selectedPersonalRoute ? (
-                    <>
-                      <button type="button" onClick={updateSavedRoute} disabled={routeSaveBusy || routeWaypoints.length < 2 || routeWaypoints.length > 120} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 disabled:opacity-40">Update</button>
-                      <button type="button" onClick={deleteSavedRoute} disabled={routeSaveBusy} className="px-2 py-2.5 text-sm text-red-700 disabled:opacity-40">Delete</button>
-                    </>
-                  ) : null}
-                </div>
-              ) : null}
-              {routeSaveStatus ? <p role="status" className="text-xs text-zinc-700">{routeSaveStatus}</p> : null}
 
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="navlog-route-search" className="sr-only">Search saved routes</label>
-                <input id="navlog-route-search" value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Find a route by name…"
+                <input id="navlog-route-search" value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search by aerodrome, name or route…"
                   className="h-11 min-w-44 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
                 {routeLibraryScope !== "personal" ? (
                   <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">Type
@@ -1310,27 +1250,84 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <div className="max-h-96 overflow-y-auto rounded-xl border border-zinc-200">
                 {personalRoutesError && routeLibraryScope === "personal" ? <p role="alert" className="p-3 text-xs text-red-700">{personalRoutesError}</p> : null}
                 {filteredPerfectRoutes.length === 0 ? (
-                  <p className="p-6 text-center text-sm leading-6 text-zinc-500">
-                    {routeLibraryScope === "personal" && !accountUser
+                  <div className="p-6 text-center text-sm leading-6 text-zinc-500">
+                    <p>{routeLibraryScope === "personal" && !accountUser
                       ? "Sign in to view your private routes."
                       : routeLibraryScope === "featured" && verifiedRouteCount === 0
-                        ? "The Briefings routes have not been selected yet. Shared routes are available in the next tab."
-                        : "No matching routes."}
-                  </p>
+                        ? "The Briefings routes are being reviewed and selected."
+                        : "No matching routes."}</p>
+                    {routeLibraryScope === "featured" && verifiedRouteCount === 0 && perfectRoutes.length > 0 ? (
+                      <button type="button" onClick={() => setRouteLibraryScope("community")}
+                        className="mt-3 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">
+                        Browse {perfectRoutes.length} other public routes
+                      </button>
+                    ) : null}
+                    {routeLibraryScope === "personal" && !accountUser ? (
+                      <button type="button" onClick={onOpenAccount} className="mt-3 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">Sign in / Create account</button>
+                    ) : null}
+                  </div>
                 ) : filteredPerfectRoutes.map((route) => (
                   <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)}
                     className={["flex w-full items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 text-left transition-colors last:border-0 hover:bg-zinc-50", selectedRouteId === route.id ? "bg-zinc-50" : "bg-white"].join(" ")}>
                     <span className="min-w-0">
                       <strong className="block truncate text-sm font-medium text-zinc-900">{route.name || "Untitled route"}</strong>
-                      <span className="mt-0.5 block text-xs text-zinc-500">{route.waypoints.length} points{route.category ? ` · ${route.category}` : ""}</span>
+                      <span className="mt-0.5 block text-xs text-zinc-500">{route.waypoints.length} points{route.category ? ` · ${route.category}` : ""} · {route.waypoints.slice(0, 5).map((point) => point.code || point.name || "WP").join(" → ")}{route.waypoints.length > 5 ? " …" : ""}</span>
                     </span>
                     <span className="shrink-0 text-xs font-semibold text-zinc-700">Use →</span>
                   </button>
                 ))}
               </div>
-              {routeLibraryScope === "community" ? <p className="text-xs leading-5 text-zinc-500">Shared routes are not verified flight plans. Check AIP, NOTAMs, weather and airspace before using them.</p> : null}
+              {routeLibraryScope === "community" ? <p className="text-xs leading-5 text-zinc-500">Other public routes may have been added by visitors. Always verify AIP, NOTAMs, weather and airspace before flying.</p> : null}
             </div>
-          ) : null}
+
+            <div className="mt-7 grid gap-4 lg:grid-cols-2">
+              <section className="rounded-xl border border-zinc-200 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">2</span>
+                  <div>
+                    <h3 className="text-base font-semibold text-zinc-950">Find and add navigation points</h3>
+                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Build your own route one point at a time. Search an aerodrome, VOR or waypoint by name or ICAO code.</p>
+                  </div>
+                </div>
+                <label htmlFor="navlog-point-search" className="sr-only">Find a navigation point</label>
+                <input id="navlog-point-search" value={pointSearch} onChange={(event) => setPointSearch(event.target.value)} placeholder="E.g. LPSO, MAGUM, VOR…"
+                  className="mt-4 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
+                <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+                  {dataError ? <p className="py-2 text-sm text-red-700">{dataError}</p> : null}
+                  {!pointSearch.trim() ? <p className="py-2 text-xs text-zinc-500">Enter a code or name to see matching points.</p> : null}
+                  {!dataError && pointSearch.trim() && pointResults.length === 0 ? <p className="py-2 text-sm text-zinc-500">No matching points.</p> : null}
+                  {pointResults.map((point) => (
+                    <button key={`${point.src}-${point.code}-${point.lat}-${point.lon}`} type="button" onClick={() => addPoint(point)}
+                      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50">
+                      <span className="min-w-0"><strong className="block text-sm font-medium text-zinc-900">{point.code || "CUSTOM"}</strong><span className="block truncate text-xs text-zinc-500">{point.name} · {point.src}</span></span>
+                      <span className="shrink-0 text-xs font-medium text-zinc-800">+ Add</span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+
+              <section className="rounded-xl border border-zinc-200 bg-white p-4">
+                <div className="flex items-start gap-3">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">3</span>
+                  <div>
+                    <h3 className="text-base font-semibold text-zinc-950">Enter a complete route</h3>
+                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Already know the route? Paste the waypoints in order, as in Item 15 of a flight plan.</p>
+                  </div>
+                </div>
+                <label htmlFor="navlog-route-text" className="sr-only">Route waypoints</label>
+                <textarea id="navlog-route-text" value={routeText} onChange={(event) => setRouteText(event.target.value)} placeholder="LPSO NSA MAGUM PORCA…"
+                  className="mt-4 min-h-24 w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-3 text-sm leading-6 outline-none focus:border-zinc-950" />
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <button type="button" onClick={replaceRouteFromText} disabled={!navlogData || !routeText.trim()} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Use this route</button>
+                  <button type="button" onClick={appendRouteFromText} disabled={!navlogData || !routeText.trim()} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 disabled:opacity-40">Add to current route</button>
+                </div>
+                {routeWarnings.length > 0 ? (
+                  <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
+                    {routeWarnings.map((warning) => <p key={warning} className="text-xs text-zinc-700">{warning}</p>)}
+                  </div>
+                ) : null}
+              </section>
+            </div>
         </div>
 
         <div className="flex flex-col gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3 md:flex-row md:items-center md:justify-between">

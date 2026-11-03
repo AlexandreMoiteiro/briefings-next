@@ -416,6 +416,9 @@ export function AdminDashboard() {
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Link href="/admin/accounts" className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100">
+              User accounts
+            </Link>
             <Link href="/admin/navlog-routes" className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-800 hover:bg-zinc-100">
               NavLog routes
             </Link>
