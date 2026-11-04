@@ -1176,15 +1176,15 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                 : "Use Start alternate on your planned destination in Review → Waypoints, after adding the alternate as the next waypoint. It keeps diversion time separate from your normal Block time."}</p>
             </div>
           </div>
-          <details className="mt-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-700">
-            <summary className="cursor-pointer font-semibold text-zinc-900">How to use Start alternate</summary>
-            <ol className="mt-3 list-decimal space-y-1.5 pl-5 leading-5">
-              <li>Build the route to your intended destination first.</li>
-              <li>Add the diversion route and alternate airport <strong>after</strong> your destination.</li>
-              <li>In <strong>Review → Waypoints</strong>, select <strong>Start alternate</strong> on the intended destination row.</li>
+          <aside className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-4 text-xs text-sky-950 sm:px-5" aria-label="How to use Start alternate">
+            <h3 className="text-sm font-bold">How to use Start alternate</h3>
+            <ol className="mt-3 grid list-decimal gap-2 pl-5 leading-5 md:grid-cols-3 md:gap-5">
+              <li>Build your route as far as your <strong>planned destination</strong>.</li>
+              <li>Add the diversion waypoints and alternate aerodrome <strong>after the destination</strong>.</li>
+              <li>Go to <strong>Review → Waypoints</strong> and click <strong>Start alternate</strong> on your planned destination — not on the alternate aerodrome.</li>
             </ol>
-            <p className="mt-2 leading-5">Flight time and Block time then stop at your destination. Block + alternate includes the extra diversion time for contingency planning, not for your normal Flight Logger entry.</p>
-          </details>
+            <p className="mt-3 leading-5 text-sky-900">The normal <strong>Flight time</strong> and <strong>Block time</strong> stop at your destination. <strong>Block + alternate</strong> shows the additional diversion separately; it is not the block time to enter in Flight Logger.</p>
+          </aside>
 
           {accountUser ? <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div>
@@ -1443,6 +1443,13 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
         {!windConfirmed && calculation.legs.length > 0 ? (
           <div className="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
             Wind is not confirmed. Heading, groundspeed, ETE and EFOB values should be reviewed after confirming the route wind.
+          </div>
+        ) : null}
+
+        {reviewMode === "waypoints" ? (
+          <div className="mx-4 mt-4 rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-xs leading-5 text-sky-950">
+            <p><strong>Start alternate:</strong> after adding the route to your alternate, click this option on the row of your <strong>planned destination</strong>. Your normal Flight and Block times will end there; the diversion is calculated separately.</p>
+            <p className="mt-1.5"><strong>HOLD MAX</strong> is the maximum waiting time at that point before diverting while preserving alternate trip fuel and the 45-minute final reserve. <strong>HM</strong> shows that time in the NavLog; <strong>MIN</strong> under EFOB shows the minimum required fuel there. Green means the planned waiting time fits, amber means it exceeds the available margin, and red means alternate plus reserve fuel is insufficient. Always check the operational minima applicable to your flight.</p>
           </div>
         ) : null}
 

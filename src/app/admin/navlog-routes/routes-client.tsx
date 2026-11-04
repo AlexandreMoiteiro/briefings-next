@@ -53,7 +53,6 @@ export function AdminNavlogRoutes() {
   const [routeWarnings, setRouteWarnings] = useState<string[]>([]);
   const [addAltitude, setAddAltitude] = useState(3000);
   const [mapAddEnabled, setMapAddEnabled] = useState(false);
-  const [editorWide, setEditorWide] = useState(false);
   const [insertAt, setInsertAt] = useState<number | null>(null);
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [activeWaypointIndex, setActiveWaypointIndex] = useState(0);
@@ -331,7 +330,7 @@ export function AdminNavlogRoutes() {
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <div className={`mx-auto space-y-6 ${editorWide ? "max-w-[1700px]" : "max-w-7xl"}`}>
+      <div className="mx-auto max-w-[1700px] space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">NavLog / Biblioteca</p>
@@ -341,9 +340,6 @@ export function AdminNavlogRoutes() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button type="button" onClick={() => setEditorWide((value) => !value)} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
-              {editorWide ? "Mostrar biblioteca" : "Abrir editor amplo ↗"}
-            </button>
             <button type="button" disabled={loading || saving} onClick={refreshList} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">{loading ? "A carregar…" : "Atualizar biblioteca"}</button>
           </div>
         </header>
@@ -368,29 +364,29 @@ export function AdminNavlogRoutes() {
         </div>
         {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
-        <div className={`grid items-start gap-5 ${editorWide ? "grid-cols-1" : "lg:grid-cols-[390px_minmax(0,1fr)]"}`}>
-          <section className={`rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30 ${editorWide ? "hidden" : ""}`}>
+        <div className="grid grid-cols-1 items-start gap-5">
+          <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30 sm:p-5">
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold text-zinc-950">Biblioteca</h2>
               <span className="text-xs tabular-nums text-zinc-500">{shown.length} de {routes.length}</span>
             </div>
             <label htmlFor="route-search" className="sr-only">Encontrar rota</label>
-            <input id="route-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar rota ou waypoint…" className={textInput} />
-            <div className="mt-3 flex gap-2 text-xs">
+            <input id="route-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar rota ou waypoint…" className={`${textInput} max-w-lg`} />
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
               {([ ["all", "Todas"], ["default", "Por defeito"], ["other", "Outras"] ] as const).map(([value, label]) => (
                 <button key={value} type="button" onClick={() => setFilter(value)} aria-pressed={filter === value}
                   className={`rounded-lg px-3 py-2 ${filter === value ? "bg-zinc-950 text-white" : "border border-zinc-200 text-zinc-600"}`}>{label}</button>
               ))}
             </div>
-            <label className="mt-3 flex items-center justify-between gap-2 text-xs font-medium text-zinc-600">
+            <label className="mt-3 flex max-w-xs items-center justify-between gap-2 text-xs font-medium text-zinc-600">
               Tipo de voo
               <select value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value as typeof categoryFilter)} className="h-9 rounded-lg border border-zinc-200 bg-white px-3 text-xs text-zinc-800">
                 <option value="all">Todos</option><option value="VFR">VFR</option><option value="IFR">IFR</option><option value="none">Por classificar</option>
               </select>
             </label>
-            <div className="mt-3 max-h-[65vh] overflow-y-auto border-t border-zinc-100">
+            <div className="mt-3 grid max-h-[285px] gap-2 overflow-y-auto border-t border-zinc-100 pt-3 sm:grid-cols-2 xl:grid-cols-3">
               {loading ? <p className="p-3 text-sm text-zinc-500">A carregar…</p> : shown.length === 0 ? <p className="p-3 text-sm text-zinc-500">Sem resultados.</p> : shown.map((route) => (
-                <div key={route.id} className={`flex items-center gap-1 border-b border-zinc-100 pr-2 last:border-0 ${selectedId === route.id ? "bg-zinc-100" : ""}`}>
+                <div key={route.id} className={`flex items-center gap-1 rounded-xl border pr-2 ${selectedId === route.id ? "border-sky-300 bg-sky-50" : "border-zinc-200 bg-white"}`}>
                   <button type="button" onClick={() => chooseRoute(route)} aria-pressed={selectedId === route.id}
                     className="min-w-0 flex-1 px-3 py-3 text-left hover:bg-zinc-50">
                     <span className="block truncate text-sm font-bold text-zinc-900">{route.name}</span>
