@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import L from "leaflet";
 import { CircleMarker, MapContainer, Marker, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import type { PerfectRouteWaypointRaw } from "@/lib/navlog-saved-routes";
@@ -12,15 +12,14 @@ function AddPointOnMap({ onAddPoint }: { onAddPoint?: (lat: number, lon: number)
   return null;
 }
 
-function FitRoute({ points, routeId, fitToken }: { points: MapPoint[]; routeId: string; fitToken: number }) {
+function FitRoute({ points, routeId }: { points: MapPoint[]; routeId: string }) {
   const map = useMap();
   const lastFittedRoute = useRef<string | null>(null);
   useEffect(() => {
-    // A different route or newly added point fits the map, but dragging coordinates
-    // must not constantly undo the admin's chosen zoom and pan.
-    const signature = `${routeId}:${points.length}:${fitToken}`;
+    // Automatically fit the complete route whenever its geometry changes.
+    // Ignore edits to names or other properties that do not affect coordinates.
+    const signature = `${routeId}:${points.map((point) => `${point.lat.toFixed(6)},${point.lon.toFixed(6)}`).join("|")}`;
     if (lastFittedRoute.current === signature) return;
-    lastFittedRoute.current = signature;
     const timeout = window.setTimeout(() => {
       map.invalidateSize();
       if (points.length > 1) {
@@ -29,9 +28,10 @@ function FitRoute({ points, routeId, fitToken }: { points: MapPoint[]; routeId: 
       } else if (points.length === 1) {
         map.setView([points[0].lat, points[0].lon], 10, { animate: false });
       }
-    }, 120);
+      lastFittedRoute.current = signature;
+    }, 180);
     return () => window.clearTimeout(timeout);
-  }, [map, points, routeId, fitToken]);
+  }, [map, points, routeId]);
   return null;
 }
 
@@ -43,7 +43,6 @@ export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint, onSele
   onSelectPoint?: (index: number) => void;
   selectedIndex?: number;
 }) {
-  const [fitToken, setFitToken] = useState(0);
   const valid = useMemo(() => points
     .map((point, index) => ({ lat: point.lat, lon: point.lon, label: point.code || point.name || `WP${index + 1}`, name: point.name, index }))
     .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon) && Math.abs(point.lat) <= 90 && Math.abs(point.lon) <= 180), [points]);
@@ -57,17 +56,14 @@ export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint, onSele
     <section aria-label="Mapa geográfico da rota" className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-zinc-900">Percurso no mapa</h3>
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs text-zinc-500">{onAddPoint ? "Clica para adicionar" : onMovePoint ? "Arrasta os marcadores para ajustar coordenadas" : "Arrasta para explorar · +/− para zoom"}</span>
-          <button type="button" onClick={() => setFitToken((value) => value + 1)} className="rounded-lg border border-zinc-200 bg-white px-3 py-1.5 text-xs font-semibold text-zinc-800 hover:border-sky-400">Ajustar vista à rota</button>
-        </div>
+        <span className="text-xs text-zinc-500">{onAddPoint ? "Clica para adicionar" : onMovePoint ? "Arrasta os marcadores para ajustar coordenadas" : "Arrasta para explorar · +/− para zoom"}</span>
       </div>
       <div className={`h-[360px] overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:h-[440px] ${onAddPoint ? "cursor-crosshair" : ""}`}>
         <MapContainer center={[39.5, -8]} zoom={7} scrollWheelZoom={false} className="h-full w-full" zoomControl>
           <AddPointOnMap onAddPoint={onAddPoint} />
           <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19}
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
-          <FitRoute points={valid} routeId={routeId} fitToken={fitToken} />
+          <FitRoute points={valid} routeId={routeId} />
           {positions.length > 1 ? <Polyline positions={positions} pathOptions={{ color: "#18181b", weight: 3, opacity: 0.9 }} /> : null}
           {valid.map((point, index) => {
             const isEnd = index === valid.length - 1;

@@ -57,11 +57,9 @@ export function AdminWaypointInspector({ waypoint, index, onChange, onAlternateC
           </label>
         </div>
       </div>
-      <label className="flex items-start gap-3 rounded-xl border border-violet-200 bg-violet-50 p-4 text-xs text-violet-900">
-        <input type="checkbox" checked={waypoint.alternate_marker === true} onChange={(event) => onAlternateChange(event.target.checked)} className="mt-0.5 size-4 accent-violet-800" />
-        <span><strong className="block text-sm">Destino previsto / Start alternate</strong>
-          Este ponto é o destino normal da rota. Os troços seguintes pertencem ao alternante e ficam fora do Flight e Block time normais.
-        </span>
+      <label className="flex items-center gap-3 rounded-xl border border-zinc-200 p-3 text-sm font-semibold text-zinc-800">
+        <input type="checkbox" checked={waypoint.alternate_marker === true} onChange={(event) => onAlternateChange(event.target.checked)} className="size-4 accent-zinc-900" />
+        Start alternate
       </label>
       <label className="block text-xs font-semibold text-zinc-700">Notas do ponto
         <textarea value={waypoint.remarks ?? ""} onChange={(event) => onChange({ remarks: event.target.value })} rows={2} className={`${fieldClass} resize-y`} />
