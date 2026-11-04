@@ -300,11 +300,22 @@ export function AdminNavlogRoutes() {
     setError("");
     const original = routes.find((route) => route.id === draft.id);
     const waypointsChanged = JSON.stringify(draft.waypoints) !== JSON.stringify(original?.waypoints);
+    // Older public routes stored the ICAO/fix identifier in `name` only.
+    // Preserve that identifier when editing a waypoint so those routes can be saved too.
+    const waypointsToSave = waypointsChanged ? draft.waypoints.map((point) => {
+      if (/^[A-Za-z0-9]{1,16}$/.test(point.code ?? "")) return point;
+      const legacyCode = point.name?.trim() ?? "";
+      return /^[A-Za-z0-9]{1,16}$/.test(legacyCode) ? { ...point, code: legacyCode.toUpperCase() } : point;
+    }) : null;
+    const invalidIndex = waypointsToSave?.findIndex((point) => !/^[A-Za-z0-9]{1,16}$/.test(point.code ?? "") ||
+      !Number.isFinite(point.lat) || !Number.isFinite(point.lon) ||
+      Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180) ?? -1;
     if (!draft.name.trim() || draft.waypoints.length < 2 || draft.waypoints.length > 120 ||
-        (waypointsChanged && draft.waypoints.some((point) => !/^[A-Za-z0-9]{1,16}$/.test(point.code ?? "") ||
-          !Number.isFinite(point.lat) || !Number.isFinite(point.lon) ||
-          Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180))) {
-      setError("Confirma o nome e os pontos da rota (códigos, latitudes e longitudes válidos).");
+        invalidIndex >= 0) {
+      if (invalidIndex >= 0) setActiveWaypointIndex(invalidIndex);
+      setError(invalidIndex >= 0
+        ? `O ponto ${invalidIndex + 1} precisa de um código e coordenadas válidos antes de guardar.`
+        : "Confirma o nome e o número de pontos da rota (entre 2 e 120).");
       return;
     }
     setSaving(true);
@@ -312,7 +323,7 @@ export function AdminNavlogRoutes() {
       const response = await fetch("/api/admin/navlog-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...draft, description: draft.description ?? "", waypoints: waypointsChanged ? draft.waypoints : null }),
+        body: JSON.stringify({ ...draft, description: draft.description ?? "", waypoints: waypointsToSave }),
       });
       if (!response.ok) {
         const result = await response.json() as { error?: string };
