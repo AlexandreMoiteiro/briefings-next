@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createPublicServerSupabase } from "@/lib/supabase/server-client";
 import { createNavlogAdminClient, deriveNavlogPassword, navlogAuthRateKey, navlogRequestIp, PIN_PATTERN, USERNAME_PATTERN } from "@/lib/navlog-pin-auth";
 import { ensureNavlogEmailConfigured, navlogEmailTokenLink, sendNavlogAuthEmail } from "@/lib/navlog-auth-email";
+import { sendAdminNotification } from "@/lib/admin-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -105,6 +106,23 @@ export async function POST(request: Request) {
       if (error) return failure(error.message);
       if (!data?.properties?.hashed_token) throw new Error("No confirmation token returned.");
       await sendNavlogAuthEmail(email, navlogEmailTokenLink(data.properties.hashed_token, "confirm"), "confirm");
+      // Administrative notices are best-effort; they must not block signup.
+      // Resend uses this stable key to suppress retries of the same registration.
+      const signupUserId = data.user?.id;
+      if (signupUserId) {
+        const notification = await sendAdminNotification({
+          subject: "[Briefings] Nova conta criada",
+          heading: "Nova conta NavLog criada",
+          lines: [
+            `Utilizador: ${username}`,
+            `Email: ${email}`,
+            `Data: ${new Date().toISOString()}`,
+            "Estado: a aguardar confirmação do email.",
+          ],
+          idempotencyKey: `navlog-signup-${signupUserId}`,
+        });
+        if (!notification.sent) console.warn("Admin signup notification not delivered", notification.reason);
+      }
       return json({ success: true, requiresConfirmation: true, session: null });
     }
 
@@ -144,6 +162,22 @@ export async function POST(request: Request) {
     } });
   } catch (error) {
     console.error("NavLog authentication unavailable", error instanceof Error ? error.message : "Unknown error");
+    // Alert only on operational email/registration failures, not invalid PINs,
+    // ordinary login denials or rate-limited requests.
+    if (body.action === "signup" || body.action === "resend" || body.action === "reset") {
+      const action = body.action;
+      const notification = await sendAdminNotification({
+        subject: "[Briefings] Erro no sistema de contas",
+        heading: "Falha no registo ou envio de email NavLog",
+        lines: [
+          `Operação: ${action}`,
+          `Data: ${new Date().toISOString()}`,
+          "O processo falhou no servidor. Consultar os logs da Vercel para o diagnóstico.",
+        ],
+        idempotencyKey: `navlog-auth-failure-${action}-${Math.floor(Date.now() / 900000)}`,
+      });
+      if (!notification.sent) console.warn("Admin authentication error notification not delivered", notification.reason);
+    }
     return failure("NavLog sign-in is awaiting secure configuration or is temporarily unavailable.", 503);
   }
 }
