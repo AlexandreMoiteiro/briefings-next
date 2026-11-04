@@ -43,7 +43,8 @@ export async function POST(request: Request) {
     if (
       typeof body.id !== "string" || !uuidPattern.test(body.id) ||
       typeof body.name !== "string" || !body.name.trim() || body.name.length > 100 ||
-      typeof body.description !== "string" || body.description.length > 1000 ||
+      (body.description !== null && typeof body.description !== "string") ||
+      (typeof body.description === "string" && body.description.length > 1000) ||
       (body.waypoints !== null && (
         !Array.isArray(body.waypoints) || body.waypoints.length < 2 || body.waypoints.length > 120 ||
         !body.waypoints.every((point: Waypoint) =>
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
       p_admin_code: code,
       p_route_id: body.id,
       p_name: body.name,
-      p_description: body.description,
+      p_description: typeof body.description === "string" ? body.description : "",
       p_category: body.category,
       p_is_default: body.is_default,
     };

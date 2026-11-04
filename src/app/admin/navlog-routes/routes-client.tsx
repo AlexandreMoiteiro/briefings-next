@@ -57,7 +57,7 @@ export function AdminNavlogRoutes() {
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [activeWaypointIndex, setActiveWaypointIndex] = useState(0);
 
-  async function loadRoutes(selected?: string) {
+  async function loadRoutes(selected?: string, throwOnFailure = false) {
     setLoading(true);
     setError("");
     try {
@@ -73,6 +73,7 @@ export function AdminNavlogRoutes() {
       setDeleteConfirmation("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Erro ao carregar rotas.");
+      if (throwOnFailure) throw cause;
     } finally {
       setLoading(false);
     }
@@ -311,14 +312,14 @@ export function AdminNavlogRoutes() {
       const response = await fetch("/api/admin/navlog-routes", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...draft, waypoints: waypointsChanged ? draft.waypoints : null }),
+        body: JSON.stringify({ ...draft, description: draft.description ?? "", waypoints: waypointsChanged ? draft.waypoints : null }),
       });
       if (!response.ok) {
         const result = await response.json() as { error?: string };
         throw new Error(result.error ?? "Falha ao guardar.");
       }
-      await loadRoutes(draft.id);
-      setNotice("Rota atualizada. A classificação já está disponível no NavLog.");
+      await loadRoutes(draft.id, true);
+      setNotice("Alterações guardadas e rota atualizada na biblioteca.");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível guardar.");
     } finally {
@@ -362,8 +363,8 @@ export function AdminNavlogRoutes() {
         <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-xs leading-5 text-zinc-600">
           Seleciona uma rota, altera o percurso como no NavLog e confirma o resultado no mapa antes de guardar. As alterações guardadas são partilhadas com o website.
         </div>
-        {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
-        {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
+        {!draft && error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
+        {!draft && notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
         <div className="grid grid-cols-1 items-start gap-5">
           <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30 sm:p-5">
             <div className="mb-3 flex items-baseline justify-between gap-2">
@@ -419,6 +420,8 @@ export function AdminNavlogRoutes() {
                     <button type="button" onClick={() => { setDeleteOpen((open) => !open); setDeleteConfirmation(""); }} className="rounded-lg border border-zinc-300 px-3 py-2.5 text-xs font-semibold text-zinc-700 hover:border-red-300 hover:text-red-700">{deleteOpen ? "Cancelar" : "Eliminar…"}</button>
                     <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar"}</button>
                   </div>
+                  {error ? <p role="alert" className="w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-xs font-medium text-red-800">{error}</p> : null}
+                  {notice ? <p role="status" className="w-full rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-xs font-medium text-emerald-900">{notice}</p> : null}
                 </div>
                 {deleteOpen ? <div className="rounded-xl border border-red-200 bg-red-50 p-4">
                   <p className="text-sm font-semibold text-red-900">Eliminar esta rota pública</p>

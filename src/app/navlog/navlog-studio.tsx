@@ -1168,23 +1168,26 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <p className="mt-2 text-2xl font-semibold tabular-nums text-sky-950">{hasCalculatedRoute ? formatDuration(blockTimeSec) : "—"}</p>
               <p className="mt-1 text-xs leading-5 text-sky-800">Flight to destination + {setup.taxiMin} min ground/taxi allowance. This is the planned block time to log.</p>
             </div>
-            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
-              <p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Block + alternate</p>
+            <div className="relative rounded-xl border border-violet-200 bg-violet-50 p-4">
+              <p className="pr-7 text-xs font-semibold uppercase tracking-wide text-violet-800">Block + alternate</p>
               <p className="mt-2 text-2xl font-semibold tabular-nums text-violet-950">{hasCalculatedRoute && routeTimes.hasAlternate ? formatDuration(blockPlusAlternateSec) : "—"}</p>
               <p className="mt-1 text-xs leading-5 text-violet-800">{routeTimes.hasAlternate
                 ? `Contingency only: block + ${formatDuration(alternateTimeSec)} to alternate. Not your planned Flight Logger block time.`
                 : "Use Start alternate on your planned destination in Review → Waypoints, after adding the alternate as the next waypoint. It keeps diversion time separate from your normal Block time."}</p>
+              <details className="group">
+                <summary aria-label="How to use Start alternate" className="absolute right-4 top-4 flex size-6 cursor-pointer list-none items-center justify-center rounded-full border border-violet-300 bg-white text-xs font-bold text-violet-800 outline-none transition hover:border-violet-500 hover:bg-violet-100 focus-visible:ring-2 focus-visible:ring-violet-500 [&::-webkit-details-marker]:hidden">?</summary>
+                <div className="mt-3 rounded-lg border border-violet-200 bg-white p-3 text-left text-xs leading-5 text-violet-950">
+                  <p className="font-bold">How to use Start alternate</p>
+                  <ol className="mt-2 list-decimal space-y-1 pl-4">
+                    <li>Build your route to the planned destination.</li>
+                    <li>Add the diversion waypoints and alternate aerodrome <strong>after</strong> the destination.</li>
+                    <li>In <strong>Review → Waypoints</strong>, click <strong>Start alternate</strong> on the destination row, not on the alternate aerodrome.</li>
+                  </ol>
+                  <p className="mt-2">Flight time and Block time stop at your destination. Block + alternate includes the diversion separately and is <strong>not</strong> your planned Flight Logger block time.</p>
+                </div>
+              </details>
             </div>
           </div>
-          <aside className="mt-3 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-4 text-xs text-sky-950 sm:px-5" aria-label="How to use Start alternate">
-            <h3 className="text-sm font-bold">How to use Start alternate</h3>
-            <ol className="mt-3 grid list-decimal gap-2 pl-5 leading-5 md:grid-cols-3 md:gap-5">
-              <li>Build your route as far as your <strong>planned destination</strong>.</li>
-              <li>Add the diversion waypoints and alternate aerodrome <strong>after the destination</strong>.</li>
-              <li>Go to <strong>Review → Waypoints</strong> and click <strong>Start alternate</strong> on your planned destination — not on the alternate aerodrome.</li>
-            </ol>
-            <p className="mt-3 leading-5 text-sky-900">The normal <strong>Flight time</strong> and <strong>Block time</strong> stop at your destination. <strong>Block + alternate</strong> shows the additional diversion separately; it is not the block time to enter in Flight Logger.</p>
-          </aside>
 
           {accountUser ? <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div>
