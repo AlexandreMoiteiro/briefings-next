@@ -13,8 +13,20 @@ const REMINDER_AFTER_MS = 24 * 3600000;
 type LastState = {
   status: "healthy" | "alert";
   last_notified_at: string | null;
+  detail: string | null;
   updated_at: string;
 };
+
+// Existing storage only permits "healthy" / "alert". Preserve that schema,
+// and keep the detailed severity in the detail field for email transitions.
+// Legacy alerts based solely on a late model run map to "warning".
+function previousSeverity(state: LastState | null): "healthy" | "warning" | "critical" {
+  if (!state || state.status === "healthy") return "healthy";
+  if (state.detail?.startsWith("severity=warning\n")) return "warning";
+  if (state.detail?.startsWith("severity=critical\n")) return "critical";
+  if (state.detail?.includes("última execução do modelo") && !state.detail.includes("SIGWX")) return "warning";
+  return "critical";
+}
 
 function response(body: unknown, status = 200) {
   return Response.json(body, { status, headers: { "Cache-Control": "no-store" } });
@@ -46,7 +58,7 @@ export async function POST(request: Request) {
     const [sigwx, wind, savedState] = await Promise.all([
       supabase.storage.from(BUCKET).list("sigwx", { limit: 1000 }),
       supabase.storage.from(BUCKET).list("wind-temp", { limit: 1000 }),
-      supabase.from("aemet_alert_state").select("status,last_notified_at,updated_at")
+      supabase.from("aemet_alert_state").select("status,last_notified_at,detail,updated_at")
         .eq("monitor_key", MONITOR_KEY).maybeSingle(),
     ]);
     if (sigwx.error || wind.error || savedState.error) {
@@ -65,19 +77,41 @@ export async function POST(request: Request) {
       return response({ dryRun: true, ...health, previousStatus: previous?.status || "none" });
     }
 
-    const recovering = health.healthy && previous?.status === "alert";
-    const missed = !health.healthy;
+    const oldSeverity = previousSeverity(previous);
+    const changed = oldSeverity !== health.severity;
     const lastAlertAge = previous?.last_notified_at
       ? now.getTime() - Date.parse(previous.last_notified_at) : Number.POSITIVE_INFINITY;
-    const alertDue = missed && (previous?.status !== "alert" || lastAlertAge >= REMINDER_AFTER_MS);
+    const notificationDue = health.severity === "healthy"
+      ? changed
+      : changed || lastAlertAge >= REMINDER_AFTER_MS;
 
-    if (alertDue || recovering) {
+    if (notificationDue) {
+      const recovered = health.severity === "healthy";
+      const critical = health.severity === "critical";
+      const downgraded = oldSeverity === "critical" && health.severity === "warning";
       const notification = await sendAdminNotification({
-        subject: recovering ? "[Briefings] AEMET — recolha recuperada" : "[Briefings] ALERTA — cartas AEMET desatualizadas",
-        heading: recovering ? "A recolha das cartas AEMET voltou ao normal" : "Problemas na atualização das cartas AEMET",
-        lines: recovering
-          ? ["As cartas SIGWX e Wind/Temp voltaram a apresentar atualizações recentes.", `Verificado em: ${now.toISOString()}`]
-          : ["O monitor encontrou cartas em falta ou demasiado antigas:", ...health.problems, `Verificado em: ${now.toISOString()}`, "A carta pode ainda não ter sido publicada pela AEMET. Confirma o estado do Collector no Cloudflare."],
+        subject: recovered
+          ? "[Briefings] AEMET — cartas normalizadas"
+          : critical
+            ? "[Briefings] ALERTA — cartas AEMET sem cobertura"
+            : downgraded
+              ? "[Briefings] AEMET — cobertura recuperada, atualização pendente"
+              : "[Briefings] AEMET — atualização Wind/Temp pendente",
+        heading: recovered
+          ? "A recolha das cartas AEMET voltou ao normal"
+          : critical
+            ? "Faltam cartas meteorológicas para o período atual ou próximo"
+            : "Execução mais recente ainda não disponível",
+        lines: recovered
+          ? ["As cartas SIGWX e Wind/Temp voltaram a apresentar atualizações e cobertura adequadas.", `Verificado em: ${now.toISOString()}`]
+          : [
+              critical
+                ? "Existem produtos sem cobertura suficiente para o período atual ou as próximas 3 horas. Consultar as fontes oficiais antes da utilização."
+                : "A execução mais recente está atrasada, mas as cartas armazenadas ainda cobrem o período atual e as próximas horas.",
+              ...health.problems,
+              `Verificado em: ${now.toISOString()}`,
+              "A carta pode ainda não ter sido publicada pela AEMET. Confirma o estado do Collector no Cloudflare.",
+            ],
       });
       if (!notification.sent) {
         console.error("AEMET monitor notification failed", notification.reason);
@@ -85,15 +119,14 @@ export async function POST(request: Request) {
       }
     }
 
-    // Se há um incidente em aberto, conservar o estado até à recuperação.
-    // Uma única mensagem por incidente, com lembrete no máximo diário.
-    if (!previous || alertDue || recovering) {
-      const nextStatus = health.healthy ? "healthy" : "alert";
+    // Retain existing database constraints, encoding severity in the detail.
+    // Never report a warning as full recovery; only "healthy" means normal.
+    if (!previous || changed || notificationDue) {
       const next = await supabase.from("aemet_alert_state").upsert({
         monitor_key: MONITOR_KEY,
-        status: nextStatus,
-        last_notified_at: alertDue || recovering ? now.toISOString() : previous?.last_notified_at ?? null,
-        detail: health.problems.join("\n").slice(0, 2000),
+        status: health.severity === "healthy" ? "healthy" : "alert",
+        last_notified_at: notificationDue ? now.toISOString() : previous?.last_notified_at ?? null,
+        detail: (`severity=${health.severity}\n${health.problems.join("\n")}`).slice(0, 2000),
         updated_at: now.toISOString(),
       });
       if (next.error) {
@@ -102,7 +135,10 @@ export async function POST(request: Request) {
       }
     }
 
-    return response({ ok: true, healthy: health.healthy, notificationSent: alertDue || recovering, problems: health.problems });
+    return response({
+      ok: true, healthy: health.healthy, severity: health.severity,
+      notificationSent: notificationDue, problems: health.problems,
+    });
   } catch (error) {
     console.error("AEMET monitor failed", error);
     return response({ error: "AEMET monitor failed" }, 500);
