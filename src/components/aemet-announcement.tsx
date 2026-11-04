@@ -16,7 +16,9 @@ export function AemetAnnouncement() {
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
       const now = Date.now();
-      if (pathname.startsWith("/meteorology") || now < START_AT || now >= END_AT) {
+      // Keep one modal at a time: NavLog uses account dialogs and Admin is
+      // a private management workflow, so promotional notices do not belong there.
+      if (["/meteorology", "/navlog", "/admin"].some((prefix) => pathname.startsWith(prefix)) || now < START_AT || now >= END_AT) {
         setOpen(false);
         return;
       }
