@@ -30,11 +30,14 @@ export function NavlogAccountPanel({
     setMessage("");
     try {
       if (mode === "reset") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/navlog/reset-password`,
+        const response = await fetch("/api/navlog/auth", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ action: "reset", email: email.trim() }),
         });
-        if (error) throw error;
-        setMessage("If this email has an account, a password reset link will be sent.");
+        const result = await response.json() as { error?: string };
+        if (!response.ok) throw new Error(result.error ?? "Could not request a reset email.");
+        setMessage("If this email has an account, a PIN reset link will arrive shortly. Check your inbox and spam folder.");
       } else {
         const response = await fetch("/api/navlog/auth", {
           method: "POST",
@@ -68,20 +71,21 @@ export function NavlogAccountPanel({
   async function resendConfirmation() {
     if (!supabase || busy) return;
     const address = email.trim();
-    if (!address) {
-      setMessage("Enter your email address above to resend the confirmation.");
+    if (!address || !username.trim()) {
+      setMessage("Enter both your email address and username above to resend the confirmation.");
       return;
     }
     setBusy(true);
     setMessage("");
     try {
-      const { error } = await supabase.auth.resend({
-        type: "signup",
-        email: address,
-        options: { emailRedirectTo: `${window.location.origin}/navlog` },
+      const response = await fetch("/api/navlog/auth", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "resend", email: address, username: username.trim() }),
       });
-      if (error) throw error;
-      setMessage("Confirmation requested. Check your inbox and spam folder. If no email arrives, check the Mailjet delivery logs.");
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Could not request confirmation.");
+      setMessage("If the account is awaiting verification, a new Brevo confirmation email will arrive shortly. Check your inbox and spam folder.");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "Could not resend the confirmation. Try again later.");
     } finally {

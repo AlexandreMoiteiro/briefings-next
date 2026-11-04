@@ -17,20 +17,13 @@
 
 ## Configure Auth emails before opening registration publicly
 
-Supabase's built-in SMTP is unsuitable for public sign-ups: it only emails project-team addresses (and is severely rate-limited). The existing Vercel `RESEND_API_KEY` does **not** automatically configure Supabase Auth. Configure this privately in **Supabase → Authentication → SMTP Settings**:
+The dedicated NavLog Preview sends account emails using **Brevo**, without altering Supabase SMTP. Create a Brevo REST API key in Brevo's own dashboard, and install it as a Vercel **Preview-only** Secret named `BREVO_API_KEY` (not a public variable). The sender `Briefings <noreply.briefings@gmail.com>` must already be verified in Brevo; emails may appear as a Brevo-managed address due to its Gmail sender rewrite.
 
-| Supabase field | Resend value |
-| --- | --- |
-| SMTP host | `smtp.resend.com` |
-| Port | `465` (SSL) or `587` (TLS) |
-| Username | `resend` |
-| Password | Resend API key (insert in dashboard; never commit) |
-| Sender email | An address on a domain verified in Resend |
-| Sender name | `Briefings` |
+The app uses Supabase Admin `generateLink()` for signup and recovery links, then posts them to Brevo's transactional email API. This keeps login, private routes, session handling and PIN hashing in Supabase. Existing feedback/admin alerts continue to use their own `RESEND_API_KEY`; there is no need to create a domain or change Supabase's project-wide SMTP during Preview.
 
-Check that email/password sign-ups and confirmation emails are enabled. For the **Supabase → Authentication → URL Configuration** redirect allowlist, include the production site's `https://<domain>/navlog`, `https://<domain>/navlog/reset-password` and the equivalent Preview URLs for the selected branch (or the appropriate Vercel preview wildcard). Use the real domain, not the placeholders. Set the Site URL to the production website.
+Check that email/password sign-ups and confirmation emails are enabled. In **Supabase → Authentication → URL Configuration**, add `https://<preview-host>/navlog` and `https://<preview-host>/navlog/reset-password` as allowed redirect URLs (or use a tightly scoped Vercel Preview wildcard). Keep the Site URL pointed at the real production site. Do not place credentials in this document or in GitHub.
 
-Check Resend's current free-tier limits and Auth email rate limits before inviting users. Existing alert emails and authentication emails share the same Resend allowance when using one account.
+Test registration, delivered confirmation, sign-in, private route saves, re-send, recovery, and reset in the Preview before any production release. Review Brevo's daily quota before a public launch.
 
 ## After preview approval, during the production release
 

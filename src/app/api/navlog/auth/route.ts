@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicServerSupabase } from "@/lib/supabase/server-client";
 import { createNavlogAdminClient, deriveNavlogPassword, navlogAuthRateKey, navlogRequestIp, PIN_PATTERN, USERNAME_PATTERN } from "@/lib/navlog-pin-auth";
+import { ensureNavlogEmailConfigured, navlogEmailRedirect, sendNavlogAuthEmail } from "@/lib/navlog-auth-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +23,7 @@ function failure(message: string, status = 400) {
 }
 
 const GENERIC_LOGIN_FAILURE = "Username/email or PIN is incorrect.";
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export async function POST(request: Request) {
   let body: Credentials;
@@ -31,43 +33,76 @@ export async function POST(request: Request) {
     return failure("Invalid request.");
   }
 
-  if (body.action !== "signup" && body.action !== "login") return failure("Invalid request.");
+  if (!["signup", "login", "resend", "reset"].includes(body.action ?? "")) return failure("Invalid request.");
   const pin = body.pin ?? "";
-  if (!PIN_PATTERN.test(pin)) return failure("Use a PIN of exactly 4 numbers.");
+  if ((body.action === "signup" || body.action === "login") && !PIN_PATTERN.test(pin)) {
+    return failure("Use a PIN of exactly 4 numbers.");
+  }
 
   try {
     const admin = createNavlogAdminClient();
     const client = createPublicServerSupabase();
     const ipHash = navlogRequestIp(request);
 
-    if (body.action === "signup") {
+    if (body.action !== "login") {
       const email = (body.email ?? "").trim().toLowerCase();
+      if (!EMAIL_PATTERN.test(email) || email.length > 254) return failure("Enter a valid email address.");
+      // Fail closed *before* creating an Auth user when the provider is not ready.
+      ensureNavlogEmailConfigured();
+
+      const { data: guard, error: guardError } = await admin.rpc("navlog_pin_attempt_guard", {
+        p_identity_hash: navlogAuthRateKey(`${body.action}:${email}`), p_ip_hash: ipHash,
+      });
+      if (guardError || !guard?.[0]) throw guardError ?? new Error("Authentication rate limit is unavailable.");
+      if (!guard[0].is_allowed) return failure("Too many email requests. Please try again in 15 minutes.", 429);
+
+      if (body.action === "reset") {
+        const { data, error } = await admin.auth.admin.generateLink({
+          type: "recovery", email, options: { redirectTo: navlogEmailRedirect("/navlog/reset-password") },
+        });
+        if (!error && data?.properties?.action_link) {
+          await sendNavlogAuthEmail(email, data.properties.action_link, "recovery");
+        }
+        // Do not disclose whether an email address is registered.
+        return json({ success: true });
+      }
+
       const username = (body.username ?? "").trim();
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) || email.length > 254) return failure("Enter a valid email address.");
       if (!USERNAME_PATTERN.test(username)) return failure("Username: 3–24 letters, numbers, dots, dashes or underscores.");
+
+      if (body.action === "resend") {
+        // Verify the submitted email + username match before generating a link.
+        // A magic link is valid for an unconfirmed account and does not change its PIN.
+        const { data: profile, error: profileError } = await admin
+          .from("navlog_user_profiles").select("user_id").ilike("username", username).maybeSingle();
+        if (profileError) throw profileError;
+        if (profile) {
+          const { data: account, error: accountError } = await admin.auth.admin.getUserById(profile.user_id);
+          if (accountError) throw accountError;
+          if (account.user?.email?.toLowerCase() === email && !account.user.email_confirmed_at) {
+            const { data, error } = await admin.auth.admin.generateLink({
+              type: "magiclink", email, options: { redirectTo: navlogEmailRedirect("/navlog") },
+            });
+            if (error || !data?.properties?.action_link) throw error ?? new Error("Could not generate confirmation link.");
+            await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+          }
+        }
+        return json({ success: true });
+      }
 
       const { data: existingProfile, error: usernameError } = await admin
         .from("navlog_user_profiles").select("user_id").ilike("username", username).maybeSingle();
       if (usernameError) throw usernameError;
       if (existingProfile) return failure("That username is already taken.", 409);
 
-      const { data: guard, error: guardError } = await admin.rpc("navlog_pin_attempt_guard", {
-        p_identity_hash: navlogAuthRateKey(`signup:${email}`), p_ip_hash: ipHash,
-      });
-      if (guardError || !guard?.[0]) throw guardError ?? new Error("Authentication rate limit is unavailable.");
-      if (!guard[0].is_allowed) return failure("Too many attempts. Please try again in 15 minutes.", 429);
-
-      const { data, error } = await client.auth.signUp({
-        email,
-        password: deriveNavlogPassword(email, pin),
-        options: { data: { username }, emailRedirectTo: `${new URL(request.url).origin}/navlog` },
+      const { data, error } = await admin.auth.admin.generateLink({
+        type: "signup", email, password: deriveNavlogPassword(email, pin),
+        options: { data: { username }, redirectTo: navlogEmailRedirect("/navlog") },
       });
       if (error) return failure(error.message);
-      return json({
-        success: true,
-        requiresConfirmation: !data.session,
-        session: data.session ? { access_token: data.session.access_token, refresh_token: data.session.refresh_token } : null,
-      });
+      if (!data?.properties?.action_link) throw new Error("No confirmation link returned.");
+      await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+      return json({ success: true, requiresConfirmation: true, session: null });
     }
 
     const identifier = (body.identifier ?? "").trim();

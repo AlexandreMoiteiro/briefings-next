@@ -8,10 +8,11 @@ sign-in, create-account and password-reset options. No Google or Microsoft
 providers are currently used. Visiting it keeps the current NavLog editing
 draft in the browser tab's session storage; the user can return to NavLog.
 
-Sign-in and saved private routes use the existing Supabase project. Creating
-accounts for external visitors requires verified SMTP sending (Resend) with a
-domain the owner controls. The existing Resend key on Vercel does not configure
-Supabase Auth automatically. Details: [rollout notes](navlog-personal-routes-rollout.md).
+Sign-in and saved private routes use the existing Supabase project. The NavLog
+Preview sends account verification and PIN reset links using the verified Brevo
+sender directly from the Vercel server; no domain purchase or Supabase-wide
+SMTP change is required. A private Preview `BREVO_API_KEY` must first be
+configured in Vercel. Details: [rollout notes](navlog-personal-routes-rollout.md).
 
 ## Shared route authorship and default routes
 

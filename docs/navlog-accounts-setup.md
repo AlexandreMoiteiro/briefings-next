@@ -19,16 +19,31 @@ after setting them. Do **not** share the values in chat or commit them.
 
 ## Email confirmation and recovery
 
-Supabase Auth normally requires email confirmation for new accounts. Its
-default email service is limited to pre-authorized addresses; configure a
-custom SMTP sender (e.g. Resend) with a domain you control before inviting
-pilots. A free community subdomain is possible but requires that service's
-approval and appropriate DNS records. The existing Vercel `RESEND_API_KEY`
-does **not** automatically configure Supabase SMTP.
+The NavLog Preview uses Supabase Admin `generateLink()` to create the signup
+and recovery links **without** invoking Supabase's email sender. The Next.js
+server then sends each link with the Brevo transactional API. This avoids
+changing project-wide Supabase SMTP settings during Preview, while keeping
+Supabase Auth as the sole account and session provider.
+
+Set `BREVO_API_KEY` directly in the Vercel project's **Preview** environment as
+a Secret. This is a Brevo **API** key, not an SMTP password or relay key.
+Brevo must have the existing sender `Briefings <noreply.briefings@gmail.com>`
+verified. On Brevo's free sender domain, the visible email may be rewritten to
+`@...brevosend.com`; that behaviour is expected. Do not paste the key into
+chat, code, a PR, or a public environment variable.
+
+Optional `NAVLOG_PUBLIC_URL` selects a fixed HTTPS origin for the links;
+otherwise Vercel's system `VERCEL_URL` is used. Signup fails closed if the
+Brevo key is missing, so an account is not silently created without a way
+to receive its verification email. A failed API delivery after account
+creation can be retried using **Resend confirmation email**.
 
 Update Supabase Auth redirect allowlist for the relevant Vercel preview URL,
 production URL, `/navlog`, and `/navlog/reset-password`. Test account creation,
-verification, login, route saving, forgotten PIN, and PIN reset.
+verification, login, route saving, forgotten PIN, and PIN reset. The resend
+form asks for the original username and email. If they match an unconfirmed
+account, it sends a one-time email login link, which verifies the address
+without changing the user's PIN. This link should not be forwarded.
 
 ## Security
 
