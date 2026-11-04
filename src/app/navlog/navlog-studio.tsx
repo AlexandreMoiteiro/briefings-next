@@ -8,6 +8,8 @@ import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 import { C152_CS_AYR } from "@/lib/performance/c152-performance";
 import { loadAllNavlogData } from "@/lib/navlog-data";
 import { navlogRouteTimes } from "@/lib/navlog-route-times";
+import { displayRouteCategory } from "@/lib/navlog-route-category";
+import { NavlogPointPicker } from "@/components/navlog-point-picker";
 import { buildNavlogFormPdf } from "@/lib/pdf/navlog-form-pdf";
 import {
   buildNavlogCalculation,
@@ -102,23 +104,6 @@ function downloadBinaryFile(bytes: Uint8Array, filename: string, mime: string) {
   link.click();
   link.remove();
   URL.revokeObjectURL(url);
-}
-
-function isLpfrProcedurePoint(point: NavlogPoint) {
-  return (
-    point.routes.toUpperCase().includes("LPFR") ||
-    point.remarks.toUpperCase().includes("AIRAC 005-26")
-  );
-}
-
-function pointSearchScore(point: NavlogPoint, query: string) {
-  let score = 0;
-  if (point.code === query) score += 1000;
-  if (point.code.startsWith(query)) score += 300;
-  if (point.name.toUpperCase().includes(query)) score += 100;
-  if (point.routes.toUpperCase().includes(query)) score += 80;
-  if (isLpfrProcedurePoint(point)) score += 500;
-  return score;
 }
 
 function holdMaxClass(status: string) {
@@ -226,7 +211,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
   const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "personal">("featured");
   const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [showSaveRouteForm, setShowSaveRouteForm] = useState(false);
-  const [pointSearch, setPointSearch] = useState("");
+  const [mapSearchQuery, setMapSearchQuery] = useState("");
   const [routeText, setRouteText] = useState("");
   const [routeWarnings, setRouteWarnings] = useState<string[]>([]);
   const [routeSaveName, setRouteSaveName] = useState("");
@@ -416,6 +401,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
       makeWaypointFromPoint(point, setup, addAltitude, 0),
     ]);
     setReviewMode("waypoints");
+    setMapSearchQuery("");
   }
 
   function addMapPoint(lat: number, lon: number) {
@@ -732,33 +718,26 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
     });
   }
 
-  const pointResults = useMemo(() => {
-    if (!navlogData) return [];
-    const query = pointSearch.trim().toUpperCase();
-    if (!query) return [];
-    return navlogData.points
-      .filter(
-        (point) =>
-          point.code.includes(query) ||
-          point.name.toUpperCase().includes(query) ||
-          point.src.includes(query) ||
-          point.routes.toUpperCase().includes(query) ||
-          point.remarks.toUpperCase().includes(query)
-      )
-      .sort((a, b) => pointSearchScore(b, query) - pointSearchScore(a, query))
-      .slice(0, 18);
-  }, [navlogData, pointSearch]);
-
   const filteredPerfectRoutes = useMemo(() => {
     const query = routeSearch.trim().toUpperCase();
     const routes = routeLibraryScope === "personal"
       ? personalRoutes
-      : perfectRoutes.filter((route) => route.verifiedCreator === true && (routeCategory === "all" || route.category === routeCategory));
+      : perfectRoutes.filter((route) => route.verifiedCreator === true && (routeCategory === "all" || displayRouteCategory(route) === routeCategory));
     if (!query) return routes;
     return routes.filter((route) => route.name.toUpperCase().includes(query));
   }, [perfectRoutes, personalRoutes, routeSearch, routeLibraryScope, routeCategory]);
 
   const verifiedRouteCount = perfectRoutes.filter((route) => route.verifiedCreator).length;
+  const defaultVfrCount = perfectRoutes.filter((route) => route.verifiedCreator && displayRouteCategory(route) === "VFR").length;
+  const defaultIfrCount = perfectRoutes.filter((route) => route.verifiedCreator && displayRouteCategory(route) === "IFR").length;
+  const routeSections = useMemo(() => {
+    if (routeLibraryScope === "personal") return [{ label: "My saved routes", category: "personal", routes: filteredPerfectRoutes }];
+    return ([
+      { label: "VFR routes", category: "VFR", routes: filteredPerfectRoutes.filter((route) => displayRouteCategory(route) === "VFR") },
+      { label: "IFR routes", category: "IFR", routes: filteredPerfectRoutes.filter((route) => displayRouteCategory(route) === "IFR") },
+      { label: "Uncategorised routes", category: "other", routes: filteredPerfectRoutes.filter((route) => displayRouteCategory(route) === null) },
+    ]).filter((group) => group.routes.length > 0);
+  }, [filteredPerfectRoutes, routeLibraryScope]);
   const selectedPersonalRoute = personalRoutes.find((route) => route.id === selectedRouteId);
 
   const vorOptions = useMemo(() => {
@@ -1194,9 +1173,18 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <p className="mt-2 text-2xl font-semibold tabular-nums text-violet-950">{hasCalculatedRoute && routeTimes.hasAlternate ? formatDuration(blockPlusAlternateSec) : "—"}</p>
               <p className="mt-1 text-xs leading-5 text-violet-800">{routeTimes.hasAlternate
                 ? `Contingency only: block + ${formatDuration(alternateTimeSec)} to alternate. Not your planned Flight Logger block time.`
-                : "Mark the destination as Alternate start to show the additional contingency time."}</p>
+                : "Use Start alternate on your planned destination in Review → Waypoints, after adding the alternate as the next waypoint. It keeps diversion time separate from your normal Block time."}</p>
             </div>
           </div>
+          <details className="mt-3 rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs text-zinc-700">
+            <summary className="cursor-pointer font-semibold text-zinc-900">How to use Start alternate</summary>
+            <ol className="mt-3 list-decimal space-y-1.5 pl-5 leading-5">
+              <li>Build the route to your intended destination first.</li>
+              <li>Add the diversion route and alternate airport <strong>after</strong> your destination.</li>
+              <li>In <strong>Review → Waypoints</strong>, select <strong>Start alternate</strong> on the intended destination row.</li>
+            </ol>
+            <p className="mt-2 leading-5">Flight time and Block time then stop at your destination. Block + alternate includes the extra diversion time for contingency planning, not for your normal Flight Logger entry.</p>
+          </details>
 
           {accountUser ? <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div>
@@ -1264,15 +1252,23 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                 <label htmlFor="navlog-route-search" className="sr-only">Search saved routes</label>
                 <input id="navlog-route-search" value={routeSearch} onChange={(event) => setRouteSearch(event.target.value)} placeholder="Search by aerodrome, name or route…"
                   className="h-11 min-w-44 flex-1 rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
-                {routeLibraryScope !== "personal" ? (
-                  <label className="flex items-center gap-2 text-xs font-medium text-zinc-500">Type
-                    <select value={routeCategory} onChange={(event) => setRouteCategory(event.target.value as "all" | "VFR" | "IFR")}
-                      className="h-11 rounded-lg border border-zinc-300 bg-white px-3 text-sm font-medium text-zinc-800">
-                      <option value="all">All</option><option value="VFR">VFR</option><option value="IFR">IFR</option>
-                    </select>
-                  </label>
-                ) : null}
               </div>
+              {routeLibraryScope !== "personal" ? (
+                <div className="flex flex-wrap gap-2" aria-label="Filter default routes by flight rules">
+                  {([
+                    ["all", "All defaults", verifiedRouteCount],
+                    ["VFR", "VFR", defaultVfrCount],
+                    ["IFR", "IFR", defaultIfrCount],
+                  ] as const).map(([value, label, count]) => (
+                    <button key={value} type="button" onClick={() => setRouteCategory(value)} aria-pressed={routeCategory === value}
+                      className={`rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${routeCategory === value
+                        ? value === "IFR" ? "border-indigo-600 bg-indigo-50 text-indigo-900" : value === "VFR" ? "border-sky-600 bg-sky-50 text-sky-900" : "border-zinc-900 bg-zinc-900 text-white"
+                        : "border-zinc-200 bg-white text-zinc-700 hover:bg-zinc-50"}`}>
+                      {label} <span className="ml-1 tabular-nums opacity-70">{count}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : null}
 
               <div className="max-h-96 overflow-y-auto rounded-xl border border-zinc-200">
                 {personalRoutesError && routeLibraryScope === "personal" ? <p role="alert" className="p-3 text-xs text-red-700">{personalRoutesError}</p> : null}
@@ -1284,15 +1280,22 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                         ? "Default routes are being reviewed. Please try again soon."
                         : "No matching routes."}</p>
                   </div>
-                ) : filteredPerfectRoutes.map((route) => (
-                  <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)}
-                    className={["flex w-full items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 text-left transition-colors last:border-0 hover:bg-zinc-50", selectedRouteId === route.id ? "bg-zinc-50" : "bg-white"].join(" ")}>
-                    <span className="min-w-0">
-                      <strong className="block truncate text-sm font-medium text-zinc-900">{route.name || "Untitled route"}</strong>
-                      <span className="mt-0.5 block text-xs text-zinc-500">{route.waypoints.length} points{route.category ? ` · ${route.category}` : ""} · {route.waypoints.slice(0, 5).map((point) => point.code || point.name || "WP").join(" → ")}{route.waypoints.length > 5 ? " …" : ""}</span>
-                    </span>
-                    <span className="shrink-0 text-xs font-semibold text-zinc-700">Use →</span>
-                  </button>
+                ) : routeSections.map((section) => (
+                  <section key={section.category}>
+                    <div className={`flex items-center justify-between border-y px-4 py-2.5 text-xs font-bold uppercase tracking-[0.12em] ${section.category === "VFR" ? "border-sky-100 bg-sky-50 text-sky-900" : section.category === "IFR" ? "border-indigo-100 bg-indigo-50 text-indigo-900" : "border-zinc-100 bg-zinc-50 text-zinc-700"}`}>
+                      <span>{section.label}</span><span className="tabular-nums">{section.routes.length}</span>
+                    </div>
+                    {section.routes.map((route) => (
+                      <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)}
+                        className={["flex w-full items-center justify-between gap-3 border-b border-zinc-100 px-4 py-3 text-left transition-colors hover:bg-zinc-50", selectedRouteId === route.id ? "bg-zinc-50" : "bg-white"].join(" ")}>
+                        <span className="min-w-0">
+                          <strong className="block truncate text-sm font-bold text-zinc-950">{route.name || "Untitled route"}</strong>
+                          <span className="mt-0.5 block text-xs text-zinc-500">{route.waypoints.length} points · {route.waypoints.slice(0, 5).map((point) => point.code || point.name || "WP").join(" → ")}{route.waypoints.length > 5 ? " …" : ""}</span>
+                        </span>
+                        <span className="shrink-0 text-xs font-semibold text-zinc-700">Use →</span>
+                      </button>
+                    ))}
+                  </section>
                 ))}
               </div>
             </div>
@@ -1306,20 +1309,11 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                     <p className="mt-0.5 text-sm leading-6 text-zinc-600">Build your own route one point at a time. Search an aerodrome, VOR or waypoint by name or ICAO code.</p>
                   </div>
                 </div>
-                <label htmlFor="navlog-point-search" className="sr-only">Find a navigation point</label>
-                <input id="navlog-point-search" value={pointSearch} onChange={(event) => setPointSearch(event.target.value)} placeholder="E.g. LPSO, MAGUM, VOR…"
-                  className="mt-4 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm outline-none focus:border-zinc-950" />
-                <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
-                  {dataError ? <p className="py-2 text-sm text-red-700">{dataError}</p> : null}
-                  {!pointSearch.trim() ? <p className="py-2 text-xs text-zinc-500">Enter a code or name to see matching points.</p> : null}
-                  {!dataError && pointSearch.trim() && pointResults.length === 0 ? <p className="py-2 text-sm text-zinc-500">No matching points.</p> : null}
-                  {pointResults.map((point) => (
-                    <button key={`${point.src}-${point.code}-${point.lat}-${point.lon}`} type="button" onClick={() => addPoint(point)}
-                      className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left hover:bg-zinc-50">
-                      <span className="min-w-0"><strong className="block text-sm font-medium text-zinc-900">{point.code || "CUSTOM"}</strong><span className="block truncate text-xs text-zinc-500">{point.name} · {point.src}</span></span>
-                      <span className="shrink-0 text-xs font-medium text-zinc-800">+ Add</span>
-                    </button>
-                  ))}
+                <div className="mt-4">
+                  {dataError ? <p className="pb-2 text-sm text-red-700">{dataError}</p> : null}
+                  <NavlogPointPicker points={navlogData?.points ?? emptyNavlogData.points} onAdd={addPoint}
+                    onLocate={(point) => setMapSearchQuery(point.code)} disabled={!navlogData} />
+                  <p className="mt-2 text-[11px] text-zinc-500">Use <strong>Map</strong> to locate a result without interrupting your typing, or <strong>+ Add</strong> to include it in the route.</p>
                 </div>
               </section>
 
@@ -1400,7 +1394,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             points={(navlogData ?? emptyNavlogData).points}
             routeWaypoints={routeWaypoints}
             calculatedNodes={calculation.nodes}
-            searchQuery={pointSearch}
+            searchQuery={mapSearchQuery}
             showReferencePoints={setup.showReferencePoints}
             referenceLayers={setup.referenceLayers}
             manualMapClickEnabled={manualMapClickEnabled}

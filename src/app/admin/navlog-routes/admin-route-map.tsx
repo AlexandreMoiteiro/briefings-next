@@ -33,11 +33,13 @@ function FitRoute({ points, routeId }: { points: MapPoint[]; routeId: string }) 
   return null;
 }
 
-export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint }: {
+export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint, onSelectPoint, selectedIndex }: {
   routeId: string;
   points: PerfectRouteWaypointRaw[];
   onAddPoint?: (lat: number, lon: number) => void;
   onMovePoint?: (index: number, lat: number, lon: number) => void;
+  onSelectPoint?: (index: number) => void;
+  selectedIndex?: number;
 }) {
   const valid = useMemo(() => points
     .map((point, index) => ({ lat: point.lat, lon: point.lon, label: point.code || point.name || `WP${index + 1}`, name: point.name, index }))
@@ -54,7 +56,7 @@ export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint }: {
         <h3 className="text-sm font-semibold text-zinc-900">Percurso no mapa</h3>
         <span className="text-xs text-zinc-500">{onAddPoint ? "Clica para adicionar" : onMovePoint ? "Arrasta os marcadores para ajustar coordenadas" : "Arrasta para explorar · +/− para zoom"}</span>
       </div>
-      <div className={`h-[310px] overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:h-[360px] ${onAddPoint ? "cursor-crosshair" : ""}`}>
+      <div className={`h-[360px] overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:h-[440px] ${onAddPoint ? "cursor-crosshair" : ""}`}>
         <MapContainer center={[39.5, -8]} zoom={7} scrollWheelZoom={false} className="h-full w-full" zoomControl>
           <AddPointOnMap onAddPoint={onAddPoint} />
           <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19}
@@ -66,8 +68,8 @@ export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint }: {
             const isStart = index === 0;
             return onMovePoint ? (
               <Marker key={`${index}-${point.label}`} position={[point.lat, point.lon]} draggable
-                icon={L.divIcon({ className: "", html: `<span style="display:flex;align-items:center;justify-content:center;border:2px solid #fff;background:#18181b;color:#fff;border-radius:999px;width:27px;height:27px;font-size:12px;font-weight:700;box-shadow:0 2px 6px #0005">${index + 1}</span>`, iconSize: [27, 27], iconAnchor: [13, 13] })}
-                eventHandlers={{ dragend(event) { const location = event.target.getLatLng(); onMovePoint(point.index, Number(location.lat.toFixed(6)), Number(location.lng.toFixed(6))); } }}>
+                icon={L.divIcon({ className: "", html: `<span style="display:flex;align-items:center;justify-content:center;border:2px solid #fff;background:${selectedIndex === point.index ? "#0284c7" : "#18181b"};color:#fff;border-radius:999px;width:29px;height:29px;font-size:12px;font-weight:700;box-shadow:0 2px 6px #0005">${point.index + 1}</span>`, iconSize: [29, 29], iconAnchor: [14, 14] })}
+                eventHandlers={{ click() { onSelectPoint?.(point.index); }, dragend(event) { const location = event.target.getLatLng(); onSelectPoint?.(point.index); onMovePoint(point.index, Number(location.lat.toFixed(6)), Number(location.lng.toFixed(6))); } }}>
                 <Tooltip direction="top" offset={[0, -12]}><strong>{point.label}</strong></Tooltip>
               </Marker>
             ) : (
@@ -82,7 +84,7 @@ export function AdminRouteMap({ routeId, points, onAddPoint, onMovePoint }: {
           })}
         </MapContainer>
       </div>
-      <p className="text-[11px] leading-5 text-zinc-500">{onMovePoint ? "Marcadores numerados: arrasta um ponto para alterar a sua posição. " : "Verde: origem · Preto: destino. "}Base OpenStreetMap. Mapa apenas para orientação na gestão; não é uma carta aeronáutica.</p>
+      <p className="text-[11px] leading-5 text-zinc-500">{onMovePoint ? "Clica num marcador para editar o ponto; arrasta-o para ajustar as coordenadas. Azul = selecionado. " : "Verde: origem · Preto: destino. "}Base OpenStreetMap. Mapa apenas para orientação na gestão; não é uma carta aeronáutica.</p>
     </section>
   );
 }

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "briefings:navlog-private-routes-launch:v2";
+const STORAGE_KEY = "briefings:navlog-private-routes-launch:v3";
 
 export function NavlogAccountAnnouncement() {
   const pathname = usePathname();
@@ -63,7 +63,7 @@ export function NavlogAccountAnnouncement() {
           Build your NavLog as usual, then create a free account to save it under <strong>My saved routes</strong>. Only you can reopen, edit or delete those routes.
         </p>
         <p className="mt-2 text-sm leading-6 text-zinc-700">
-          <strong>Default routes</strong> remain a separate collection maintained by Briefings. Your personal changes never affect other pilots.
+          <strong>Default routes</strong> remain a separate collection maintained by the admin. Your personal changes never affect other pilots.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-2">
           <Link href="/navlog?account=signup" onClick={dismiss}

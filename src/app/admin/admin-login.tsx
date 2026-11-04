@@ -9,11 +9,10 @@ export function AdminLogin() {
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [fullCodeMode, setFullCodeMode] = useState(false);
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (fullCodeMode ? !code.trim() : !/^\d{4}$/.test(code)) return;
+    if (!/^\d{4}$/.test(code)) return;
     setBusy(true);
     setError("");
     try {
@@ -41,22 +40,13 @@ export function AdminLogin() {
         <h1 className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Admin</h1>
       </div>
       <form onSubmit={signIn} autoComplete="off" className="space-y-5">
-        {fullCodeMode ? (
-          <label className="block text-sm font-medium text-zinc-700">Código
-            <input value={code} onChange={(event) => setCode(event.target.value)} type="password" autoComplete="off" maxLength={256} required
-              className="mt-2 h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10" />
-          </label>
-        ) : <div className="flex justify-center"><PinCodeInput value={code} onChange={setCode} disabled={busy} label="Código" /></div>}
-        <button type="submit" disabled={busy || (fullCodeMode ? !code.trim() : code.length !== 4)}
+        <div className="flex justify-center"><PinCodeInput value={code} onChange={setCode} disabled={busy} label="Código" /></div>
+        <button type="submit" disabled={busy || code.length !== 4}
           className="h-12 w-full rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
           {busy ? "A entrar…" : "Entrar"}
         </button>
       </form>
       {error ? <p role="alert" className="mt-4 text-center text-xs text-red-700">{error}</p> : null}
-      <button type="button" onClick={() => { setFullCodeMode((current) => !current); setCode(""); setError(""); }}
-        className="mx-auto mt-5 block text-xs text-zinc-400 underline-offset-2 hover:text-zinc-700 hover:underline">
-        {fullCodeMode ? "Usar código de 4 dígitos" : "O meu código tem outro formato"}
-      </button>
     </main>
   );
 }
