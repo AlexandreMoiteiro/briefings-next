@@ -203,7 +203,7 @@ function profileForAircraft(aircraftType: NavlogAircraftType) {
     : profile;
 }
 
-export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftType }) {
+export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: NavlogAircraftType; onOpenAccount: () => void }) {
   const initialProfile = useMemo(() => profileForAircraft(aircraftType), [aircraftType]);
   const [setup, setSetup] = useState<NavlogSetupForm>(initialProfile);
   const [navlogData, setNavlogData] = useState<NavlogDataBundle | null>(null);
@@ -1222,6 +1222,18 @@ export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftTyp
                     </button>
                   ))}
               </div>
+
+              {routeLibraryScope === "personal" ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-900">Your private routes</p>
+                    <p className="mt-0.5 text-xs text-zinc-600">{accountUser ? "Only you can access your saved routes." : "Sign in to access or save routes across devices."}</p>
+                  </div>
+                  <button type="button" onClick={onOpenAccount} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
+                    {accountUser ? "My account" : "Sign in / Create account"}
+                  </button>
+                </div>
+              ) : null}
 
               <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor="navlog-route-search" className="sr-only">Search saved routes</label>

@@ -54,6 +54,8 @@ export function AdminNavlogRoutes() {
       const next = result.routes.find((route) => route.id === nextId) ?? result.routes[0];
       if (next) { setSelectedId(next.id); setDraft(duplicateRoute(next)); }
       else { setSelectedId(null); setDraft(null); }
+      setDeleteOpen(false);
+      setDeleteConfirmation("");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Erro ao carregar rotas.");
     } finally {
@@ -105,6 +107,19 @@ export function AdminNavlogRoutes() {
     setDeleteConfirmation("");
   }
 
+  function discardChanges() {
+    const original = routes.find((route) => route.id === selectedId);
+    if (!original) return;
+    setDraft(duplicateRoute(original));
+    setError("");
+    setNotice("Alterações locais descartadas.");
+  }
+
+  function refreshList() {
+    if (isDirty && !window.confirm("Atualizar a lista e descartar as alterações que ainda não guardaste?")) return;
+    void loadRoutes(selectedId ?? undefined);
+  }
+
   async function deleteRoute() {
     const original = routes.find((route) => route.id === selectedId);
     if (!original || deleteConfirmation !== original.name || saving) return;
@@ -149,7 +164,6 @@ export function AdminNavlogRoutes() {
 
   async function toggleDefault(route: ManagedRoute) {
     if (saving) return;
-    if (!window.confirm(`${route.is_default ? "Retirar" : "Adicionar"} «${route.name}» ${route.is_default ? "das" : "às"} rotas por defeito? Esta alteração fica guardada na base de dados partilhada.`)) return;
     setSaving(true);
     setError("");
     setNotice("");
@@ -161,7 +175,7 @@ export function AdminNavlogRoutes() {
       });
       if (!response.ok) throw new Error("Não foi possível alterar a classificação.");
       setRoutes((current) => current.map((item) => item.id === route.id ? { ...item, is_default: !route.is_default } : item));
-      if (draft?.id === route.id && !isDirty) setDraft({ ...draft, is_default: !route.is_default });
+      if (draft?.id === route.id) setDraft((current) => current ? { ...current, is_default: !route.is_default } : current);
       setNotice(`«${route.name}» ${route.is_default ? "removida das" : "adicionada às"} rotas por defeito.`);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Não foi possível alterar a rota.");
@@ -183,7 +197,6 @@ export function AdminNavlogRoutes() {
       setError("Confirma o nome e os pontos da rota (códigos, latitudes e longitudes válidos).");
       return;
     }
-    if (!window.confirm("Guardar as alterações na base de dados partilhada? As alterações aos dados da rota também podem aparecer no website atual.")) return;
     setSaving(true);
     try {
       const response = await fetch("/api/admin/navlog-routes", {
@@ -209,12 +222,13 @@ export function AdminNavlogRoutes() {
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">NavLog / Biblioteca</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">NavLog / Biblioteca</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">Gestão de rotas</h1>
             <p className="mt-2 max-w-2xl text-sm text-zinc-600">
               Consulta, edita, classifica ou elimina as rotas da biblioteca pública Briefings.
             </p>
           </div>
+          <button type="button" disabled={loading || saving} onClick={refreshList} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">{loading ? "A carregar…" : "Atualizar biblioteca"}</button>
         </header>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {([
@@ -279,8 +293,20 @@ export function AdminNavlogRoutes() {
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
                   <div><h2 className="text-lg font-semibold text-zinc-950">{draft.name}</h2><p className="mt-1 text-xs text-zinc-500">{draft.waypoints.length} pontos · {draft.category ?? "Tipo por definir"}{draft.is_default ? " · Rota Briefings" : ""}</p></div>
-                  <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar"}</button>
+                  <div className="flex flex-wrap justify-end gap-2">
+                    {isDirty ? <button type="button" onClick={discardChanges} disabled={saving} className="rounded-lg border border-zinc-300 px-3 py-2.5 text-xs font-semibold text-zinc-700 disabled:opacity-40">Descartar</button> : null}
+                    <button type="button" onClick={() => { setDeleteOpen((open) => !open); setDeleteConfirmation(""); }} className="rounded-lg border border-zinc-300 px-3 py-2.5 text-xs font-semibold text-zinc-700 hover:border-red-300 hover:text-red-700">{deleteOpen ? "Cancelar" : "Eliminar…"}</button>
+                    <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="rounded-lg bg-zinc-950 px-5 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar"}</button>
+                  </div>
                 </div>
+                {deleteOpen ? <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                  <p className="text-sm font-semibold text-red-900">Eliminar esta rota pública</p>
+                  <p className="mt-1 text-xs leading-5 text-red-800">Esta ação é permanente e não afeta rotas privadas. Para continuar, escreve exatamente <strong>{routes.find((route) => route.id === selectedId)?.name}</strong>.</p>
+                  <label className="mt-3 block text-xs font-medium text-red-900">Nome da rota
+                    <input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off" className={`${textInput} mt-1.5 border-red-200`} placeholder="Nome exato da rota" />
+                  </label>
+                  <button type="button" disabled={saving || deleteConfirmation !== routes.find((route) => route.id === selectedId)?.name} onClick={() => void deleteRoute()} className="mt-3 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A eliminar…" : "Eliminar definitivamente"}</button>
+                </div> : null}
                 <AdminRouteMap points={draft.waypoints} />
                 <label className="block text-sm font-medium text-zinc-700">Nome
                   <input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={`${textInput} mt-1`} />
@@ -331,25 +357,6 @@ export function AdminNavlogRoutes() {
                   </div>
                 </details>
                 <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar alterações"}</button>
-                <div className="border-t border-red-100 pt-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold text-zinc-950">Eliminar rota</h3>
-                      <p className="mt-1 text-xs leading-5 text-zinc-500">Remove este percurso e a sua classificação da biblioteca pública. Não afeta rotas privadas dos pilotos.</p>
-                    </div>
-                    <button type="button" onClick={() => { setDeleteOpen((open) => !open); setDeleteConfirmation(""); }} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">{deleteOpen ? "Cancelar" : "Eliminar rota…"}</button>
-                  </div>
-                  {deleteOpen ? (
-                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-4">
-                      <p className="text-sm font-semibold text-red-900">Confirma a eliminação permanente</p>
-                      <p className="mt-1 text-xs leading-5 text-red-800">Escreve exatamente <strong>{routes.find((route) => route.id === selectedId)?.name}</strong> para confirmar. Não é possível recuperar esta rota através do Admin.</p>
-                      <label className="mt-3 block text-xs font-medium text-red-900">Nome da rota
-                        <input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off" className={`${textInput} mt-1.5 border-red-200`} placeholder="Nome exato da rota" />
-                      </label>
-                      <button type="button" disabled={saving || deleteConfirmation !== routes.find((route) => route.id === selectedId)?.name} onClick={() => void deleteRoute()} className="mt-3 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A eliminar…" : "Eliminar rota definitivamente"}</button>
-                    </div>
-                  ) : null}
-                </div>
               </div>
             )}
           </section>

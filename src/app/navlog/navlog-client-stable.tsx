@@ -161,24 +161,18 @@ export function NavlogClientStable() {
   }
 
   const selected = aircraftChoice(aircraft);
-  const accountAction = (
-    <button type="button" onClick={() => setAccountOpen(true)} className="inline-flex items-center rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
-      {accountUser ? "My account" : "Sign in"}
-    </button>
-  );
-
   return (
     <div className="space-y-5" onClickCapture={handleClickCapture}>
       {showPicker ? (
         <div className="space-y-6">
-          <PreparationPageHeader step={2} title="NavLog" description={PAGE_DESCRIPTION} action={accountAction} />
+          <PreparationPageHeader step={2} title="NavLog" description={PAGE_DESCRIPTION} />
           <AircraftPicker choices={AIRCRAFT_CHOICES} onSelect={choose} />
         </div>
       ) : null}
 
       {started ? (
         <div className={showPicker ? "hidden" : "space-y-5"}>
-          <PreparationPageHeader step={2} title="NavLog" description={PAGE_DESCRIPTION} action={accountAction} />
+          <PreparationPageHeader step={2} title="NavLog" description={PAGE_DESCRIPTION} />
 
           <SelectedAircraftCard
             name={selected.name}
@@ -193,7 +187,7 @@ export function NavlogClientStable() {
             documentLabel="NavLog"
           />
 
-          <NavlogStudio aircraftType={aircraft} />
+          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => setAccountOpen(true)} />
         </div>
       ) : null}
 

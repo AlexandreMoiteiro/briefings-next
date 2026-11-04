@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicServerSupabase } from "@/lib/supabase/server-client";
 import { createNavlogAdminClient, deriveNavlogPassword, navlogAuthRateKey, navlogRequestIp, PIN_PATTERN, USERNAME_PATTERN } from "@/lib/navlog-pin-auth";
-import { ensureNavlogEmailConfigured, navlogEmailRedirect, sendNavlogAuthEmail } from "@/lib/navlog-auth-email";
+import { ensureNavlogEmailConfigured, navlogEmailTokenLink, sendNavlogAuthEmail } from "@/lib/navlog-auth-email";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -58,10 +58,10 @@ export async function POST(request: Request) {
 
       if (body.action === "reset") {
         const { data, error } = await admin.auth.admin.generateLink({
-          type: "recovery", email, options: { redirectTo: navlogEmailRedirect("/navlog/reset-password") },
+          type: "recovery", email,
         });
-        if (!error && data?.properties?.action_link) {
-          await sendNavlogAuthEmail(email, data.properties.action_link, "recovery");
+        if (!error && data?.properties?.hashed_token) {
+          await sendNavlogAuthEmail(email, navlogEmailTokenLink(data.properties.hashed_token, "recovery"), "recovery");
         }
         // Do not disclose whether an email address is registered.
         return json({ success: true });
@@ -78,10 +78,10 @@ export async function POST(request: Request) {
           if (account) {
             if (!account.email_confirmed_at) {
               const { data, error } = await admin.auth.admin.generateLink({
-                type: "magiclink", email, options: { redirectTo: navlogEmailRedirect("/navlog") },
+                type: "magiclink", email,
               });
-              if (error || !data?.properties?.action_link) throw error ?? new Error("Could not generate confirmation link.");
-              await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+              if (error || !data?.properties?.hashed_token) throw error ?? new Error("Could not generate confirmation token.");
+              await sendNavlogAuthEmail(email, navlogEmailTokenLink(data.properties.hashed_token, "confirm"), "confirm");
             }
             break;
           }
@@ -100,11 +100,11 @@ export async function POST(request: Request) {
 
       const { data, error } = await admin.auth.admin.generateLink({
         type: "signup", email, password: deriveNavlogPassword(email, pin),
-        options: { data: { username }, redirectTo: navlogEmailRedirect("/navlog") },
+        options: { data: { username } },
       });
       if (error) return failure(error.message);
-      if (!data?.properties?.action_link) throw new Error("No confirmation link returned.");
-      await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+      if (!data?.properties?.hashed_token) throw new Error("No confirmation token returned.");
+      await sendNavlogAuthEmail(email, navlogEmailTokenLink(data.properties.hashed_token, "confirm"), "confirm");
       return json({ success: true, requiresConfirmation: true, session: null });
     }
 

@@ -32,31 +32,37 @@ export function AdminIpBansClient() {
   const [rows, setRows] = useState<UsageEventRow[]>([]);
   const [busyKey, setBusyKey] = useState("");
   const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [onlyBlocked, setOnlyBlocked] = useState(false);
 
   async function load(){
     setError("");
     try{
       const response=await fetch("/api/admin/export-access",{cache:"no-store",credentials:"same-origin"});
-      if(!response.ok)throw new Error("Unable to load export access.");
+      if(!response.ok)throw new Error("Não foi possível carregar os acessos.");
       const data=await response.json() as {rows:UsageEventRow[]};
       setRows(data.rows??[]);
     }catch(e){
       setRows([]);
-      setError(e instanceof Error?e.message:"Unable to load export access.");
+      setError(e instanceof Error?e.message:"Erro ao carregar acessos.");
     }
   }
 
-  useEffect(()=>{void load();},[]);
+  useEffect(()=>{const timer = window.setTimeout(() => {void load();}, 0);return () => window.clearTimeout(timer);},[]);
 
-  const visibleRows = useMemo(
-    () =>
-      rows.filter(
-        (row) =>
-          row.event_type === "navlog_export" ||
-          row.event_type === "performance_export"
-      ),
-    [rows]
-  );
+  const visibleRows = useMemo(() => {
+    const unique = new Map<string, UsageEventRow>();
+    for (const row of [...rows].sort((a, b) => b.created_at.localeCompare(a.created_at))) {
+      if (row.event_type !== "navlog_export" && row.event_type !== "performance_export") continue;
+      const key = `${row.client_id ?? row.id}:${row.ip_hash ?? ""}`;
+      if (!unique.has(key)) unique.set(key, row);
+    }
+    const needle = search.trim().toLowerCase();
+    return Array.from(unique.values()).filter((row) =>
+      (!onlyBlocked || row.client_banned || row.ip_banned) &&
+      (!needle || [row.title, row.registration, row.client_id, row.ip_hash].some((value) => value?.toLowerCase().includes(needle)))
+    );
+  }, [rows, onlyBlocked, search]);
 
   async function updateBan(kind:"client"|"network",id:string,banned:boolean,reason:string){
     setBusyKey(kind+id);
@@ -67,18 +73,18 @@ export function AdminIpBansClient() {
         headers:{"Content-Type":"application/json"},
         body:JSON.stringify({kind,id,banned,reason})
       });
-      if(!response.ok)throw new Error("Could not update this export restriction.");
+      if(!response.ok)throw new Error("Não foi possível alterar este bloqueio.");
       await load();
     }catch(e){
-      setError(e instanceof Error?e.message:"Could not update export access.");
+      setError(e instanceof Error?e.message:"Erro ao atualizar acesso.");
     }finally{setBusyKey("");}
   }
 
   async function setIpBan(row:UsageEventRow,banned:boolean){
     if(!row.ip_hash)return;
     const confirmed=window.confirm(
-      banned ? `Block the whole network associated with “${row.title??row.registration??"this event"}”? This can affect other devices sharing the same Wi-Fi.`
-        : `Unblock this network for “${row.title??row.registration??"this event"}”?`
+      banned ? `Bloquear a rede associada a “${row.title??row.registration??"este registo"}”? Pode afetar outros dispositivos na mesma ligação.`
+        : `Desbloquear esta rede para “${row.title??row.registration??"este registo"}”?`
     );
     if(confirmed)await updateBan("network",row.ip_hash,banned,"Admin network/IP ban: "+(row.title??row.id));
   }
@@ -86,8 +92,8 @@ export function AdminIpBansClient() {
   async function setClientBan(row:UsageEventRow,banned:boolean){
     if(!row.client_id)return;
     const confirmed=window.confirm(
-      banned ? `Block the browser/device associated with “${row.title??row.registration??"this event"}”?`
-        : `Unblock this browser/device for “${row.title??row.registration??"this event"}”?`
+      banned ? `Bloquear o dispositivo associado a “${row.title??row.registration??"este registo"}”?`
+        : `Desbloquear este dispositivo para “${row.title??row.registration??"este registo"}”?`
     );
     if(confirmed)await updateBan("client",row.client_id,banned,"Admin device/browser ban: "+(row.title??row.id));
   }
@@ -99,30 +105,30 @@ export function AdminIpBansClient() {
           Admin
         </p>
         <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">
-          Export access
+          Acessos e bloqueios
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-          Block the browser/device first. Use a network/IP ban only for repeated or serious abuse because it may also affect other devices sharing the same Wi-Fi or public IP.
+          Gere as permissões de exportação PDF. Prefere bloquear um dispositivo específico; bloquear uma rede/IP pode afetar outros utilizadores.
         </p>
       </div>
 
       <div className="grid gap-3 md:grid-cols-2">
         <div className="rounded-2xl border border-red-200 bg-red-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-red-700">
-            Recommended
+            Primeiro nível
           </p>
-          <p className="mt-1 font-semibold text-red-950">Block browser/device</p>
+          <p className="mt-1 font-semibold text-red-950">Bloquear dispositivo</p>
           <p className="mt-1 text-sm leading-5 text-red-800">
-            Blocks only this saved browser/client ID. It is the safer first action for false names or abuse.
+            Afeta apenas aquele browser ou dispositivo. É a medida recomendada para um problema isolado.
           </p>
         </div>
         <div className="rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">
-            Stronger action
+            Medida alargada
           </p>
-          <p className="mt-1 font-semibold text-zinc-900">Block network/IP</p>
+          <p className="mt-1 font-semibold text-zinc-900">Bloquear rede/IP</p>
           <p className="mt-1 text-sm leading-5 text-zinc-600">
-            Blocks exports from that public IP. Other users on the same network may also be affected.
+            Impede exportações a partir da mesma rede pública, podendo afetar outros utilizadores.
           </p>
         </div>
       </div>
@@ -135,15 +141,21 @@ export function AdminIpBansClient() {
 
       <div className="flex items-center justify-between gap-3">
         <p className="text-sm text-zinc-500">
-          {visibleRows.length} recent NavLog / Performance export events
+          {visibleRows.length} dispositivos/redes nos registos recentes
         </p>
         <button
           type="button"
           onClick={() => void load()}
           className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50"
         >
-          Refresh
+          Atualizar
         </button>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-zinc-200 bg-white p-3">
+        <label htmlFor="admin-access-search" className="sr-only">Pesquisar acessos</label>
+        <input id="admin-access-search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Pesquisar dispositivo, rede ou matrícula…" className="h-10 min-w-44 flex-1 rounded-lg border border-zinc-300 px-3 text-sm" />
+        <label className="flex items-center gap-2 text-xs font-medium text-zinc-700"><input type="checkbox" checked={onlyBlocked} onChange={(event) => setOnlyBlocked(event.target.checked)} />Só bloqueados</label>
       </div>
 
       <div className="space-y-3">
@@ -170,19 +182,19 @@ export function AdminIpBansClient() {
                         "rounded-full px-2.5 py-1 text-[11px] font-semibold",
                         blocked
                           ? "bg-red-100 text-red-700"
-                          : "bg-emerald-100 text-emerald-700",
+                          : "bg-zinc-100 text-zinc-700",
                       ].join(" ")}
                     >
-                      {blocked ? "Blocked" : "Allowed"}
+                      {blocked ? "Bloqueado" : "Permitido"}
                     </span>
                     {row.client_banned ? (
                       <span className="rounded-full bg-red-50 px-2.5 py-1 text-[11px] font-semibold text-red-700 ring-1 ring-inset ring-red-200">
-                        Device blocked
+                        Dispositivo bloqueado
                       </span>
                     ) : null}
                     {row.ip_banned ? (
                       <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700 ring-1 ring-inset ring-zinc-200">
-                        Network blocked
+                        Rede bloqueada
                       </span>
                     ) : null}
                   </div>
@@ -190,7 +202,7 @@ export function AdminIpBansClient() {
                     {formatDate(row.created_at)} · {row.registration ?? "—"} · {row.aircraft_type ?? "—"}
                   </p>
                   <p className="mt-1 font-mono text-[11px] text-zinc-400">
-                    device {row.client_id?.slice(0, 12) ?? "—"} · network {row.ip_hash ? `${row.ip_hash.slice(0, 12)}…` : "not captured (legacy)"}
+                    dispositivo {row.client_id?.slice(0, 12) ?? "—"} · rede {row.ip_hash ? `${row.ip_hash.slice(0, 12)}…` : "não registada"}
                   </p>
                 </div>
 
@@ -208,14 +220,14 @@ export function AdminIpBansClient() {
                       ].join(" ")}
                     >
                       {clientBusy
-                        ? "Working…"
+                        ? "A atualizar…"
                         : row.client_banned
-                          ? "Unblock device"
-                          : "Block device"}
+                          ? "Desbloquear dispositivo"
+                          : "Bloquear dispositivo"}
                     </button>
                   ) : (
                     <span className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-400">
-                      Device ID unavailable
+                      Dispositivo não identificado
                     </span>
                   )}
 
@@ -232,14 +244,14 @@ export function AdminIpBansClient() {
                       ].join(" ")}
                     >
                       {ipBusy
-                        ? "Working…"
+                        ? "A atualizar…"
                         : row.ip_banned
-                          ? "Unblock network/IP"
-                          : "Block network/IP"}
+                          ? "Desbloquear rede/IP"
+                          : "Bloquear rede/IP"}
                     </button>
                   ) : (
                     <span className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm text-zinc-400">
-                      Network/IP unavailable
+                      Rede não identificada
                     </span>
                   )}
                 </div>
@@ -250,7 +262,7 @@ export function AdminIpBansClient() {
 
         {!visibleRows.length ? (
           <div className="rounded-2xl border border-zinc-200 bg-white p-6 text-sm text-zinc-500">
-            No recent NavLog or Performance export events.
+            Não há registos de exportação com estes filtros.
           </div>
         ) : null}
       </div>

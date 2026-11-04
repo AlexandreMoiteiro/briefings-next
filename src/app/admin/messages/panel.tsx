@@ -39,7 +39,7 @@ type View = "all" | "feedback" | "unblock";
 
 function formatDate(value: string) {
   try {
-    return new Date(value).toLocaleString("en-GB", {
+    return new Date(value).toLocaleString("pt-PT", {
       dateStyle: "medium",
       timeStyle: "short",
     });
@@ -49,16 +49,23 @@ function formatDate(value: string) {
 }
 
 function feedbackLabel(kind: FeedbackMessage["kind"]) {
-  if (kind === "question") return "Question";
-  if (kind === "issue") return "Problem";
-  if (kind === "suggestion") return "Suggestion";
-  return "Message";
+  if (kind === "question") return "Pergunta";
+  if (kind === "issue") return "Problema";
+  if (kind === "suggestion") return "Sugestão";
+  return "Mensagem";
 }
 
 function statusClass(status: string) {
   if (status === "open") return "bg-amber-100 text-amber-800";
   if (status === "read" || status === "reviewed") return "bg-sky-100 text-sky-800";
   return "bg-emerald-100 text-emerald-800";
+}
+
+function statusLabel(status: string) {
+  if (status === "open") return "Pendente";
+  if (status === "read") return "Lida";
+  if (status === "reviewed") return "Analisado";
+  return "Resolvido";
 }
 
 export function AdminMessagesPanel() {
@@ -75,22 +82,22 @@ export function AdminMessagesPanel() {
     setLoading(true);setError("");
     try{
       const response=await fetch("/api/admin/messages",{credentials:"same-origin",cache:"no-store"});
-      if(!response.ok)throw new Error("Unable to open messages. Sign in via Admin.");
+      if(!response.ok)throw new Error("Não foi possível carregar a caixa de entrada.");
       const result=await response.json() as {feedback:FeedbackMessage[];unblock:UnblockRequest[]};
       setFeedback(result.feedback||[]);setUnblock(result.unblock||[]);setAuthorized(true);
-    }catch(e){setAuthorized(false);setError(e instanceof Error?e.message:"Unable to load messages.");}
+    }catch(e){setAuthorized(false);setError(e instanceof Error?e.message:"Erro ao carregar mensagens.");}
     finally{setLoading(false);}
   }
   async function runAction(action:string,body:Record<string,unknown>){
     setBusy(action);setError("");
     try{
       const response=await fetch("/api/admin/messages",{method:"POST",credentials:"same-origin",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,...body})});
-      if(!response.ok)throw new Error("Unable to complete the requested action.");
+      if(!response.ok)throw new Error("Não foi possível concluir esta ação.");
       await load();
-    }catch(e){setError(e instanceof Error?e.message:"Action failed.");}
+    }catch(e){setError(e instanceof Error?e.message:"Ação falhou.");}
     finally{setBusy("");}
   }
-  useEffect(()=>{void load();},[]);
+  useEffect(()=>{const timer = window.setTimeout(() => {void load();}, 0);return () => window.clearTimeout(timer);},[]);
 
   const items = useMemo<InboxItem[]>(() => {
     const merged: InboxItem[] = [
@@ -120,31 +127,31 @@ export function AdminMessagesPanel() {
     await runAction("unblock-status",{id:row.id,status});
   }
   async function unblockDevice(row:UnblockRequest){
-    if(!window.confirm(`Unblock the device for ${row.pilot_name}?`))return;
+    if(!window.confirm(`Desbloquear o dispositivo de ${row.pilot_name}?`))return;
     await runAction("unblock-device",{id:row.id,clientId:row.client_id});
   }
   async function unblockNetwork(row:UnblockRequest){
-    if(!window.confirm(`Remove the network/IP ban for ${row.pilot_name}? This can affect other devices sharing the same public IP.`))return;
+    if(!window.confirm(`Desbloquear a rede/IP de ${row.pilot_name}? Isto pode afetar outros dispositivos que partilham o mesmo IP público.`))return;
     await runAction("unblock-network",{ipHash:row.ip_hash});
   }
 
   if(authorized===false)return <div className="rounded-2xl border border-red-200 bg-red-50 p-5 text-sm text-red-800">
-    {error||"Unable to load messages."} <button type="button" className="ml-2 underline" onClick={()=>void load()}>Retry</button>
+    {error||"Não foi possível carregar mensagens."} <button type="button" className="ml-2 underline" onClick={()=>void load()}>Tentar novamente</button>
   </div>;
-  if(authorized===null)return <p className="p-6 text-sm text-zinc-600">Loading messages…</p>;
+  if(authorized===null)return <p className="p-6 text-sm text-zinc-600">A carregar mensagens…</p>;
 
   return (
     <main className="mx-auto max-w-6xl space-y-5">
       <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-            Admin inbox
+            Comunicação
           </p>
           <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">
-            Messages
+            Mensagens e pedidos
           </h1>
           <p className="mt-2 text-sm text-zinc-600">
-            Suggestions, questions, problem reports and export unblock requests in one place.
+            Sugestões, perguntas, problemas e pedidos de desbloqueio, todos no mesmo sítio.
           </p>
         </div>
         <button
@@ -153,21 +160,21 @@ export function AdminMessagesPanel() {
           disabled={loading}
           className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
         >
-          {loading ? "Refreshing…" : "Refresh inbox"}
+          {loading ? "A atualizar…" : "Atualizar"}
         </button>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Open feedback</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Mensagens por tratar</p>
           <p className="mt-1 text-2xl font-semibold text-zinc-950">{openFeedback}</p>
         </div>
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Unblock requests</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Desbloqueios pendentes</p>
           <p className="mt-1 text-2xl font-semibold text-zinc-950">{openUnblock}</p>
         </div>
         <div className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Total received</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Total recebido</p>
           <p className="mt-1 text-2xl font-semibold text-zinc-950">{feedback.length + unblock.length}</p>
         </div>
       </div>
@@ -175,9 +182,9 @@ export function AdminMessagesPanel() {
       <div className="flex flex-col gap-3 rounded-2xl border border-zinc-200 bg-white p-3 shadow-sm sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
           {([
-            ["all", "All"],
-            ["feedback", "Suggestions & questions"],
-            ["unblock", "Unblock requests"],
+            ["all", "Todas"],
+            ["feedback", "Mensagens"],
+            ["unblock", "Pedidos de desbloqueio"],
           ] as const).map(([value, label]) => (
             <button
               key={value}
@@ -200,7 +207,7 @@ export function AdminMessagesPanel() {
             checked={showResolved}
             onChange={(event) => setShowResolved(event.target.checked)}
           />
-          Show resolved
+          Mostrar resolvidas
         </label>
       </div>
 
@@ -223,7 +230,7 @@ export function AdminMessagesPanel() {
                         {feedbackLabel(row.kind)}
                       </span>
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(row.status)}`}>
-                        {row.status}
+                        {statusLabel(row.status)}
                       </span>
                     </div>
                     <h2 className="mt-3 text-lg font-semibold text-zinc-950">
@@ -240,7 +247,7 @@ export function AdminMessagesPanel() {
                       {row.message}
                     </div>
                     {row.page_url ? (
-                      <p className="mt-3 break-all text-xs text-zinc-400">Related page: {row.page_url}</p>
+                      <p className="mt-3 break-all text-xs text-zinc-400">Página relacionada: {row.page_url}</p>
                     ) : null}
                   </div>
 
@@ -252,7 +259,7 @@ export function AdminMessagesPanel() {
                         onClick={() => void setFeedbackStatus(row, "read")}
                         className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50"
                       >
-                        Mark read
+                        Marcar como lida
                       </button>
                     ) : null}
                     {row.status !== "resolved" ? (
@@ -262,7 +269,7 @@ export function AdminMessagesPanel() {
                         onClick={() => void setFeedbackStatus(row, "resolved")}
                         className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
                       >
-                        Resolve
+                        Resolver
                       </button>
                     ) : (
                       <button
@@ -271,7 +278,7 @@ export function AdminMessagesPanel() {
                         onClick={() => void setFeedbackStatus(row, "open")}
                         className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
                       >
-                        Reopen
+                        Reabrir
                       </button>
                     )}
                   </div>
@@ -287,27 +294,27 @@ export function AdminMessagesPanel() {
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="rounded-full bg-amber-100 px-2.5 py-1 text-[11px] font-semibold text-amber-800">
-                      Unblock request
+                      Pedido de desbloqueio
                     </span>
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${statusClass(row.status)}`}>
-                      {row.status}
+                      {statusLabel(row.status)}
                     </span>
                     {row.client_banned ? (
-                      <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">Device blocked</span>
+                      <span className="rounded-full bg-red-100 px-2.5 py-1 text-[11px] font-semibold text-red-700">Dispositivo bloqueado</span>
                     ) : null}
                     {row.ip_banned ? (
-                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700">Network blocked</span>
+                      <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-[11px] font-semibold text-zinc-700">Rede bloqueada</span>
                     ) : null}
                   </div>
                   <h2 className="mt-3 text-lg font-semibold text-zinc-950">{row.pilot_name}</h2>
                   <p className="mt-1 text-xs text-zinc-400">
-                    {formatDate(row.created_at)} · device {row.client_id.slice(0, 12)}…
+                    {formatDate(row.created_at)} · dispositivo {row.client_id.slice(0, 12)}…
                   </p>
                   <div className="mt-4 whitespace-pre-wrap rounded-2xl bg-zinc-50 p-4 text-sm leading-6 text-zinc-800">
                     {row.message}
                   </div>
                   {row.page_url ? (
-                    <p className="mt-3 break-all text-xs text-zinc-400">From: {row.page_url}</p>
+                    <p className="mt-3 break-all text-xs text-zinc-400">Origem: {row.page_url}</p>
                   ) : null}
                 </div>
 
@@ -317,9 +324,9 @@ export function AdminMessagesPanel() {
                       type="button"
                       disabled={Boolean(busy)}
                       onClick={() => void unblockDevice(row)}
-                      className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                      className="rounded-xl bg-zinc-950 px-4 py-2 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50"
                     >
-                      {busy === `device:${row.id}` ? "Working…" : "Unblock device"}
+                      {busy === "unblock-device" ? "A desbloquear…" : "Desbloquear dispositivo"}
                     </button>
                   ) : null}
                   {row.ip_banned && row.ip_hash ? (
@@ -329,7 +336,7 @@ export function AdminMessagesPanel() {
                       onClick={() => void unblockNetwork(row)}
                       className="rounded-xl border border-zinc-300 bg-white px-4 py-2 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-50"
                     >
-                      {busy === `network:${row.id}` ? "Working…" : "Unblock network/IP"}
+                      {busy === "unblock-network" ? "A desbloquear…" : "Desbloquear rede/IP"}
                     </button>
                   ) : null}
                   {row.status === "open" ? (
@@ -339,7 +346,7 @@ export function AdminMessagesPanel() {
                       onClick={() => void setUnblockStatus(row, "reviewed")}
                       className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-800 hover:bg-sky-100 disabled:opacity-50"
                     >
-                      Mark reviewed
+                      Marcar como analisado
                     </button>
                   ) : null}
                   {row.status !== "resolved" ? (
@@ -349,7 +356,7 @@ export function AdminMessagesPanel() {
                       onClick={() => void setUnblockStatus(row, "resolved")}
                       className="rounded-xl border border-zinc-200 bg-white px-4 py-2 text-sm font-semibold text-zinc-600 hover:bg-zinc-50 disabled:opacity-50"
                     >
-                      Resolve without unblocking
+                      Resolver sem desbloquear
                     </button>
                   ) : null}
                 </div>
@@ -360,7 +367,7 @@ export function AdminMessagesPanel() {
 
         {!items.length ? (
           <div className="rounded-3xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 shadow-sm">
-            No messages match this view.
+            Não há mensagens com estes filtros.
           </div>
         ) : null}
       </div>

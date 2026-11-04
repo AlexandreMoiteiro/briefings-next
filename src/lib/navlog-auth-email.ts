@@ -10,15 +10,26 @@ export function ensureNavlogEmailConfigured() {
   }
 }
 
-export function navlogEmailRedirect(path: "/navlog" | "/navlog/reset-password") {
+export function navlogEmailRedirect(path: "/navlog/confirm" | "/navlog/reset-password") {
   // Never trust the incoming Host header for token-bearing email links.
-  // Vercel provides a fixed hostname for each Preview deployment.
-  const host = process.env.VERCEL_URL;
+  // Prefer stable branch/production aliases to temporary deployment hostnames.
+  const host = process.env.VERCEL_ENV === "production"
+    ? (process.env.VERCEL_PROJECT_PRODUCTION_URL ?? process.env.VERCEL_URL)
+    : (process.env.VERCEL_BRANCH_URL ?? process.env.VERCEL_URL);
   const configured = process.env.NAVLOG_PUBLIC_URL;
   const origin = configured || (host ? `https://${host}` : null);
   if (!origin) throw new Error("The NavLog email redirect URL is not configured.");
   const url = new URL(path, origin);
   if (url.protocol !== "https:") throw new Error("NavLog email redirects must use HTTPS.");
+  return url.toString();
+}
+
+/** A first-party confirmation link avoids Supabase Site URL fallback to localhost. */
+export function navlogEmailTokenLink(tokenHash: string, kind: NavlogEmailKind) {
+  if (!/^[A-Za-z0-9_-]{20,512}$/.test(tokenHash)) throw new Error("Invalid authentication token.");
+  const url = new URL(navlogEmailRedirect(kind === "confirm" ? "/navlog/confirm" : "/navlog/reset-password"));
+  url.searchParams.set("token_hash", tokenHash);
+  url.searchParams.set("type", kind === "confirm" ? "email" : "recovery");
   return url.toString();
 }
 
@@ -32,7 +43,8 @@ export async function sendNavlogAuthEmail(email: string, actionLink: string, kin
   ensureNavlogEmailConfigured();
   const apiKey = process.env.BREVO_API_KEY!.trim();
   const link = new URL(actionLink);
-  if (link.protocol !== "https:" || link.hostname !== new URL(process.env.NEXT_PUBLIC_SUPABASE_URL!).hostname) {
+  const expected = new URL(navlogEmailRedirect(kind === "confirm" ? "/navlog/confirm" : "/navlog/reset-password"));
+  if (link.origin !== expected.origin || link.pathname !== expected.pathname || !link.searchParams.has("token_hash")) {
     throw new Error("Invalid authentication link destination.");
   }
 

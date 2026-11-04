@@ -18,6 +18,78 @@ function formatDate(date: string | null) {
   return new Date(date).toLocaleString("pt-PT", { dateStyle: "medium", timeStyle: "short" });
 }
 
+type PrivateRoute = { id: string; name: string; created_at: string; updated_at: string };
+
+function PilotPrivateRoutes({ userId, onDelete }: { userId: string; onDelete: () => void }) {
+  const [routes, setRoutes] = useState<PrivateRoute[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [removing, setRemoving] = useState("");
+  const [confirmation, setConfirmation] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    void fetch(`/api/admin/accounts/routes?user_id=${encodeURIComponent(userId)}`, { cache: "no-store", signal: controller.signal })
+      .then(async (response) => {
+        const result = await response.json() as { routes?: PrivateRoute[]; error?: string };
+        if (!response.ok) throw new Error(result.error ?? "Não foi possível carregar as rotas pessoais.");
+        setRoutes(result.routes ?? []);
+      })
+      .catch((cause) => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : "Erro ao consultar as rotas."); })
+      .finally(() => { if (!controller.signal.aborted) setLoading(false); });
+    return () => controller.abort();
+  }, [userId]);
+
+  async function deletePrivateRoute(route: PrivateRoute) {
+    if (busy || confirmation !== route.name) return;
+    setBusy(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/accounts/routes", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: userId, route_id: route.id, confirm_name: confirmation }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível eliminar a rota.");
+      setRoutes((previous) => previous.filter((item) => item.id !== route.id));
+      setRemoving("");
+      setConfirmation("");
+      onDelete();
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível eliminar esta rota.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="mt-6 border-t border-zinc-200 pt-5">
+      <h4 className="text-sm font-semibold text-zinc-950">Rotas privadas deste piloto</h4>
+      <p className="mt-1 text-xs leading-5 text-zinc-600">Consulta apenas nomes e datas. O conteúdo dos percursos continua privado. Podes remover uma rota específica sem apagar a conta.</p>
+      {loading ? <p className="mt-4 text-xs text-zinc-500">A carregar rotas…</p>
+        : routes.length === 0 ? <p className="mt-4 rounded-lg border border-zinc-200 bg-white p-4 text-sm text-zinc-500">Este piloto não tem rotas guardadas.</p>
+          : <div className="mt-4 divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white">
+            {routes.map((route) => (
+              <div key={route.id} className="p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div className="min-w-0"><p className="break-words text-sm font-semibold text-zinc-900">{route.name}</p><p className="mt-1 text-xs text-zinc-500">Atualizada: {formatDate(route.updated_at)}</p></div>
+                  <button type="button" onClick={() => { setRemoving((current) => current === route.id ? "" : route.id); setConfirmation(""); }} className="rounded-lg border border-zinc-300 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-zinc-50">{removing === route.id ? "Cancelar" : "Eliminar rota"}</button>
+                </div>
+                {removing === route.id ? <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                  <label className="block text-xs text-red-900">Para eliminar, escreve exatamente: <strong>{route.name}</strong>
+                    <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} autoComplete="off" className="mt-2 h-10 w-full rounded-lg border border-red-200 bg-white px-3 text-sm text-zinc-900" />
+                  </label>
+                  <button type="button" disabled={busy || confirmation !== route.name} onClick={() => void deletePrivateRoute(route)} className="mt-3 rounded-lg bg-red-700 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40">{busy ? "A eliminar…" : "Confirmar eliminação"}</button>
+                </div> : null}
+              </div>
+            ))}
+          </div>}
+      {error ? <p role="alert" className="mt-3 text-xs text-red-700">{error}</p> : null}
+    </section>
+  );
+}
+
 export function AdminAccountsPanel() {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +139,6 @@ export function AdminAccountsPanel() {
   async function renameAccount(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selected || savingUsername) return;
-    if (!window.confirm("Alterar o username deste utilizador? O login com o username antigo deixará de funcionar.")) return;
     setSavingUsername(true);
     setAccountNotice("");
     setError("");
@@ -133,7 +204,7 @@ export function AdminAccountsPanel() {
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">NavLog / Gestão de pilotos</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">NavLog / Gestão de pilotos</p>
             <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">Contas de pilotos</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">Pesquisa contas, consulta o estado dos acessos e gere os usernames ou a eliminação de registos.</p>
           </div>
@@ -214,7 +285,9 @@ export function AdminAccountsPanel() {
                 </label>
                 <button type="submit" disabled={savingUsername || editUsername.trim() === selectedAccount.username} className="h-10 rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-40">{savingUsername ? "A guardar…" : "Guardar username"}</button>
               </form>
+              <p className="mt-2 text-xs text-zinc-500">Ao alterar o username, o anterior deixa de ser válido para iniciar sessão. O e-mail e o PIN não mudam.</p>
               {accountNotice ? <p role="status" className="mt-2 text-xs text-zinc-700">{accountNotice}</p> : null}
+              <PilotPrivateRoutes key={selectedAccount.user_id} userId={selectedAccount.user_id} onDelete={() => void refresh()} />
               <div className="mt-6 border-t border-red-200 pt-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
@@ -237,7 +310,7 @@ export function AdminAccountsPanel() {
               </div>
             </div>
           ) : null}
-          <p className="mt-4 text-xs leading-5 text-zinc-500">As rotas pessoais são privadas: esta consola mostra apenas a contagem, nunca o conteúdo dos percursos.</p>
+          <p className="mt-4 text-xs leading-5 text-zinc-500">A gestão de rotas pessoais usa apenas os seus nomes e datas. Os waypoints dos pilotos nunca são apresentados na consola.</p>
         </section>
       </div>
     </main>

@@ -33,11 +33,11 @@ export function AdminLogin() {
 
   return (
     <main className="mx-auto my-16 max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl shadow-zinc-950/5 sm:my-24">
-      <div className="bg-[#17392a] px-7 py-8 text-white sm:px-9">
-        <span className="flex size-12 items-center justify-center rounded-2xl bg-[#d6f4de] text-xl font-black text-[#17392a]">B.</span>
-        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-200">Briefings · Control centre</p>
+      <div className="bg-zinc-950 px-7 py-8 text-white sm:px-9">
+        <p className="text-xl font-bold tracking-tight">Briefings</p>
+        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400">Administração</p>
         <h1 className="mt-2 text-3xl font-semibold tracking-tight">Acesso à administração</h1>
-        <p className="mt-3 text-sm leading-6 text-emerald-50/75">Área reservada para a gestão de rotas, pilotos e funcionamento da plataforma.</p>
+        <p className="mt-3 text-sm leading-6 text-zinc-400">Área reservada para a gestão de rotas, pilotos e funcionamento da plataforma.</p>
       </div>
       <div className="px-7 py-8 sm:px-9">
       <form onSubmit={signIn} autoComplete="off" className="space-y-4">
@@ -45,11 +45,11 @@ export function AdminLogin() {
           <span className="text-sm font-semibold text-zinc-800">Código de administração</span>
           <input value={code} onChange={event => setCode(event.target.value)}
             type="password" autoComplete="off" required
-            className="h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10"
+            className="h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10"
             placeholder="Introduz o teu código" />
         </label>
         <button type="submit" disabled={busy}
-          className="h-12 w-full rounded-xl bg-[#17392a] px-4 text-sm font-semibold text-white hover:bg-[#21563d] disabled:opacity-50">
+          className="h-12 w-full rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
           {busy ? "A entrar…" : "Entrar na consola"}
         </button>
       </form>

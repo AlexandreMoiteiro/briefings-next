@@ -1,11 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase/client";
 import { PinCodeInput } from "../pin-code-input";
 
 export default function ResetNavlogPasswordPage() {
+  const processed = useRef(false);
   const [hasSession, setHasSession] = useState(false);
   const [ready, setReady] = useState(!supabase);
   const [pin, setPin] = useState("");
@@ -14,17 +15,38 @@ export default function ResetNavlogPasswordPage() {
 
   useEffect(() => {
     if (!supabase) return;
+    if (processed.current) return;
+    processed.current = true;
     const client = supabase;
     let active = true;
-    void client.auth.getSession().then(({ data }) => {
-      if (!active) return;
-      setHasSession(Boolean(data.session));
-      setReady(true);
-    });
-    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
-      if (active) {
-        setHasSession(Boolean(session));
+    const search = new URLSearchParams(window.location.search);
+    const tokenHash = search.get("token_hash");
+    if (tokenHash) window.history.replaceState(window.history.state, "", "/navlog/reset-password");
+    if (tokenHash) {
+      if (search.get("type") !== "recovery" || !/^[A-Za-z0-9_-]{20,512}$/.test(tokenHash)) {
+        void Promise.resolve().then(() => {
+          if (!active) return;
+          setMessage("The reset link is invalid. Request another from the NavLog sign-in panel.");
+          setReady(true);
+        });
+      } else {
+        void client.auth.verifyOtp({ token_hash: tokenHash, type: "recovery" }).then(({ data, error }) => {
+          if (!active) return;
+          setHasSession(!error && Boolean(data.session));
+          if (error) setMessage("The reset link has expired or already been used. Request a new link from NavLog.");
+          setReady(true);
+        }).catch(() => { if (active) { setMessage("Could not verify the reset link. Please try again."); setReady(true); } });
+      }
+    } else {
+      void client.auth.getSession().then(({ data }) => {
+        if (!active) return;
+        setHasSession(Boolean(data.session));
         setReady(true);
+      });
+    }
+    const { data: { subscription } } = client.auth.onAuthStateChange((_event, session) => {
+      if (active && !tokenHash) {
+        setHasSession(Boolean(session));
       }
     });
     return () => {
