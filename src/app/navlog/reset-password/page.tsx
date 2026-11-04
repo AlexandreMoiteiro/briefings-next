@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import { supabase } from "@/lib/supabase/client";
+import { PinCodeInput } from "../pin-code-input";
 
 export default function ResetNavlogPasswordPage() {
   const [hasSession, setHasSession] = useState(false);
@@ -61,18 +62,19 @@ export default function ResetNavlogPasswordPage() {
 
   return (
     <main className="mx-auto max-w-lg px-5 py-16">
-      <h1 className="text-2xl font-semibold text-zinc-950">Reset your NavLog PIN</h1>
+      <div className="rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm sm:p-9">
+      <p className="text-xs font-semibold uppercase tracking-[0.17em] text-zinc-500">Briefings · NavLog</p>
+      <h1 className="mt-3 text-2xl font-semibold text-zinc-950">Choose a new PIN</h1>
+      <p className="mt-2 text-sm leading-6 text-zinc-600">Use four numbers to protect your saved routes.</p>
       {!ready ? <p className="mt-4 text-sm text-zinc-500">Checking your reset link…</p> : hasSession ? (
-        <form onSubmit={(event) => void updatePassword(event)} className="mt-6 space-y-3">
-          <label className="block text-sm text-zinc-700">
-            New 4-digit PIN
-            <input type="password" autoComplete="new-password" inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} required value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} className="mt-1 h-11 w-full rounded-lg border border-zinc-300 px-3" />
-          </label>
-          <button type="submit" disabled={busy} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Updating…" : "Update PIN"}</button>
+        <form onSubmit={(event) => void updatePassword(event)} className="mt-6 space-y-5">
+          <PinCodeInput value={pin} onChange={setPin} label="New 4-digit PIN" disabled={busy} />
+          <button type="submit" disabled={busy || pin.length !== 4} className="h-12 w-full rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-40">{busy ? "Updating…" : "Save new PIN"}</button>
         </form>
       ) : <p className="mt-4 text-sm text-zinc-600">The reset link is invalid or has expired. Request a new link from the NavLog sign-in panel.</p>}
       {message ? <p role="status" className="mt-4 text-sm text-zinc-700">{message}</p> : null}
-      <Link href="/navlog" className="mt-6 inline-block text-sm text-zinc-700 underline underline-offset-2">Back to NavLog</Link>
+      <Link href="/navlog" className="mt-6 inline-block text-sm font-semibold text-zinc-700 underline underline-offset-2">← Back to NavLog</Link>
+      </div>
     </main>
   );
 }

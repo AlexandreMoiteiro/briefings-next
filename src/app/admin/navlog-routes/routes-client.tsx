@@ -39,6 +39,8 @@ export function AdminNavlogRoutes() {
   const [saving, setSaving] = useState(false);
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
 
   async function loadRoutes(selected?: string) {
     setLoading(true);
@@ -51,6 +53,7 @@ export function AdminNavlogRoutes() {
       const nextId = selected ?? selectedId;
       const next = result.routes.find((route) => route.id === nextId) ?? result.routes[0];
       if (next) { setSelectedId(next.id); setDraft(duplicateRoute(next)); }
+      else { setSelectedId(null); setDraft(null); }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "Erro ao carregar rotas.");
     } finally {
@@ -98,6 +101,35 @@ export function AdminNavlogRoutes() {
     setDraft(duplicateRoute(route));
     setNotice("");
     setError("");
+    setDeleteOpen(false);
+    setDeleteConfirmation("");
+  }
+
+  async function deleteRoute() {
+    const original = routes.find((route) => route.id === selectedId);
+    if (!original || deleteConfirmation !== original.name || saving) return;
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      const response = await fetch("/api/admin/navlog-routes", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: original.id, confirm_name: deleteConfirmation }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível eliminar a rota.");
+      const remaining = routes.filter((route) => route.id !== original.id);
+      setRoutes(remaining);
+      setSelectedId(remaining[0]?.id ?? null);
+      setDraft(remaining[0] ? duplicateRoute(remaining[0]) : null);
+      setDeleteOpen(false);
+      setDeleteConfirmation("");
+      setNotice(`A rota «${original.name}» foi eliminada da biblioteca.`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível eliminar esta rota.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   function changeWaypoint(index: number, changes: Partial<PerfectRouteWaypointRaw>) {
@@ -173,14 +205,14 @@ export function AdminNavlogRoutes() {
   }
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-9">
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-7xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">NavLog · Biblioteca</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">Gestão de rotas</h1>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">NavLog / Biblioteca</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">Gestão de rotas</h1>
             <p className="mt-2 max-w-2xl text-sm text-zinc-600">
-              Revê cada percurso no mapa, escolhe as rotas que devem aparecer no Briefings e classifica-as como VFR ou IFR.
+              Consulta, edita, classifica ou elimina as rotas da biblioteca pública Briefings.
             </p>
           </div>
         </header>
@@ -191,19 +223,19 @@ export function AdminNavlogRoutes() {
             ["VFR", countVfr],
             ["IFR", countIfr],
           ] as const).map(([label, count]) => (
-            <div key={label} className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
+            <div key={label} className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 shadow-sm shadow-zinc-200/30">
               <p className="text-xs text-zinc-500">{label}</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-950">{count}</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-zinc-950">{loading && !routes.length ? "—" : count}</p>
             </div>
           ))}
         </div>
-        <div className="rounded-xl border border-zinc-200 bg-white px-4 py-3 text-xs leading-5 text-zinc-600">
-          <strong className="text-zinc-900">Como usar:</strong> seleciona uma rota na lista, verifica o trajeto no mapa, ajusta o nome ou tipo e ativa «Rota Briefings» apenas nas que reconheces como tuas. As alterações são guardadas na base de dados partilhada.
+        <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 text-xs leading-5 text-zinc-600">
+          Seleciona uma rota para abrir o mapa e o editor. As alterações à biblioteca são guardadas na base de dados partilhada com o website atual.
         </div>
         {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
         <div className="grid items-start gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4">
+          <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30">
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold text-zinc-950">Biblioteca</h2>
               <span className="text-xs tabular-nums text-zinc-500">{shown.length} de {routes.length}</span>
@@ -242,7 +274,7 @@ export function AdminNavlogRoutes() {
             </div>
             <p className="mt-3 text-xs text-zinc-500">★ Visível na biblioteca Briefings · ☆ Ainda por validar</p>
           </section>
-          <section className="rounded-2xl border border-zinc-200 bg-white p-5 sm:p-6">
+          <section className="rounded-3xl border border-zinc-200 bg-white p-5 shadow-sm shadow-zinc-200/30 sm:p-6">
             {!draft ? <p className="py-12 text-center text-sm text-zinc-500">Seleciona uma rota para veres o percurso num mapa e editares os dados.</p> : (
               <div className="space-y-5">
                 <div className="flex items-start justify-between gap-3">
@@ -298,7 +330,26 @@ export function AdminNavlogRoutes() {
                     <button type="button" disabled={draft.waypoints.length >= 120} onClick={() => setDraft({ ...draft, waypoints: [...draft.waypoints, { code: "WP", name: "Waypoint", lat: 0, lon: 0, src: "VFR" }] })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-30">Adicionar ponto</button>
                   </div>
                 </details>
-                <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="w-full rounded-lg bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar alterações"}</button>
+                <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar alterações"}</button>
+                <div className="border-t border-red-100 pt-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-semibold text-zinc-950">Eliminar rota</h3>
+                      <p className="mt-1 text-xs leading-5 text-zinc-500">Remove este percurso e a sua classificação da biblioteca pública. Não afeta rotas privadas dos pilotos.</p>
+                    </div>
+                    <button type="button" onClick={() => { setDeleteOpen((open) => !open); setDeleteConfirmation(""); }} className="rounded-xl border border-red-200 px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">{deleteOpen ? "Cancelar" : "Eliminar rota…"}</button>
+                  </div>
+                  {deleteOpen ? (
+                    <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-4">
+                      <p className="text-sm font-semibold text-red-900">Confirma a eliminação permanente</p>
+                      <p className="mt-1 text-xs leading-5 text-red-800">Escreve exatamente <strong>{routes.find((route) => route.id === selectedId)?.name}</strong> para confirmar. Não é possível recuperar esta rota através do Admin.</p>
+                      <label className="mt-3 block text-xs font-medium text-red-900">Nome da rota
+                        <input value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} autoComplete="off" className={`${textInput} mt-1.5 border-red-200`} placeholder="Nome exato da rota" />
+                      </label>
+                      <button type="button" disabled={saving || deleteConfirmation !== routes.find((route) => route.id === selectedId)?.name} onClick={() => void deleteRoute()} className="mt-3 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A eliminar…" : "Eliminar rota definitivamente"}</button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             )}
           </section>

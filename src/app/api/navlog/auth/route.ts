@@ -67,28 +67,31 @@ export async function POST(request: Request) {
         return json({ success: true });
       }
 
-      const username = (body.username ?? "").trim();
-      if (!USERNAME_PATTERN.test(username)) return failure("Username: 3–24 letters, numbers, dots, dashes or underscores.");
-
       if (body.action === "resend") {
-        // Verify the submitted email + username match before generating a link.
-        // A magic link is valid for an unconfirmed account and does not change its PIN.
-        const { data: profile, error: profileError } = await admin
-          .from("navlog_user_profiles").select("user_id").ilike("username", username).maybeSingle();
-        if (profileError) throw profileError;
-        if (profile) {
-          const { data: account, error: accountError } = await admin.auth.admin.getUserById(profile.user_id);
-          if (accountError) throw accountError;
-          if (account.user?.email?.toLowerCase() === email && !account.user.email_confirmed_at) {
-            const { data, error } = await admin.auth.admin.generateLink({
-              type: "magiclink", email, options: { redirectTo: navlogEmailRedirect("/navlog") },
-            });
-            if (error || !data?.properties?.action_link) throw error ?? new Error("Could not generate confirmation link.");
-            await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+        // Check that the account already exists. Generating a magic link for an
+        // unknown address can create an Auth user, which would be undesirable.
+        // Responses are identical whether an account exists or not.
+        for (let page = 1; page <= 20; page++) {
+          const { data: users, error: usersError } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+          if (usersError) throw usersError;
+          const account = users.users.find((candidate) => candidate.email?.toLowerCase() === email);
+          if (account) {
+            if (!account.email_confirmed_at) {
+              const { data, error } = await admin.auth.admin.generateLink({
+                type: "magiclink", email, options: { redirectTo: navlogEmailRedirect("/navlog") },
+              });
+              if (error || !data?.properties?.action_link) throw error ?? new Error("Could not generate confirmation link.");
+              await sendNavlogAuthEmail(email, data.properties.action_link, "confirm");
+            }
+            break;
           }
+          if (users.users.length < 1000) break;
         }
         return json({ success: true });
       }
+
+      const username = (body.username ?? "").trim();
+      if (!USERNAME_PATTERN.test(username)) return failure("Username: 3–24 letters, numbers, dots, dashes or underscores.");
 
       const { data: existingProfile, error: usernameError } = await admin
         .from("navlog_user_profiles").select("user_id").ilike("username", username).maybeSingle();

@@ -163,7 +163,7 @@ export function NavlogClientStable() {
   const selected = aircraftChoice(aircraft);
   const accountAction = (
     <button type="button" onClick={() => setAccountOpen(true)} className="inline-flex items-center rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white hover:bg-zinc-800">
-      {accountUser ? "My account" : "Sign in / Create account"}
+      {accountUser ? "My account" : "Sign in"}
     </button>
   );
 
@@ -193,7 +193,7 @@ export function NavlogClientStable() {
             documentLabel="NavLog"
           />
 
-          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => setAccountOpen(true)} />
+          <NavlogStudio aircraftType={aircraft} />
         </div>
       ) : null}
 

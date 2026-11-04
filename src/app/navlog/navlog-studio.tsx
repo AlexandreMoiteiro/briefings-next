@@ -203,7 +203,7 @@ function profileForAircraft(aircraftType: NavlogAircraftType) {
     : profile;
 }
 
-export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: NavlogAircraftType; onOpenAccount: () => void }) {
+export function NavlogStudio({ aircraftType }: { aircraftType: NavlogAircraftType }) {
   const initialProfile = useMemo(() => profileForAircraft(aircraftType), [aircraftType]);
   const [setup, setSetup] = useState<NavlogSetupForm>(initialProfile);
   const [navlogData, setNavlogData] = useState<NavlogDataBundle | null>(null);
@@ -1175,22 +1175,16 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             </div>
           </div>
 
-          <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
+          {accountUser ? <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3">
             <div>
               <p className="text-sm font-semibold text-zinc-900">Save routes to your own profile</p>
               <p className="mt-0.5 text-xs text-zinc-600">Keep your flight plans private and reopen them on any device.</p>
             </div>
-            {accountUser ? (
               <button type="button" onClick={() => setShowSaveRouteForm((value) => !value)} aria-expanded={showSaveRouteForm}
                 className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white">
                 {showSaveRouteForm ? "Close saving" : "Save my route"}
               </button>
-            ) : (
-              <button type="button" onClick={onOpenAccount} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white">
-                Sign in / Create account
-              </button>
-            )}
-          </div>
+          </div> : null}
 
           {accountUser && showSaveRouteForm ? (
             <div className="mt-3 flex flex-wrap items-end gap-3 rounded-xl border border-zinc-200 bg-white p-3">
@@ -1252,9 +1246,6 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                       : routeLibraryScope === "featured" && verifiedRouteCount === 0
                         ? "The Briefings routes are being reviewed and selected. Please try again soon."
                         : "No matching routes."}</p>
-                    {routeLibraryScope === "personal" && !accountUser ? (
-                      <button type="button" onClick={onOpenAccount} className="mt-3 rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-900 hover:bg-zinc-50">Sign in / Create account</button>
-                    ) : null}
                   </div>
                 ) : filteredPerfectRoutes.map((route) => (
                   <button key={route.id} type="button" onClick={() => loadPerfectRoute(route)}

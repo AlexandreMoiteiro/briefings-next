@@ -28,11 +28,40 @@ export function AdminAccountsPanel() {
   const [editUsername, setEditUsername] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
   const [accountNotice, setAccountNotice] = useState("");
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteConfirmation, setDeleteConfirmation] = useState("");
+  const [deleting, setDeleting] = useState(false);
 
   function openAccount(account: Account) {
     setSelected(account.user_id === selected ? null : account.user_id);
     setEditUsername(account.username ?? "");
     setAccountNotice("");
+    setDeleteOpen(false);
+    setDeleteConfirmation("");
+  }
+
+  async function deleteAccount() {
+    const target = accounts.find((account) => account.user_id === selected);
+    if (!target?.email || deleting || deleteConfirmation !== target.email) return;
+    setDeleting(true);
+    setError("");
+    try {
+      const response = await fetch("/api/admin/accounts", {
+        method: "DELETE", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: target.user_id, confirm_email: deleteConfirmation }),
+      });
+      const result = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(result.error ?? "Não foi possível eliminar a conta.");
+      setAccounts((previous) => previous.filter((account) => account.user_id !== target.user_id));
+      setSelected(null);
+      setDeleteOpen(false);
+      setDeleteConfirmation("");
+      setAccountNotice("");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "Não foi possível eliminar esta conta.");
+    } finally {
+      setDeleting(false);
+    }
   }
 
   async function renameAccount(event: FormEvent<HTMLFormElement>) {
@@ -100,13 +129,13 @@ export function AdminAccountsPanel() {
   const selectedAccount = accounts.find((account) => account.user_id === selected);
 
   return (
-    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-9">
+    <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
       <div className="mx-auto max-w-6xl space-y-6">
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-wider text-zinc-500">NavLog · Utilizadores</p>
-            <h1 className="mt-1 text-3xl font-semibold tracking-tight text-zinc-950">Contas de utilizadores</h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">Identifica os utilizadores, confirma os seus usernames e acompanha a utilização das rotas privadas.</p>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-emerald-700">NavLog / Gestão de pilotos</p>
+            <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">Contas de pilotos</h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">Pesquisa contas, consulta o estado dos acessos e gere os usernames ou a eliminação de registos.</p>
           </div>
         </header>
 
@@ -117,18 +146,18 @@ export function AdminAccountsPanel() {
             ["Contas já utilizadas", active],
             ["Rotas pessoais", savedRoutes],
           ] as const).map(([label, value]) => (
-            <div key={label} className="rounded-xl border border-zinc-200 bg-white px-4 py-3">
+            <div key={label} className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 shadow-sm shadow-zinc-200/30">
               <p className="text-xs text-zinc-500">{label}</p>
-              <p className="mt-1 text-2xl font-semibold tabular-nums text-zinc-950">{value}</p>
+              <p className="mt-2 text-3xl font-semibold tabular-nums tracking-tight text-zinc-950">{loading && !accounts.length ? "—" : value}</p>
             </div>
           ))}
         </div>
 
-        <section className="rounded-2xl border border-zinc-200 bg-white p-4 sm:p-5">
+        <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30 sm:p-6">
           <div className="flex flex-wrap items-end justify-between gap-3">
             <div>
-              <h2 className="text-lg font-semibold text-zinc-950">Utilizadores</h2>
-              <p className="mt-1 text-xs text-zinc-500">{filtered.length} contas encontradas · Dados das contas visíveis apenas no Admin</p>
+              <h2 className="text-lg font-semibold text-zinc-950">Diretório de pilotos</h2>
+              <p className="mt-1 text-xs text-zinc-500">{filtered.length} contas encontradas · Seleciona uma conta para gerir</p>
             </div>
             <button type="button" onClick={() => void refresh()} disabled={loading} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm font-medium text-zinc-700 disabled:opacity-40">{loading ? "A carregar…" : "Atualizar"}</button>
           </div>
@@ -164,8 +193,15 @@ export function AdminAccountsPanel() {
           </div>
 
           {selectedAccount ? (
-            <div className="mt-4 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="text-sm font-semibold text-zinc-900">Detalhes de {selectedAccount.username || selectedAccount.email}</h3>
+            <div className="mt-5 overflow-hidden rounded-2xl border border-zinc-200 bg-zinc-50/70">
+              <div className="flex items-center justify-between gap-3 border-b border-zinc-200 px-5 py-4">
+                <div>
+                  <p className="text-[11px] font-semibold uppercase tracking-wider text-zinc-500">Ficha de piloto</p>
+                  <h3 className="mt-1 text-lg font-semibold text-zinc-900">{selectedAccount.username || selectedAccount.email}</h3>
+                </div>
+                <button type="button" onClick={() => setSelected(null)} aria-label="Fechar detalhes" className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-600">Fechar ×</button>
+              </div>
+              <div className="p-5">
               <dl className="mt-3 grid gap-3 text-xs sm:grid-cols-2">
                 <div><dt className="text-zinc-500">E-mail</dt><dd className="mt-1 break-all font-medium text-zinc-800">{selectedAccount.email ?? "—"}</dd></div>
                 <div><dt className="text-zinc-500">Última alteração a rotas</dt><dd className="mt-1 font-medium text-zinc-800">{formatDate(selectedAccount.last_route_updated_at)}</dd></div>
@@ -179,9 +215,29 @@ export function AdminAccountsPanel() {
                 <button type="submit" disabled={savingUsername || editUsername.trim() === selectedAccount.username} className="h-10 rounded-lg bg-zinc-950 px-4 text-sm font-semibold text-white disabled:opacity-40">{savingUsername ? "A guardar…" : "Guardar username"}</button>
               </form>
               {accountNotice ? <p role="status" className="mt-2 text-xs text-zinc-700">{accountNotice}</p> : null}
+              <div className="mt-6 border-t border-red-200 pt-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-900">Eliminar conta</p>
+                    <p className="mt-1 max-w-xl text-xs leading-5 text-zinc-600">Remove o acesso, o perfil e as {selectedAccount.route_count} rotas privadas deste piloto. As rotas públicas existentes na biblioteca mantêm-se, sem associação ao utilizador. Esta ação é irreversível.</p>
+                  </div>
+                  <button type="button" onClick={() => { setDeleteOpen((current) => !current); setDeleteConfirmation(""); }} className="rounded-xl border border-red-200 bg-white px-4 py-2.5 text-sm font-semibold text-red-700 hover:bg-red-50">{deleteOpen ? "Cancelar" : "Eliminar conta…"}</button>
+                </div>
+                {deleteOpen ? (
+                  <div className="mt-4 rounded-xl border border-red-200 bg-red-50/70 p-4">
+                    <p className="text-sm font-semibold text-red-900">Confirmar eliminação permanente</p>
+                    <p className="mt-1 text-xs leading-5 text-red-800">Escreve exatamente o e-mail <strong className="break-all">{selectedAccount.email ?? ""}</strong> para confirmar que escolheste a conta correta.</p>
+                    <label className="mt-3 block text-xs font-medium text-red-900">E-mail de confirmação
+                      <input type="text" autoComplete="off" spellCheck={false} value={deleteConfirmation} onChange={(event) => setDeleteConfirmation(event.target.value)} placeholder="Escreve o e-mail completo" className="mt-1.5 h-11 w-full rounded-lg border border-red-200 bg-white px-3 text-sm text-zinc-950 focus:border-red-500 focus:outline-none" />
+                    </label>
+                    <button type="button" onClick={() => void deleteAccount()} disabled={deleting || !selectedAccount.email || deleteConfirmation !== selectedAccount.email} className="mt-3 rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40">{deleting ? "A eliminar…" : "Eliminar conta definitivamente"}</button>
+                  </div>
+                ) : null}
+              </div>
+              </div>
             </div>
           ) : null}
-          <p className="mt-4 text-xs leading-5 text-zinc-500">Esta página mostra apenas dados da conta e estatísticas de utilização. Não abre o conteúdo das rotas privadas dos pilotos.</p>
+          <p className="mt-4 text-xs leading-5 text-zinc-500">As rotas pessoais são privadas: esta consola mostra apenas a contagem, nunca o conteúdo dos percursos.</p>
         </section>
       </div>
     </main>

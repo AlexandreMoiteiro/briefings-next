@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readAdminCode } from "@/lib/admin-session";
 import { createPublicServerSupabase } from "@/lib/supabase/server-client";
+import { createNavlogAdminClient } from "@/lib/navlog-pin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -48,5 +49,31 @@ export async function PATCH(request: Request) {
     return NextResponse.json({ success: true }, { headers });
   } catch {
     return NextResponse.json({ error: "Unable to update this account" }, { status: 500, headers });
+  }
+}
+
+export async function DELETE(request: Request) {
+  const headers = { "Cache-Control": "no-store" };
+  if (!(await readAdminCode())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  if (request.headers.get("origin") !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid request origin" }, { status: 403, headers });
+  }
+  try {
+    const body = await request.json() as { user_id?: unknown; confirm_email?: unknown };
+    if (typeof body.user_id !== "string" || !/^[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$/i.test(body.user_id) ||
+        typeof body.confirm_email !== "string" || body.confirm_email.length > 254) {
+      return NextResponse.json({ error: "Invalid account or confirmation" }, { status: 400, headers });
+    }
+    const admin = createNavlogAdminClient();
+    const { data, error } = await admin.auth.admin.getUserById(body.user_id);
+    if (error || !data.user) return NextResponse.json({ error: "Account not found" }, { status: 404, headers });
+    if (body.confirm_email !== data.user.email) {
+      return NextResponse.json({ error: "The confirmation email does not match this account" }, { status: 400, headers });
+    }
+    const deleted = await admin.auth.admin.deleteUser(body.user_id);
+    if (deleted.error) throw deleted.error;
+    return NextResponse.json({ success: true }, { headers });
+  } catch {
+    return NextResponse.json({ error: "Unable to delete this account" }, { status: 500, headers });
   }
 }

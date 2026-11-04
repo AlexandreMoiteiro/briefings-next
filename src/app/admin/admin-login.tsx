@@ -22,36 +22,40 @@ export function AdminLogin() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code: code.trim() }),
       });
-      if (!response.ok) throw new Error("Invalid admin code. Please try again.");
+      if (!response.ok) throw new Error("Código de administração incorreto. Tenta novamente.");
       setCode("");
       router.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to sign in.");
+      setError(e instanceof Error ? e.message : "Não foi possível iniciar sessão.");
       setBusy(false);
     }
   }
 
   return (
-    <main className="mx-auto max-w-md rounded-3xl border border-zinc-200 bg-white p-6 shadow-sm">
-      <p className="text-xs font-semibold uppercase tracking-wide text-zinc-400">Admin</p>
-      <h1 className="mt-2 text-3xl font-semibold text-zinc-950">Sign in</h1>
-      <p className="mt-3 text-sm leading-6 text-zinc-600">
-        Enter your admin code to access Dashboard, Messages and Export access.
-      </p>
-      <form onSubmit={signIn} autoComplete="off" className="mt-6 space-y-3">
+    <main className="mx-auto my-16 max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl shadow-zinc-950/5 sm:my-24">
+      <div className="bg-[#17392a] px-7 py-8 text-white sm:px-9">
+        <span className="flex size-12 items-center justify-center rounded-2xl bg-[#d6f4de] text-xl font-black text-[#17392a]">B.</span>
+        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-emerald-200">Briefings · Control centre</p>
+        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Acesso à administração</h1>
+        <p className="mt-3 text-sm leading-6 text-emerald-50/75">Área reservada para a gestão de rotas, pilotos e funcionamento da plataforma.</p>
+      </div>
+      <div className="px-7 py-8 sm:px-9">
+      <form onSubmit={signIn} autoComplete="off" className="space-y-4">
         <label className="block space-y-1.5">
-          <span className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Admin code</span>
+          <span className="text-sm font-semibold text-zinc-800">Código de administração</span>
           <input value={code} onChange={event => setCode(event.target.value)}
             type="password" autoComplete="off" required
-            className="w-full rounded-xl border border-zinc-200 px-3 py-3 text-sm outline-none focus:border-zinc-500"
-            placeholder="Enter admin code" />
+            className="h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-emerald-700 focus:ring-2 focus:ring-emerald-700/10"
+            placeholder="Introduz o teu código" />
         </label>
         <button type="submit" disabled={busy}
-          className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
-          {busy ? "Signing in…" : "Enter Admin"}
+          className="h-12 w-full rounded-xl bg-[#17392a] px-4 text-sm font-semibold text-white hover:bg-[#21563d] disabled:opacity-50">
+          {busy ? "A entrar…" : "Entrar na consola"}
         </button>
       </form>
       {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
+      <p className="mt-6 text-center text-xs text-zinc-500">Sessão privada · Acesso restrito</p>
+      </div>
     </main>
   );
 }

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { readAdminCode } from "@/lib/admin-session";
 import { createPublicServerSupabase } from "@/lib/supabase/server-client";
+import { createNavlogAdminClient } from "@/lib/navlog-pin-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -73,5 +74,33 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true }, { headers });
   } catch {
     return NextResponse.json({ error: "Unable to update the route." }, { status: 400, headers });
+  }
+}
+
+export async function DELETE(request: Request) {
+  if (!(await readAdminCode())) return NextResponse.json({ error: "Unauthorized" }, { status: 401, headers });
+  if (request.headers.get("origin") !== new URL(request.url).origin) {
+    return NextResponse.json({ error: "Invalid request origin" }, { status: 403, headers });
+  }
+  try {
+    const body = await request.json() as { id?: unknown; confirm_name?: unknown };
+    if (typeof body.id !== "string" || !uuidPattern.test(body.id) || typeof body.confirm_name !== "string" || body.confirm_name.length > 100) {
+      return NextResponse.json({ error: "Invalid route or confirmation" }, { status: 400, headers });
+    }
+    const admin = createNavlogAdminClient();
+    const { data: route, error } = await admin.from("navlog_perfect_routes")
+      .select("id,name").eq("id", body.id).eq("is_public", true).maybeSingle();
+    if (error) throw error;
+    if (!route) return NextResponse.json({ error: "Route not found" }, { status: 404, headers });
+    if (body.confirm_name !== route.name) {
+      return NextResponse.json({ error: "The confirmation name does not match this route" }, { status: 400, headers });
+    }
+    const { data: deleted, error: deleteError } = await admin.from("navlog_perfect_routes")
+      .delete().eq("id", body.id).eq("is_public", true).select("id").maybeSingle();
+    if (deleteError) throw deleteError;
+    if (!deleted) return NextResponse.json({ error: "Route not found" }, { status: 404, headers });
+    return NextResponse.json({ success: true }, { headers });
+  } catch {
+    return NextResponse.json({ error: "Unable to delete this route" }, { status: 500, headers });
   }
 }

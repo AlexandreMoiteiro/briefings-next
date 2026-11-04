@@ -3,14 +3,18 @@
 import { useState, type FormEvent } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase/client";
+import { PinCodeInput } from "./pin-code-input";
 
-type AccountMode = "login" | "signup" | "reset";
+type AccountMode = "login" | "signup" | "recover" | "resend" | "pending" | "recover-sent";
+type AuthResponse = {
+  error?: string;
+  session?: { access_token: string; refresh_token: string } | null;
+};
 
-export function NavlogAccountPanel({
-  user,
-  ready,
-  onClose,
-}: {
+const inputStyle = "mt-2 h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10";
+const primaryStyle = "flex h-12 w-full items-center justify-center rounded-xl bg-zinc-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45";
+
+export function NavlogAccountPanel({ user, ready, onClose }: {
   user: User | null;
   ready: boolean;
   onClose: () => void;
@@ -22,149 +26,182 @@ export function NavlogAccountPanel({
   const [pin, setPin] = useState("");
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
 
-  async function emailSubmit(event: FormEvent<HTMLFormElement>) {
+  function navigate(next: AccountMode) {
+    setMode(next);
+    setPin("");
+    setMessage("");
+    setErrorMessage("");
+  }
+
+  async function requestAuth(payload: Record<string, string>): Promise<AuthResponse> {
+    const response = await fetch("/api/navlog/auth", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const result = await response.json() as AuthResponse;
+    if (!response.ok) throw new Error(result.error ?? "The request could not be completed.");
+    return result;
+  }
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!supabase || busy) return;
     setBusy(true);
+    setErrorMessage("");
     setMessage("");
     try {
-      if (mode === "reset") {
-        const response = await fetch("/api/navlog/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ action: "reset", email: email.trim() }),
-        });
-        const result = await response.json() as { error?: string };
-        if (!response.ok) throw new Error(result.error ?? "Could not request a reset email.");
-        setMessage("If this email has an account, a PIN reset link will arrive shortly. Check your inbox and spam folder.");
-      } else {
-        const response = await fetch("/api/navlog/auth", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(mode === "signup"
-            ? { action: "signup", email: email.trim(), username: username.trim(), pin }
-            : { action: "login", identifier: identifier.trim(), pin }),
-        });
-        const result = await response.json() as {
-          error?: string;
-          session?: { access_token: string; refresh_token: string } | null;
-          requiresConfirmation?: boolean;
-        };
-        if (!response.ok) throw new Error(result.error ?? "Sign-in failed.");
+      if (mode === "login") {
+        const result = await requestAuth({ action: "login", identifier: identifier.trim(), pin });
+        if (!result.session) throw new Error("Unable to start your session.");
+        const { error } = await supabase.auth.setSession(result.session);
+        if (error) throw error;
         setPin("");
-        if (result.session) {
-          const { error } = await supabase.auth.setSession(result.session);
-          if (error) throw error;
-          onClose();
-        } else {
-          setMessage("Check your email to confirm your account, then sign in using your username and PIN.");
-        }
+        onClose();
+      } else if (mode === "signup") {
+        await requestAuth({ action: "signup", email: email.trim(), username: username.trim(), pin });
+        navigate("pending");
+      } else if (mode === "recover") {
+        await requestAuth({ action: "reset", email: email.trim() });
+        navigate("recover-sent");
+      } else if (mode === "resend") {
+        await requestAuth({ action: "resend", email: email.trim() });
+        setMessage("If an account is awaiting confirmation, we've sent a new link.");
       }
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Sign-in failed. Please retry.");
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : "Please try again.");
     } finally {
       setBusy(false);
     }
   }
 
-  async function resendConfirmation() {
-    if (!supabase || busy) return;
-    const address = email.trim();
-    if (!address || !username.trim()) {
-      setMessage("Enter both your email address and username above to resend the confirmation.");
-      return;
-    }
+  async function resend() {
+    if (busy || !email.trim()) return;
     setBusy(true);
+    setErrorMessage("");
     setMessage("");
     try {
-      const response = await fetch("/api/navlog/auth", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "resend", email: address, username: username.trim() }),
-      });
-      const result = await response.json() as { error?: string };
-      if (!response.ok) throw new Error(result.error ?? "Could not request confirmation.");
-      setMessage("If the account is awaiting verification, a new Brevo confirmation email will arrive shortly. Check your inbox and spam folder.");
-    } catch (error) {
-      setMessage(error instanceof Error ? error.message : "Could not resend the confirmation. Try again later.");
+      await requestAuth({ action: "resend", email: email.trim() });
+      setMessage("A new confirmation link has been requested. Check your inbox and spam folder.");
+    } catch (cause) {
+      setErrorMessage(cause instanceof Error ? cause.message : "Please try again shortly.");
     } finally {
       setBusy(false);
     }
   }
 
   async function signOut() {
-    if (!supabase) return;
+    if (!supabase || busy) return;
     setBusy(true);
-    setMessage("");
+    setErrorMessage("");
     const { error } = await supabase.auth.signOut();
-    if (error) setMessage(error.message);
+    if (error) setErrorMessage(error.message);
     else onClose();
     setBusy(false);
   }
 
   if (!ready) {
-    return <p className="py-5 text-sm text-zinc-500">Checking your session…</p>;
+    return <div role="status" className="rounded-xl bg-zinc-50 p-6 text-center text-sm text-zinc-600">Checking your session…</div>;
   }
 
   if (user) {
     return (
-      <div className="space-y-4">
-        <p className="text-sm text-zinc-600">Signed in as</p>
-        <p className="break-all text-sm font-semibold text-zinc-950">{user.email ?? "NavLog user"}</p>
-        <p className="text-sm leading-6 text-zinc-500">Your saved routes are private and available whenever you sign in.</p>
-        <button type="button" disabled={busy} onClick={() => void signOut()} className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-medium text-zinc-800 disabled:opacity-40">
-          Sign out
-        </button>
-        {message ? <p role="status" className="text-xs text-red-700">{message}</p> : null}
+      <div className="space-y-6">
+        <div className="flex items-center gap-4 rounded-2xl border border-zinc-200 bg-zinc-50 p-4">
+          <span className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-zinc-900 text-lg font-semibold text-white">{user.email?.charAt(0).toUpperCase() ?? "P"}</span>
+          <div className="min-w-0">
+            <p className="text-xs font-semibold uppercase tracking-wider text-emerald-700">Signed in</p>
+            <p className="mt-1 truncate text-sm font-semibold text-zinc-950">{user.email ?? "NavLog account"}</p>
+          </div>
+        </div>
+        <p className="text-sm leading-6 text-zinc-600">Your private routes are linked to this account and available whenever you sign in.</p>
+        <button type="button" onClick={onClose} className={primaryStyle}>Continue to NavLog</button>
+        <button type="button" disabled={busy} onClick={() => void signOut()} className="w-full rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-45">{busy ? "Signing out…" : "Sign out"}</button>
+        {errorMessage ? <p role="alert" className="text-sm text-red-700">{errorMessage}</p> : null}
+      </div>
+    );
+  }
+
+  if (mode === "pending" || mode === "recover-sent") {
+    const pending = mode === "pending";
+    return (
+      <div className="space-y-5 text-center">
+        <div className="mx-auto flex size-16 items-center justify-center rounded-2xl bg-emerald-50 text-3xl text-emerald-700" aria-hidden="true">✉</div>
+        <div>
+          <h3 className="text-xl font-semibold tracking-tight text-zinc-950">{pending ? "Check your email" : "Reset link requested"}</h3>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">{pending ? "We've sent a confirmation link to" : "If there's an account for this address, a PIN reset link will arrive at"}</p>
+          <p className="mt-1 break-all text-sm font-semibold text-zinc-950">{email.trim()}</p>
+          <p className="mt-3 text-xs leading-5 text-zinc-500">Check your spam folder too. Links expire for security.</p>
+        </div>
+        {pending ? <button type="button" disabled={busy} onClick={() => void resend()} className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-800 hover:bg-zinc-50 disabled:opacity-45">{busy ? "Sending…" : "Send confirmation again"}</button> : null}
+        <button type="button" onClick={() => navigate("login")} className={primaryStyle}>Back to sign in</button>
+        {message ? <p role="status" className="text-sm text-emerald-700">{message}</p> : null}
+        {errorMessage ? <p role="alert" className="text-sm text-red-700">{errorMessage}</p> : null}
       </div>
     );
   }
 
   return (
-    <div>
-      <p className="mb-5 text-sm leading-6 text-zinc-600">Save your NavLog routes privately and open them on any device. Public routes remain available without an account.</p>
-      <div className="border-b border-zinc-200">
-        <div className="flex gap-6 text-sm">
-          <button type="button" onClick={() => { setMode("login"); setMessage(""); }} aria-pressed={mode === "login"} className={`pb-2 ${mode === "login" ? "border-b-2 border-zinc-950 font-semibold" : "text-zinc-500"}`}>Sign in</button>
-          <button type="button" onClick={() => { setMode("signup"); setMessage(""); }} aria-pressed={mode === "signup"} className={`pb-2 ${mode === "signup" ? "border-b-2 border-zinc-950 font-semibold" : "text-zinc-500"}`}>Create account</button>
+    <div className="space-y-5">
+      {mode === "login" || mode === "signup" ? (
+        <div className="grid grid-cols-2 rounded-xl bg-zinc-100 p-1" role="tablist" aria-label="Account options">
+          {(["login", "signup"] as const).map((option) => (
+            <button key={option} type="button" role="tab" aria-selected={mode === option} onClick={() => navigate(option)}
+              className={`rounded-lg px-4 py-2.5 text-sm font-semibold transition-colors ${mode === option ? "bg-white text-zinc-950 shadow-sm" : "text-zinc-500 hover:text-zinc-900"}`}>
+              {option === "login" ? "Sign in" : "Create account"}
+            </button>
+          ))}
         </div>
+      ) : (
+        <button type="button" onClick={() => navigate("login")} className="text-sm font-semibold text-zinc-600 hover:text-zinc-950">← Back to sign in</button>
+      )}
+
+      <div>
+        <h3 className="text-xl font-semibold tracking-tight text-zinc-950">{mode === "login" ? "Welcome back" : mode === "signup" ? "Start saving your routes" : mode === "recover" ? "Reset your PIN" : "Confirm your email"}</h3>
+        <p className="mt-1.5 text-sm leading-6 text-zinc-500">
+          {mode === "login" ? "Access your personal NavLog routes." : mode === "signup" ? "A simple account for private routes on any device." : mode === "recover" ? "We'll email you a secure link to choose a new PIN." : "We'll send another link if your account is waiting for confirmation."}
+        </p>
       </div>
-        <form onSubmit={(event) => void emailSubmit(event)} className="mt-5 space-y-4">
-          {mode === "login" ? (
-            <label className="block text-sm text-zinc-700">Username or email
-              <input type="text" autoComplete="username" required value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Your username or email" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
-            </label>
-          ) : (
-            <label className="block text-sm text-zinc-700">Email address
-              <input type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
-            </label>
-          )}
-          {mode === "signup" ? (
-            <label className="block text-sm text-zinc-700">Choose your username
-              <input type="text" autoComplete="nickname" required minLength={3} maxLength={24} pattern="[A-Za-z0-9._-]{3,24}" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="FlightLogger username (recommended)" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm text-zinc-950" />
-              <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Recommended: use your FlightLogger username. You can choose any available username.</span>
-            </label>
-          ) : null}
-          {mode !== "reset" ? (
-            <label className="block text-sm text-zinc-700">4-digit PIN
-              <input type="password" autoComplete={mode === "signup" ? "new-password" : "current-password"} inputMode="numeric" pattern="[0-9]{4}" minLength={4} maxLength={4} required value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, "").slice(0, 4))} placeholder="••••" className="mt-1.5 h-11 w-full rounded-lg border border-zinc-300 bg-white px-3 text-sm tracking-widest text-zinc-950" />
-              {mode === "signup" ? <span className="mt-1.5 block text-xs leading-5 text-zinc-500">Exactly four numbers. Avoid easy sequences like 1234 or your birthday.</span> : null}
-            </label>
-          ) : null}
-          <button type="submit" disabled={busy} className="w-full rounded-lg bg-zinc-950 px-3 py-3 text-sm font-semibold text-white disabled:opacity-40">
-            {busy ? "Please wait…" : mode === "login" ? "Sign in" : mode === "signup" ? "Create account" : "Send reset link"}
-          </button>
-        </form>
-        {message ? <p role="status" className="mt-4 text-sm leading-6 text-zinc-700">{message}</p> : null}
+
+      <form onSubmit={(event) => void submit(event)} className="space-y-4">
+        {mode === "login" ? (
+          <label className="block text-sm font-medium text-zinc-800">Username or email
+            <input type="text" autoComplete="username" required maxLength={254} value={identifier} onChange={(event) => setIdentifier(event.target.value)} placeholder="Your username or email" className={inputStyle} />
+          </label>
+        ) : (
+          <label className="block text-sm font-medium text-zinc-800">Email address
+            <input type="email" autoComplete="email" required maxLength={254} value={email} onChange={(event) => setEmail(event.target.value)} placeholder="you@example.com" className={inputStyle} />
+          </label>
+        )}
+
         {mode === "signup" ? (
-          <button type="button" disabled={busy} onClick={() => void resendConfirmation()} className="mt-3 block text-xs text-zinc-600 underline underline-offset-2 disabled:opacity-40">
-            Resend confirmation email
-          </button>
+          <label className="block text-sm font-medium text-zinc-800">Username
+            <input type="text" autoComplete="nickname" required minLength={3} maxLength={24} pattern="[A-Za-z0-9._-]{3,24}" value={username} onChange={(event) => setUsername(event.target.value)} placeholder="e.g. AMOIT" className={inputStyle} />
+          </label>
         ) : null}
-        <button type="button" onClick={() => { setMode(mode === "reset" ? "login" : "reset"); setMessage(""); }} className="mt-3 text-xs text-zinc-600 underline underline-offset-2">
-          {mode === "reset" ? "Back to sign in" : "Forgot password?"}
+
+        {mode === "login" || mode === "signup" ? (
+          <PinCodeInput value={pin} onChange={setPin} label={mode === "signup" ? "Choose a 4-digit PIN" : "Your 4-digit PIN"} disabled={busy} />
+        ) : null}
+
+        <button type="submit" disabled={busy || ((mode === "login" || mode === "signup") && pin.length !== 4)} className={primaryStyle}>
+          {busy ? "Please wait…" : mode === "login" ? "Sign in" : mode === "signup" ? "Create account" : mode === "recover" ? "Send reset link" : "Resend confirmation"}
         </button>
+      </form>
+
+      {errorMessage ? <p role="alert" className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm leading-5 text-red-800">{errorMessage}</p> : null}
+      {message ? <p role="status" className="rounded-xl border border-emerald-100 bg-emerald-50 p-3 text-sm leading-5 text-emerald-800">{message}</p> : null}
+
+      {mode === "login" ? (
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-4 text-xs">
+          <button type="button" onClick={() => navigate("recover")} className="font-semibold text-zinc-700 hover:underline">Forgot PIN?</button>
+          <button type="button" onClick={() => { setEmail(identifier.includes("@") ? identifier : email); navigate("resend"); }} className="font-medium text-zinc-500 hover:underline">No confirmation email?</button>
+        </div>
+      ) : mode === "signup" ? (
+        <p className="text-center text-xs leading-5 text-zinc-500">You&apos;ll confirm your email before your first sign-in.</p>
+      ) : null}
     </div>
   );
 }

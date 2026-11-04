@@ -10,5 +10,5 @@ import { NavlogStudio } from "./navlog-studio";
  * until they are deleted in a dedicated cleanup.
  */
 export function NavlogClient() {
-  return <NavlogStudio aircraftType="Tecnam P2006T" onOpenAccount={() => window.location.assign("/navlog")} />;
+  return <NavlogStudio aircraftType="Tecnam P2006T" />;
 }
