@@ -7,12 +7,12 @@ import { logUsageEvent } from "@/lib/usage-events";
 import { C152_NAVLOG_PRESET } from "@/lib/c152-operational-presets";
 import { C152_CS_AYR } from "@/lib/performance/c152-performance";
 import { loadAllNavlogData } from "@/lib/navlog-data";
+import { navlogRouteTimes } from "@/lib/navlog-route-times";
 import { buildNavlogFormPdf } from "@/lib/pdf/navlog-form-pdf";
 import {
   buildNavlogCalculation,
   formatDuration,
   makeWaypointFromPoint,
-  navlogSummary,
   parseRouteText,
   routeItem15,
 } from "@/lib/navlog-engine";
@@ -181,7 +181,7 @@ function NumberField({
 
 function AlternateStartButton({ active, onClick }: { active: boolean; onClick: () => void }) {
   const help =
-    "Marks this waypoint as the start of the alternate segment. In the NavLog, HOLD MAX XX min is the maximum waiting time available here before leaving for the alternate while preserving alternate trip fuel plus the 45 min final reserve. HM repeats that time in the NavLog and MIN in EFOB shows the minimum fuel that must remain at this point. Green means the planned Time over fits, amber means it exceeds the available margin, and red means alternate + reserve fuel is insufficient. Check the operational minima that apply to the flight.";
+    "Marks your planned destination: the normal Flight time and Block time stop here, and the next leg starts the separate alternate segment. In the NavLog, HOLD MAX XX min is the maximum waiting time available here before leaving for the alternate while preserving alternate trip fuel plus the 45 min final reserve. HM repeats that time in the NavLog and MIN in EFOB shows the minimum fuel that must remain at this point. Green means the planned Time over fits, amber means it exceeds the available margin, and red means alternate + reserve fuel is insufficient. Check the operational minima that apply to the flight.";
 
   return (
     <button
@@ -260,11 +260,14 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
     () => buildNavlogCalculation(setup, routeWaypoints, navlogData),
     [setup, routeWaypoints, navlogData]
   );
-  const summary = useMemo(() => navlogSummary(calculation.legs), [calculation.legs]);
-  const calculatedOnBlockClock = calculation.legs.at(-1)?.clockEnd ?? "";
+  const alternateWaypointId = routeWaypoints.find((waypoint) => waypoint.alternateMarker === true)?.id ?? null;
+  const routeTimes = useMemo(
+    () => navlogRouteTimes(calculation.legs, alternateWaypointId, setup.taxiMin),
+    [calculation.legs, alternateWaypointId, setup.taxiMin]
+  );
+  const calculatedOnBlockClock = routeTimes.plannedOnBlockClock;
   const hasCalculatedRoute = calculation.legs.length > 0;
-  const flightTimeSec = summary.timeSec;
-  const blockTimeSec = summary.timeSec + Math.max(0, setup.taxiMin * 60);
+  const { flightTimeSec, blockTimeSec, alternateTimeSec, blockPlusAlternateSec } = routeTimes;
 
   useEffect(() => {
     const next = profileForAircraft(aircraftType);
@@ -683,10 +686,12 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
         callsign: setup.callsign,
         waypoints: routeWaypoints.length,
         legs: calculation.legs.length,
-        distanceNm: summary.distNm,
-        timeSec: summary.timeSec,
+        distanceNm: routeTimes.plannedDistanceNm,
+        timeSec: flightTimeSec,
         blockTimeSec,
-        finalEfobL: summary.finalEfob,
+        blockPlusAlternateSec,
+        alternateTimeSec,
+        finalEfobL: routeTimes.destinationEfobL,
         windFrom: setup.windFrom,
         windKt: setup.windKt,
         windConfirmed,
@@ -1166,12 +1171,30 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Route studio</p>
               <h2 className="mt-1 text-xl font-semibold tracking-tight text-zinc-950">Build your route</h2>
             </div>
-            <div className="grid grid-cols-5 gap-px overflow-hidden rounded-xl bg-zinc-200 text-center text-xs">
+            <div className="grid grid-cols-3 gap-px overflow-hidden rounded-xl bg-zinc-200 text-center text-xs">
               <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">WP</span><strong>{routeWaypoints.length}</strong></div>
-              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">NM</span><strong>{summary.distNm.toFixed(1)}</strong></div>
-              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">Flight</span><strong>{hasCalculatedRoute ? formatDuration(flightTimeSec) : "—"}</strong></div>
-              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">Block</span><strong>{hasCalculatedRoute ? formatDuration(blockTimeSec) : "—"}</strong></div>
-              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">EFOB</span><strong>{hasCalculatedRoute ? formatFuelDisplay(summary.finalEfob) : "—"}</strong></div>
+              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">NM to destination</span><strong>{routeTimes.plannedDistanceNm.toFixed(1)}</strong></div>
+              <div className="bg-zinc-50 px-3 py-2"><span className="block text-zinc-400">Destination EFOB</span><strong>{hasCalculatedRoute ? formatFuelDisplay(routeTimes.destinationEfobL) : "—"}</strong></div>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-3" aria-label="NavLog time breakdown">
+            <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Flight time</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-950">{hasCalculatedRoute ? formatDuration(flightTimeSec) : "—"}</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-600">Airborne time to your planned destination. No taxi or alternate.</p>
+            </div>
+            <div className="rounded-xl border-2 border-sky-400 bg-sky-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Block time · Flight Logger</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-sky-950">{hasCalculatedRoute ? formatDuration(blockTimeSec) : "—"}</p>
+              <p className="mt-1 text-xs leading-5 text-sky-800">Flight to destination + {setup.taxiMin} min ground/taxi allowance. This is the planned block time to log.</p>
+            </div>
+            <div className="rounded-xl border border-violet-200 bg-violet-50 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-violet-800">Block + alternate</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-violet-950">{hasCalculatedRoute && routeTimes.hasAlternate ? formatDuration(blockPlusAlternateSec) : "—"}</p>
+              <p className="mt-1 text-xs leading-5 text-violet-800">{routeTimes.hasAlternate
+                ? `Contingency only: block + ${formatDuration(alternateTimeSec)} to alternate. Not your planned Flight Logger block time.`
+                : "Mark the destination as Alternate start to show the additional contingency time."}</p>
             </div>
           </div>
 
@@ -1546,7 +1569,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                         <td className="px-4 py-3 align-top">
                           <input value={waypoint.point.code} onChange={(event) => updateWaypointPoint(waypoint.id, { code: event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "") })} className="w-28 rounded-lg border border-zinc-200 px-2 py-1.5 font-semibold" />
                           <input value={waypoint.point.name} onChange={(event) => updateWaypointPoint(waypoint.id, { name: event.target.value })} className="mt-2 block w-44 rounded-lg border border-zinc-200 px-2 py-1.5 text-xs text-zinc-600" />
-                          {waypoint.alternateMarker ? <span className="mt-2 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">ALTERNATE START</span> : null}
+                          {waypoint.alternateMarker ? <span className="mt-2 inline-block rounded-full bg-sky-100 px-2 py-0.5 text-[10px] font-semibold text-sky-700">DESTINATION · ALT START</span> : null}
                         </td>
                         <td className="px-4 py-3 align-top"><input type="number" value={waypoint.altitudeFt} step={100} onChange={(event) => updateWaypoint(waypoint.id, { altitudeFt: Number(event.target.value) })} className="w-24 rounded-lg border border-zinc-200 px-2 py-1.5" /></td>
                         <td className="px-4 py-3 align-top">

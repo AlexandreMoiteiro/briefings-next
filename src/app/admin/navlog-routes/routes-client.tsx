@@ -51,6 +51,9 @@ export function AdminNavlogRoutes() {
   const [routeWarnings, setRouteWarnings] = useState<string[]>([]);
   const [addAltitude, setAddAltitude] = useState(3000);
   const [mapAddEnabled, setMapAddEnabled] = useState(false);
+  const [editorWide, setEditorWide] = useState(false);
+  const [insertAt, setInsertAt] = useState<number | null>(null);
+  const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
   async function loadRoutes(selected?: string) {
     setLoading(true);
@@ -140,6 +143,8 @@ export function AdminNavlogRoutes() {
     setRouteInput("");
     setRouteWarnings([]);
     setMapAddEnabled(false);
+    setInsertAt(null);
+    setDraggedIndex(null);
   }
 
   function discardChanges() {
@@ -197,13 +202,33 @@ export function AdminNavlogRoutes() {
     });
   }
 
+  function reorderWaypoint(from: number, to: number) {
+    if (from === to) return;
+    setDraft((current) => {
+      if (!current || from < 0 || to < 0 || from >= current.waypoints.length || to >= current.waypoints.length) return current;
+      const waypoints = [...current.waypoints];
+      const [moving] = waypoints.splice(from, 1);
+      waypoints.splice(to, 0, moving);
+      return { ...current, waypoints };
+    });
+  }
+
+  function movePointOnMap(index: number, lat: number, lon: number) {
+    changeWaypoint(index, { lat, lon });
+    setNotice("Coordenadas atualizadas no rascunho. Confirma e guarda antes de sair.");
+  }
+
   function addPoint(point: NavlogPoint) {
     if (!draft || draft.waypoints.length >= 120) {
       setError("O percurso pode ter no máximo 120 pontos.");
       return;
     }
     const [raw] = routeWaypointsToPerfectRouteRaw([makeWaypointFromPoint(point, navlogDefaultSetup, addAltitude)]);
-    setDraft({ ...draft, waypoints: [...draft.waypoints, raw] });
+    const at = insertAt === null ? draft.waypoints.length : Math.min(insertAt, draft.waypoints.length);
+    const waypoints = [...draft.waypoints];
+    waypoints.splice(at, 0, raw);
+    setDraft({ ...draft, waypoints });
+    if (insertAt !== null) setInsertAt(at + 1);
     setPointSearch("");
     setError("");
     setNotice(`${point.code} adicionado ao percurso. Guarda para publicar a alteração.`);
@@ -225,12 +250,15 @@ export function AdminNavlogRoutes() {
       return;
     }
     const incoming = routeWaypointsToPerfectRouteRaw(result.waypoints);
-    const next = mode === "replace" ? incoming : [...draft.waypoints, ...incoming];
+    const next = [...draft.waypoints];
+    if (mode === "replace") next.splice(0, next.length, ...incoming);
+    else next.splice(insertAt === null ? next.length : Math.min(insertAt, next.length), 0, ...incoming);
     if (next.length < 2 || next.length > 120) {
       setError("O percurso tem de ter entre 2 e 120 pontos.");
       return;
     }
     setDraft({ ...draft, waypoints: next });
+    setInsertAt(null);
     setRouteInput("");
     setRouteWarnings([]);
     setError("");
@@ -294,7 +322,7 @@ export function AdminNavlogRoutes() {
 
   return (
     <main className="min-h-screen px-4 py-8 sm:px-6 lg:px-10 lg:py-10">
-      <div className="mx-auto max-w-7xl space-y-6">
+      <div className={`mx-auto space-y-6 ${editorWide ? "max-w-[1700px]" : "max-w-7xl"}`}>
         <header className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-zinc-500">NavLog / Biblioteca</p>
@@ -303,7 +331,12 @@ export function AdminNavlogRoutes() {
               Constrói e atualiza os percursos das Default routes. Só ficam públicos depois de guardares.
             </p>
           </div>
-          <button type="button" disabled={loading || saving} onClick={refreshList} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">{loading ? "A carregar…" : "Atualizar biblioteca"}</button>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" onClick={() => setEditorWide((value) => !value)} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">
+              {editorWide ? "Mostrar biblioteca" : "Abrir editor amplo ↗"}
+            </button>
+            <button type="button" disabled={loading || saving} onClick={refreshList} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 hover:bg-zinc-50 disabled:opacity-40">{loading ? "A carregar…" : "Atualizar biblioteca"}</button>
+          </div>
         </header>
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {([
@@ -323,8 +356,8 @@ export function AdminNavlogRoutes() {
         </div>
         {error ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</p> : null}
         {notice ? <p role="status" className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">{notice}</p> : null}
-        <div className="grid items-start gap-5 lg:grid-cols-[390px_minmax(0,1fr)]">
-          <section className="rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30">
+        <div className={`grid items-start gap-5 ${editorWide ? "grid-cols-1" : "lg:grid-cols-[390px_minmax(0,1fr)]"}`}>
+          <section className={`rounded-3xl border border-zinc-200 bg-white p-4 shadow-sm shadow-zinc-200/30 ${editorWide ? "hidden" : ""}`}>
             <div className="mb-3 flex items-baseline justify-between gap-2">
               <h2 className="text-base font-semibold text-zinc-950">Biblioteca</h2>
               <span className="text-xs tabular-nums text-zinc-500">{shown.length} de {routes.length}</span>
@@ -394,6 +427,14 @@ export function AdminNavlogRoutes() {
                     </label>
                   </div>
                   <div>
+                    <label htmlFor="admin-insert-at" className="text-xs font-semibold text-zinc-700">Posição dos novos pontos</label>
+                    <select id="admin-insert-at" value={insertAt === null ? "end" : String(insertAt)} onChange={(event) => setInsertAt(event.target.value === "end" ? null : Number(event.target.value))}
+                      className={`${textInput} mt-1.5`}>
+                      <option value="end">Adicionar no fim do percurso</option>
+                      {draft.waypoints.map((point, i) => <option key={`${draft.id}-${i}`} value={i + 1}>Depois de {i + 1}. {point.code || point.name || "WP"}</option>)}
+                    </select>
+                  </div>
+                  <div>
                     <label htmlFor="admin-point-search" className="text-xs font-semibold text-zinc-700">Pesquisar e adicionar ponto</label>
                     <input id="admin-point-search" value={pointSearch} onChange={(event) => setPointSearch(event.target.value)} disabled={!navlogData || draft.waypoints.length >= 120}
                       placeholder={navlogData ? "ICAO, VOR, fix ou nome…" : "A carregar pontos aeronáuticos…"} className={`${textInput} mt-1.5`} />
@@ -428,7 +469,7 @@ export function AdminNavlogRoutes() {
                     + Adicionar pontos no mapa
                   </label>
                 </div>
-                <AdminRouteMap points={draft.waypoints} onAddPoint={mapAddEnabled && !saving ? addMapPoint : undefined} />
+                <AdminRouteMap routeId={draft.id} points={draft.waypoints} onAddPoint={mapAddEnabled && !saving ? addMapPoint : undefined} onMovePoint={!saving ? movePointOnMap : undefined} />
                 <label className="block text-sm font-medium text-zinc-700">Nome
                   <input value={draft.name} maxLength={100} onChange={(event) => setDraft({ ...draft, name: event.target.value })} className={`${textInput} mt-1`} />
                 </label>
@@ -447,14 +488,21 @@ export function AdminNavlogRoutes() {
                   </label>
                 </div>
                 <p className="text-xs leading-5 text-zinc-500">Marca «por defeito» apenas nas rotas que reconheces e queres recomendar aos utilizadores. Uma rota selecionada nunca substitui a verificação operacional antes do voo.</p>
-                <details className="rounded-xl border border-zinc-200 p-4">
-                  <summary className="cursor-pointer text-sm font-semibold text-zinc-900">Editar percurso ({draft.waypoints.length} pontos)</summary>
-                  <p className="mt-2 text-xs leading-5 text-zinc-500">Mantém a ordem correta dos pontos e as coordenadas em graus decimais. O sistema conserva os restantes dados técnicos. Algumas rotas antigas não têm códigos dos pontos: preenche-os apenas se alterares o percurso.</p>
-                  <div className="mt-4 space-y-3">
+                <section className="rounded-xl border border-zinc-200 p-4">
+                  <h3 className="text-sm font-semibold text-zinc-900">Editar pontos ({draft.waypoints.length})</h3>
+                  <p className="mt-2 text-xs leading-5 text-zinc-500">Arrasta o controlo ↕ para ordenar, ou desloca os marcadores no mapa para ajustar coordenadas. A rota continua em rascunho até guardares.</p>
+                  <div className="mt-4 max-h-[80vh] space-y-3 overflow-y-auto pr-1">
                     {draft.waypoints.map((point, index) => (
-                      <div key={`${draft.id}-${index}`} className="rounded-lg border border-zinc-200 bg-zinc-50 p-3">
+                      <div key={`${draft.id}-${index}`} onDragOver={(event) => { if (draggedIndex !== null) event.preventDefault(); }}
+                        onDrop={(event) => { event.preventDefault(); if (draggedIndex !== null) reorderWaypoint(draggedIndex, index); setDraggedIndex(null); }}
+                        className={`rounded-lg border bg-zinc-50 p-3 ${draggedIndex === index ? "border-sky-500" : "border-zinc-200"}`}>
                         <div className="mb-2 flex items-center justify-between gap-2">
-                          <span className="text-xs font-semibold text-zinc-500">Ponto {index + 1}</span>
+                          <div className="flex items-center gap-2">
+                            <button type="button" draggable onDragStart={(event) => { setDraggedIndex(index); event.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => setDraggedIndex(null)}
+                              aria-label={`Arrastar ponto ${index + 1} para reordenar`} title="Arrastar para mudar a ordem"
+                              className="cursor-grab rounded border border-zinc-300 bg-white px-2 py-1 text-sm text-zinc-700 active:cursor-grabbing">↕</button>
+                            <span className="text-xs font-semibold text-zinc-500">Ponto {index + 1}</span>
+                          </div>
                           <div className="flex gap-1">
                             <button type="button" disabled={index === 0} onClick={() => moveWaypoint(index, -1)} aria-label={`Subir ponto ${index + 1}`} className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs disabled:opacity-30">↑</button>
                             <button type="button" disabled={index === draft.waypoints.length - 1} onClick={() => moveWaypoint(index, 1)} aria-label={`Descer ponto ${index + 1}`} className="rounded border border-zinc-200 bg-white px-2 py-1 text-xs disabled:opacity-30">↓</button>
@@ -479,13 +527,13 @@ export function AdminNavlogRoutes() {
                         </div>
                         <label className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-zinc-700">
                           <input type="checkbox" checked={point.alternate_marker === true} onChange={(event) => setDraft({ ...draft, waypoints: draft.waypoints.map((item, i) => ({ ...item, alternate_marker: event.target.checked && i === index })) })} className="size-4 accent-zinc-900" />
-                          Início do segmento de alternativa
+                          Destino planeado · início da alternativa
                         </label>
                       </div>
                     ))}
                     <button type="button" disabled={draft.waypoints.length >= 120} onClick={() => setDraft({ ...draft, waypoints: [...draft.waypoints, { code: "WP", name: "Waypoint", lat: 0, lon: 0, src: "VFR" }] })} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-30">Adicionar ponto</button>
                   </div>
-                </details>
+                </section>
                 <button type="button" disabled={!isDirty || saving} onClick={() => void save()} className="w-full rounded-xl bg-zinc-950 px-4 py-3 text-sm font-semibold text-white disabled:opacity-40">{saving ? "A guardar…" : "Guardar alterações"}</button>
               </div>
             )}

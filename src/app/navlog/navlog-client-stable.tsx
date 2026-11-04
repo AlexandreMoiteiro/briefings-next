@@ -71,8 +71,21 @@ export function NavlogClientStable() {
   const [pilotName, setPilotName] = useState("");
   const [blockedDialogOpen, setBlockedDialogOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
+  const [accountInitialMode, setAccountInitialMode] = useState<"login" | "signup">("login");
   const [accountUser, setAccountUser] = useState<User | null>(null);
   const [accountReady, setAccountReady] = useState(!supabase);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (url.searchParams.get("account") !== "signup") return;
+    url.searchParams.delete("account");
+    window.history.replaceState(window.history.state, "", url.pathname + url.search + url.hash);
+    const frame = window.requestAnimationFrame(() => {
+      setAccountInitialMode("signup");
+      setAccountOpen(true);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, []);
 
   useEffect(() => {
     // Pilot name is an optional browser preference, read after hydration.
@@ -187,7 +200,7 @@ export function NavlogClientStable() {
             documentLabel="NavLog"
           />
 
-          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => setAccountOpen(true)} />
+          <NavlogStudio aircraftType={aircraft} onOpenAccount={() => { setAccountInitialMode("login"); setAccountOpen(true); }} />
         </div>
       ) : null}
 
@@ -208,7 +221,7 @@ export function NavlogClientStable() {
               </div>
               <button type="button" onClick={() => setAccountOpen(false)} aria-label="Close sign-in window" className="rounded-lg border border-zinc-200 px-2.5 py-1.5 text-xl leading-none text-zinc-600 hover:bg-zinc-50">×</button>
             </div>
-            <NavlogAccountPanel user={accountUser} ready={accountReady} onClose={() => setAccountOpen(false)} />
+            <NavlogAccountPanel user={accountUser} ready={accountReady} onClose={() => setAccountOpen(false)} initialMode={accountInitialMode} />
           </section>
         </div>
       ) : null}

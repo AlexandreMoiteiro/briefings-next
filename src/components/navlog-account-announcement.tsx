@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-const STORAGE_KEY = "briefings:navlog-private-routes-launch:v1";
+const STORAGE_KEY = "briefings:navlog-private-routes-launch:v2";
 
 export function NavlogAccountAnnouncement() {
   const pathname = usePathname();
@@ -58,15 +58,18 @@ export function NavlogAccountAnnouncement() {
       <section role="dialog" aria-modal="true" aria-labelledby="navlog-announcement-title"
         className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl sm:p-8">
         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-sky-700">New in NavLog</p>
-        <h2 id="navlog-announcement-title" className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">Your routes, your account.</h2>
+        <h2 id="navlog-announcement-title" className="mt-2 text-xl font-semibold tracking-tight text-zinc-950">Save routes that belong to you.</h2>
         <p className="mt-3 text-sm leading-6 text-zinc-700">
-          Create an account to save your own routes privately. <strong>Default routes</strong> stay managed by Briefings — other pilots cannot change them.
+          Build your NavLog as usual, then create a free account to save it under <strong>My saved routes</strong>. Only you can reopen, edit or delete those routes.
+        </p>
+        <p className="mt-2 text-sm leading-6 text-zinc-700">
+          <strong>Default routes</strong> remain a separate collection maintained by Briefings. Your personal changes never affect other pilots.
         </p>
         <div className="mt-6 flex flex-wrap items-center gap-2">
+          <Link href="/navlog?account=signup" onClick={dismiss}
+            className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800">Create account</Link>
           <button ref={dismissRef} type="button" onClick={dismiss}
-            className="rounded-xl bg-zinc-950 px-5 py-3 text-sm font-semibold text-white hover:bg-zinc-800">Got it</button>
-          <Link href="/navlog" onClick={dismiss}
-            className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Open NavLog</Link>
+            className="rounded-xl border border-zinc-200 px-5 py-3 text-sm font-semibold text-zinc-700 hover:bg-zinc-50">Maybe later</button>
         </div>
       </section>
     </div>

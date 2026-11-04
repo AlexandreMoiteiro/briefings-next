@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { BrandLogo } from "@/components/brand-logo";
 import { SiteNavigation } from "@/components/site-navigation";
 import { NotamMapAnnouncement } from "@/components/notam-map-announcement";
@@ -10,6 +13,11 @@ type AppShellProps = {
 };
 
 export function AppShell({ children }: AppShellProps) {
+  const pathname = usePathname();
+  if (pathname === "/meteorology/share") {
+    return <main className="mx-auto min-h-dvh w-full max-w-[1600px] bg-zinc-50 px-4 py-5 text-zinc-950 sm:px-6 sm:py-8">{children}</main>;
+  }
+
   return (
     <div className="flex min-h-dvh flex-col bg-zinc-50 text-zinc-950">
       <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/95 backdrop-blur">

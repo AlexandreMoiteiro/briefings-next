@@ -14,12 +14,13 @@ type AuthResponse = {
 const inputStyle = "mt-2 h-12 w-full rounded-xl border border-zinc-300 bg-white px-4 text-sm text-zinc-950 outline-none transition-colors placeholder:text-zinc-400 focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10";
 const primaryStyle = "flex h-12 w-full items-center justify-center rounded-xl bg-zinc-950 px-5 text-sm font-semibold text-white transition-colors hover:bg-zinc-800 disabled:cursor-not-allowed disabled:opacity-45";
 
-export function NavlogAccountPanel({ user, ready, onClose }: {
+export function NavlogAccountPanel({ user, ready, onClose, initialMode = "login" }: {
   user: User | null;
   ready: boolean;
   onClose: () => void;
+  initialMode?: "login" | "signup";
 }) {
-  const [mode, setMode] = useState<AccountMode>("login");
+  const [mode, setMode] = useState<AccountMode>(initialMode);
   const [email, setEmail] = useState("");
   const [identifier, setIdentifier] = useState("");
   const [username, setUsername] = useState("");
