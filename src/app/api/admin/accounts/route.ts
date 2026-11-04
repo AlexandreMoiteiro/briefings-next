@@ -65,6 +65,11 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: "Invalid account or confirmation" }, { status: 400, headers });
     }
     const admin = createNavlogAdminClient();
+    // This console only manages NavLog profiles, never unrelated Auth users.
+    const { data: profile, error: profileError } = await admin.from("navlog_user_profiles")
+      .select("user_id").eq("user_id", body.user_id).maybeSingle();
+    if (profileError) throw profileError;
+    if (!profile) return NextResponse.json({ error: "NavLog account not found" }, { status: 404, headers });
     const { data, error } = await admin.auth.admin.getUserById(body.user_id);
     if (error || !data.user) return NextResponse.json({ error: "Account not found" }, { status: 404, headers });
     if (body.confirm_email !== data.user.email) {
