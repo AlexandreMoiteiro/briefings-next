@@ -2,16 +2,18 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { PinCodeInput } from "@/app/navlog/pin-code-input";
 
 export function AdminLogin() {
   const router = useRouter();
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [fullCodeMode, setFullCodeMode] = useState(false);
 
   async function signIn(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!code.trim()) return;
+    if (fullCodeMode ? !code.trim() : !/^\d{4}$/.test(code)) return;
     setBusy(true);
     setError("");
     try {
@@ -27,35 +29,34 @@ export function AdminLogin() {
       router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Não foi possível iniciar sessão.");
+      setCode("");
       setBusy(false);
     }
   }
 
   return (
-    <main className="mx-auto my-16 max-w-md overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-xl shadow-zinc-950/5 sm:my-24">
-      <div className="bg-zinc-950 px-7 py-8 text-white sm:px-9">
-        <p className="text-xl font-bold tracking-tight">Briefings</p>
-        <p className="mt-6 text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-400">Administração</p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight">Acesso à administração</h1>
-        <p className="mt-3 text-sm leading-6 text-zinc-400">Área reservada para a gestão de rotas, pilotos e funcionamento da plataforma.</p>
+    <main className="mx-auto my-20 max-w-sm rounded-2xl border border-zinc-200 bg-white px-6 py-9 shadow-sm sm:my-28 sm:px-8">
+      <div className="mb-8 text-center">
+        <p className="text-xl font-bold tracking-tight text-zinc-950">Briefings</p>
+        <h1 className="mt-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-zinc-500">Admin</h1>
       </div>
-      <div className="px-7 py-8 sm:px-9">
-      <form onSubmit={signIn} autoComplete="off" className="space-y-4">
-        <label className="block space-y-1.5">
-          <span className="text-sm font-semibold text-zinc-800">Código de administração</span>
-          <input value={code} onChange={event => setCode(event.target.value)}
-            type="password" autoComplete="off" required
-            className="h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10"
-            placeholder="Introduz o teu código" />
-        </label>
-        <button type="submit" disabled={busy}
+      <form onSubmit={signIn} autoComplete="off" className="space-y-5">
+        {fullCodeMode ? (
+          <label className="block text-sm font-medium text-zinc-700">Código
+            <input value={code} onChange={(event) => setCode(event.target.value)} type="password" autoComplete="off" maxLength={256} required
+              className="mt-2 h-12 w-full rounded-xl border border-zinc-300 px-4 text-sm outline-none focus:border-zinc-900 focus:ring-2 focus:ring-zinc-900/10" />
+          </label>
+        ) : <div className="flex justify-center"><PinCodeInput value={code} onChange={setCode} disabled={busy} label="Código" /></div>}
+        <button type="submit" disabled={busy || (fullCodeMode ? !code.trim() : code.length !== 4)}
           className="h-12 w-full rounded-xl bg-zinc-950 px-4 text-sm font-semibold text-white hover:bg-zinc-800 disabled:opacity-50">
-          {busy ? "A entrar…" : "Entrar na consola"}
+          {busy ? "A entrar…" : "Entrar"}
         </button>
       </form>
-      {error ? <p role="alert" className="mt-4 text-sm text-red-700">{error}</p> : null}
-      <p className="mt-6 text-center text-xs text-zinc-500">Sessão privada · Acesso restrito</p>
-      </div>
+      {error ? <p role="alert" className="mt-4 text-center text-xs text-red-700">{error}</p> : null}
+      <button type="button" onClick={() => { setFullCodeMode((current) => !current); setCode(""); setError(""); }}
+        className="mx-auto mt-5 block text-xs text-zinc-400 underline-offset-2 hover:text-zinc-700 hover:underline">
+        {fullCodeMode ? "Usar código de 4 dígitos" : "O meu código tem outro formato"}
+      </button>
     </main>
   );
 }

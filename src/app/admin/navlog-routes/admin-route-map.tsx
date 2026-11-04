@@ -2,10 +2,15 @@
 
 import { useEffect, useMemo } from "react";
 import L from "leaflet";
-import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap } from "react-leaflet";
+import { CircleMarker, MapContainer, Polyline, TileLayer, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import type { PerfectRouteWaypointRaw } from "@/lib/navlog-saved-routes";
 
 type MapPoint = { lat: number; lon: number; label: string; name?: string };
+
+function AddPointOnMap({ onAddPoint }: { onAddPoint?: (lat: number, lon: number) => void }) {
+  useMapEvents({ click(event) { onAddPoint?.(event.latlng.lat, event.latlng.lng); } });
+  return null;
+}
 
 function FitRoute({ points }: { points: MapPoint[] }) {
   const map = useMap();
@@ -24,7 +29,7 @@ function FitRoute({ points }: { points: MapPoint[] }) {
   return null;
 }
 
-export function AdminRouteMap({ points }: { points: PerfectRouteWaypointRaw[] }) {
+export function AdminRouteMap({ points, onAddPoint }: { points: PerfectRouteWaypointRaw[]; onAddPoint?: (lat: number, lon: number) => void }) {
   const valid = useMemo(() => points
     .filter((point) => Number.isFinite(point.lat) && Number.isFinite(point.lon) && Math.abs(point.lat) <= 90 && Math.abs(point.lon) <= 180)
     .map((point, index) => ({ lat: point.lat, lon: point.lon, label: point.code || point.name || `WP${index + 1}`, name: point.name })), [points]);
@@ -38,10 +43,11 @@ export function AdminRouteMap({ points }: { points: PerfectRouteWaypointRaw[] })
     <section aria-label="Mapa geográfico da rota" className="space-y-2">
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <h3 className="text-sm font-semibold text-zinc-900">Percurso no mapa</h3>
-        <span className="text-xs text-zinc-500">Arrasta para explorar · +/− para zoom</span>
+        <span className="text-xs text-zinc-500">{onAddPoint ? "Clica no mapa para adicionar um ponto" : "Arrasta para explorar · +/− para zoom"}</span>
       </div>
-      <div className="h-[310px] overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:h-[360px]">
+      <div className={`h-[310px] overflow-hidden rounded-xl border border-zinc-200 bg-zinc-100 sm:h-[360px] ${onAddPoint ? "cursor-crosshair" : ""}`}>
         <MapContainer center={[39.5, -8]} zoom={7} scrollWheelZoom={false} className="h-full w-full" zoomControl>
+          <AddPointOnMap onAddPoint={onAddPoint} />
           <TileLayer url="https://tile.openstreetmap.org/{z}/{x}/{y}.png" maxZoom={19}
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors' />
           <FitRoute points={valid} />

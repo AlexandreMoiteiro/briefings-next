@@ -1207,18 +1207,20 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-semibold text-white">1</span>
               <div>
                 <h3 className="text-base font-semibold text-zinc-950">Choose an existing route</h3>
-                <p className="mt-0.5 text-sm leading-6 text-zinc-600">The quickest way to start. Choose a route selected by Briefings, or open one from your private collection.</p>
+                <p className="mt-0.5 text-sm leading-6 text-zinc-600">Start with a default route, or reopen a route you saved privately.</p>
               </div>
             </div>
               <div className="grid gap-2 sm:grid-cols-2" aria-label="Route collections">
                   {([
-                    ["featured", "Briefings routes", verifiedRouteCount, "Selected by the site owner"],
+                    ["featured", "Default routes", verifiedRouteCount, "Selected by the site owner"],
                     ["personal", "My saved routes", personalRoutes.length, "Private to your account"],
                   ] as const).map(([scope, label, count, description]) => (
                     <button key={scope} type="button" onClick={() => { setRouteLibraryScope(scope); setRouteSearch(""); }} aria-pressed={routeLibraryScope === scope}
-                      className={`rounded-xl border p-3 text-left transition-colors ${routeLibraryScope === scope ? "border-zinc-950 bg-zinc-50" : "border-zinc-200 bg-white hover:border-zinc-400"}`}>
+                      className={`rounded-2xl border-2 px-4 py-4 text-left shadow-sm transition-all hover:-translate-y-0.5 ${scope === "featured"
+                        ? routeLibraryScope === scope ? "border-sky-600 bg-sky-50 ring-2 ring-sky-100" : "border-sky-200 bg-sky-50/70 hover:border-sky-400"
+                        : routeLibraryScope === scope ? "border-violet-600 bg-violet-50 ring-2 ring-violet-100" : "border-violet-200 bg-violet-50/70 hover:border-violet-400"}`}>
                       <span className="block text-sm font-semibold text-zinc-950">{label} <span className="font-normal tabular-nums text-zinc-500">({count})</span></span>
-                      <span className="mt-1 block text-xs leading-5 text-zinc-500">{description}</span>
+                      <span className="mt-1.5 block text-xs leading-5 text-zinc-600">{description}</span>
                     </button>
                   ))}
               </div>
@@ -1256,7 +1258,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                     <p>{routeLibraryScope === "personal" && !accountUser
                       ? "Sign in to view your private routes."
                       : routeLibraryScope === "featured" && verifiedRouteCount === 0
-                        ? "The Briefings routes are being reviewed and selected. Please try again soon."
+                        ? "Default routes are being reviewed. Please try again soon."
                         : "No matching routes."}</p>
                   </div>
                 ) : filteredPerfectRoutes.map((route) => (
