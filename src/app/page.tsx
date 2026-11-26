@@ -8,21 +8,21 @@ function ToolCard({ item, index, featured = false }: { item: NavItem; index?: nu
     <Link
       href={item.href}
       className={[
-        "group block h-full rounded-3xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md",
+        "briefings-tile group h-full p-6 sm:p-7",
         featured
-          ? "min-h-52 border-sky-200 bg-gradient-to-br from-sky-50 via-white to-white sm:p-7 hover:border-sky-400"
-          : "border-zinc-200 bg-white hover:border-zinc-400",
+          ? "briefings-tile-primary min-h-52"
+          : "",
       ].join(" ")}
     >
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-2">
             {typeof index === "number" ? (
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-zinc-950 text-xs font-semibold text-white">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#edf5ff] text-xs font-semibold text-[#0066cc]">
                 {index}
               </span>
             ) : null}
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
+            <p className="text-xs font-semibold text-zinc-500">
               {item.eyebrow}
             </p>
           </div>
@@ -30,16 +30,16 @@ function ToolCard({ item, index, featured = false }: { item: NavItem; index?: nu
             {item.title}
           </h2>
         </div>
-        <span className="text-lg text-zinc-300 transition group-hover:translate-x-1 group-hover:text-zinc-950">
-          →
+        <span className="text-xl text-[#0066cc]">
+          ↗
         </span>
       </div>
       <p className="mt-3 text-sm leading-6 text-zinc-600">{item.description}</p>
-      <div className="mt-4 flex flex-wrap gap-2">
+      <div className="mt-auto flex flex-wrap gap-2 pt-6">
         {item.details.map((detail) => (
           <span
             key={detail}
-            className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-medium text-zinc-600"
+            className="rounded-full bg-[#f5f5f7] px-2.5 py-1 text-xs font-medium text-zinc-600"
           >
             {detail}
           </span>
@@ -56,10 +56,10 @@ export default function HomePage() {
 
   return (
     <div className="space-y-10">
-      <header className="border-b border-zinc-200 pb-7">
-        <p className="text-sm font-semibold text-zinc-500">Flight preparation</p>
-        <h1 className="mt-2 text-4xl font-semibold tracking-tight text-zinc-950 md:text-6xl">
-          Briefings
+      <header className="max-w-3xl pt-3 pb-2 md:pt-8">
+        <p className="text-sm font-semibold text-[#0066cc]">Flight preparation</p>
+        <h1 className="briefings-home-title mt-3">
+          Briefings.
         </h1>
         <p className="mt-4 max-w-2xl text-base leading-7 text-zinc-600 sm:text-lg">
           Briefing, navigation, aircraft performance and map tools.
@@ -68,7 +68,7 @@ export default function HomePage() {
 
       <section>
         <div className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+          <p className="text-sm font-semibold text-zinc-600">
             Flight workflow
           </p>
         </div>
@@ -81,7 +81,7 @@ export default function HomePage() {
 
       <section>
         <div className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
+          <p className="text-sm font-semibold text-zinc-600">
             Maps &amp; tools
           </p>
         </div>

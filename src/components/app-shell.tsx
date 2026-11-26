@@ -19,20 +19,20 @@ export function AppShell({ children }: AppShellProps) {
   }
 
   return (
-    <div className="flex min-h-dvh flex-col bg-zinc-50 text-zinc-950">
-      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
+    <div className="briefings-shell flex min-h-dvh flex-col text-zinc-950">
+      <header className="briefings-header sticky top-0 z-50">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="Briefings home">
             <BrandLogo />
           </Link>
           <SiteNavigation />
         </div>
-        <div className="overflow-x-auto border-t border-zinc-100 bg-white lg:hidden">
+        <div className="overflow-x-auto border-t border-zinc-200/60 lg:hidden">
           <SiteNavigation mobile />
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-9">
+      <main className="briefings-main mx-auto w-full max-w-7xl flex-1 px-4 py-8 sm:px-6 md:py-12">
         {children}
       </main>
 

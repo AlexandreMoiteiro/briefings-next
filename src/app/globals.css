@@ -511,3 +511,39 @@ textarea {
     grid-column: span 2;
   }
 }
+
+
+/* Apple design preview */
+:root {
+  color-scheme: light;
+  --canvas: #f5f5f7;
+  --ink: #1d1d1f;
+  --muted: #66666d;
+  --accent: #0066cc;
+  --hairline: #dedee3;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--canvas); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; }
+button:not(:disabled), select:not(:disabled) { cursor: pointer; }
+:where(button, a, input, select, textarea):focus-visible { outline: 3px solid #0071e3; outline-offset: 3px; }
+:where(button, a, input, select, textarea) { -webkit-tap-highlight-color: transparent; }
+@media screen {
+  .briefings-shell { min-height: 100vh; background: var(--canvas); }
+  .briefings-header { position: sticky; top: 0; z-index: 50; background: rgba(249,249,251,.88); backdrop-filter: saturate(160%) blur(20px); border-bottom: 1px solid rgba(0,0,0,.09); }
+  .briefings-nav a { white-space: nowrap; border-radius: 9px; padding: 8px 12px; font-size: 13px; font-weight: 500; color: #424247; transition: background 120ms ease, color 120ms ease, transform 100ms ease; }
+  .briefings-nav a:hover { background: #e9e9ed; color: #1d1d1f; }
+  .briefings-nav a[aria-current="page"] { background: #e5e5ea; color: #1d1d1f; font-weight: 650; }
+  .briefings-main :where(h1,h2,h3) { letter-spacing: -.025em; }
+  .briefings-main :where(button:not(:disabled)) { transition: background-color 120ms ease, border-color 120ms ease, box-shadow 120ms ease, transform 100ms ease; }
+  .briefings-main :where(button:not(:disabled)):active, .briefings-nav a:active, .briefings-tile:active { transform: scale(.97); }
+  .briefings-main :where(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]):not([type="color"]), select, textarea) { border-radius: 9px; }
+  .briefings-main :where(table) { font-variant-numeric: tabular-nums; }
+  .briefings-tile { display: flex; flex-direction: column; background: #fff; border: 1px solid rgba(0,0,0,.075); border-radius: 22px; box-shadow: 0 2px 8px rgba(0,0,0,.025); transition: box-shadow 160ms ease, border-color 160ms ease, transform 100ms ease; }
+  @media (hover:hover) { .briefings-tile:hover { border-color: #c7c7ce; box-shadow: 0 8px 24px rgba(0,0,0,.055); } }
+  .briefings-tile-primary { background: #fff; border-color: #c9d8e9; }
+  .briefings-tile-icon { width: 44px; height: 44px; border-radius: 13px; display: grid; place-items: center; color: #0066cc; background: #edf5ff; }
+  .briefings-home-title { font-size: clamp(2.75rem, 6vw, 4.5rem); letter-spacing: -.055em !important; line-height: 1.05; font-weight: 650; }
+  @media (prefers-reduced-motion: reduce) { .briefings-shell *, .briefings-shell *::before, .briefings-shell *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; scroll-behavior: auto !important; } .briefings-main button:active, .briefings-tile:active, .briefings-nav a:active { transform: none !important; } }
+  @media (prefers-reduced-transparency: reduce), (prefers-contrast: more) { .briefings-header { background: #fff; backdrop-filter: none; border-color: #85858d; } .briefings-tile { border-color: #85858d; } }
+}
