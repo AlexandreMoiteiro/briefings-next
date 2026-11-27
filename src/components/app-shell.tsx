@@ -19,7 +19,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-dvh flex-col bg-zinc-50 text-zinc-950">
-      <header className="sticky top-0 z-50 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
+      <header className="lg:sticky lg:top-0 z-50 border-b border-zinc-200/80 bg-white/95 backdrop-blur">
         <div className="mx-auto flex w-full max-w-7xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/" className="flex items-center gap-3" aria-label="Briefings home">
             <BrandLogo />
@@ -31,7 +31,7 @@ export function AppShell({ children }: AppShellProps) {
         </div>
       </header>
 
-      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-6 sm:px-6 sm:py-9">
+      <main className="mx-auto w-full max-w-7xl flex-1 px-4 py-4 sm:px-6 sm:py-6">
         {children}
       </main>
 

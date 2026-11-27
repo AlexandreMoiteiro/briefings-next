@@ -14,16 +14,16 @@ export function SelectedAircraftCard({
   onChange,
 }: SelectedAircraftCardProps) {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className="rounded-xl border border-zinc-200 bg-white p-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-4">
-          <div className="relative flex h-16 w-28 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50 p-2">
+          <div className="relative flex h-12 w-20 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-zinc-50 p-2">
             {imageSrc ? (
               <Image
                 src={imageSrc}
                 alt={name}
                 fill
-                sizes="112px"
+                sizes="80px"
                 className="object-contain p-2"
               />
             ) : (
@@ -34,14 +34,14 @@ export function SelectedAircraftCard({
           </div>
 
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
+            <p className="text-xs font-medium text-zinc-500">
               Selected aircraft
             </p>
-            <h2 className="mt-1 truncate text-xl font-semibold tracking-tight text-zinc-950">
+            <h2 className="text-base font-semibold tracking-tight text-zinc-950">
               {name}
             </h2>
             {registrations ? (
-              <p className="mt-1 truncate text-xs text-zinc-500">
+              <p className="mt-0.5 break-words text-xs text-zinc-500">
                 {registrations}
               </p>
             ) : null}
@@ -51,7 +51,7 @@ export function SelectedAircraftCard({
         <button
           type="button"
           onClick={onChange}
-          className="rounded-xl border border-zinc-200 bg-white px-4 py-2.5 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50"
+          className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-700 transition hover:border-zinc-400 hover:bg-zinc-50"
         >
           Change aircraft
         </button>

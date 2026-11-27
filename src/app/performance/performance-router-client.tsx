@@ -46,7 +46,7 @@ const OPTIONS: readonly AircraftChoice<PerformanceMode>[] = [
 ];
 
 const PAGE_DESCRIPTION =
-  "Complete aircraft loading, fuel planning and runway performance first. The NavLog and final Briefing come afterwards.";
+  "Aircraft loading, fuel planning and runway performance.";
 
 export function PerformanceRouterClient() {
   const [mode, setMode] = useState<PerformanceMode | null>(null);

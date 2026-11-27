@@ -517,32 +517,30 @@ export function BriefingBuilderClient() {
 
   return (
     <div className="space-y-8">
-      <section className="border-b border-zinc-200 pb-8">
-        <p className="mb-3 text-sm font-medium text-zinc-500">Final PDF</p>
-
+      <section className="border-b border-zinc-200 pb-4 sm:pb-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h1 className="text-4xl font-semibold tracking-tight text-zinc-950 md:text-5xl">
+            <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">
               Briefing Builder
             </h1>
 
-            <p className="mt-4 max-w-3xl text-lg leading-8 text-zinc-600">
-              Build a pre-flight briefing package following the Sevenair briefing structure, as specified in the Procedures Manual, RVP.PR.02.09 — PRE-FLIGHT BRIEFING PACKAGE.
+            <p className="mt-1 max-w-3xl text-sm leading-5 text-zinc-600">
+              Assemble the pre-flight PDF · Sevenair Procedures Manual RVP.PR.02.09.
             </p>
           </div>
 
-          <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4">
+          <div className="rounded-xl border border-zinc-200 bg-white px-4 py-2">
             <div className="text-sm text-zinc-500">Completed content</div>
-            <div className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
+            <div className="text-xl font-semibold tracking-tight text-zinc-950">
               {completedSteps}/6
             </div>
             <div className="mt-1 text-sm text-zinc-500">
-              {files.length} ficheiro{files.length === 1 ? "" : "s"}
+              {files.length} file{files.length === 1 ? "" : "s"}
             </div>
           </div>
         </div>
 
-        <div className="mt-8">
+        <div className="mt-4">
           <div className="mb-2 flex items-center justify-between text-xs font-medium text-zinc-500">
             <span>
               Step {activeStepIndex + 1} of {briefingSteps.length}
@@ -559,18 +557,15 @@ export function BriefingBuilderClient() {
         </div>
       </section>
 
-      <section className="grid gap-6 lg:grid-cols-[280px_1fr]">
-        <aside className="h-fit rounded-2xl border border-zinc-200 bg-white p-3">
+      <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+        <aside className="h-fit rounded-xl border border-zinc-200 bg-white p-2 lg:sticky lg:top-24">
           <div className="px-3 py-2">
             <h2 className="text-sm font-semibold text-zinc-950">
               Briefing steps
             </h2>
-            <p className="mt-1 text-xs leading-5 text-zinc-500">
-              Keep the logical order that will be used in the final PDF.
-            </p>
           </div>
 
-          <div className="mt-2 space-y-1">
+          <div className="mt-1 grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-1">
             {briefingSteps.map((step, index) => {
               const isActive = activeStepId === step.id;
 
@@ -579,8 +574,9 @@ export function BriefingBuilderClient() {
                   key={step.id}
                   type="button"
                   onClick={() => setActiveStepId(step.id)}
+                  aria-current={isActive ? "step" : undefined}
                   className={[
-                    "flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition",
+                    "flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition",
                     isActive
                       ? "bg-zinc-950 text-white"
                       : "text-zinc-700 hover:bg-zinc-100",
@@ -598,16 +594,8 @@ export function BriefingBuilderClient() {
                   </span>
 
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">
+                    <span className="block text-sm font-medium">
                       {step.shortTitle}
-                    </span>
-                    <span
-                      className={[
-                        "block text-xs",
-                        isActive ? "text-zinc-300" : "text-zinc-400",
-                      ].join(" ")}
-                    >
-                      {step.description}
                     </span>
                   </span>
                 </button>
@@ -616,12 +604,9 @@ export function BriefingBuilderClient() {
           </div>
         </aside>
 
-        <main className="space-y-6">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-6">
-            <p className="text-sm font-medium text-zinc-500">
-              {activeStep.shortTitle}
-            </p>
-            <h2 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">
+        <div className="min-w-0 space-y-4">
+          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+            <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
               {activeStep.title}
             </h2>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
@@ -630,7 +615,7 @@ export function BriefingBuilderClient() {
           </section>
 
           {activeStepId === "mission" ? (
-            <section className="rounded-2xl border border-zinc-200 bg-white p-6">
+            <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
               <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
                 Mission details
               </h3>
@@ -764,7 +749,7 @@ export function BriefingBuilderClient() {
                 return (
                   <div
                     key={target.bucketId}
-                    className="rounded-2xl border border-zinc-200 bg-white p-6"
+                    className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5"
                   >
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div>
@@ -892,7 +877,7 @@ export function BriefingBuilderClient() {
               {routes.map((route, index) => (
                 <div
                   key={route.id}
-                  className="rounded-2xl border border-zinc-200 bg-white p-6"
+                  className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5"
                 >
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
@@ -1033,7 +1018,7 @@ export function BriefingBuilderClient() {
 
           {activeStepId === "generate" ? (
             <section className="space-y-6">
-              <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
                   Mission summary
                 </h3>
@@ -1069,7 +1054,7 @@ export function BriefingBuilderClient() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
                   Final PDF order
                 </h3>
@@ -1205,7 +1190,7 @@ export function BriefingBuilderClient() {
                 </div>
               </div>
 
-              <div className="rounded-2xl border border-zinc-200 bg-white p-6">
+              <div className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
                 <h3 className="text-lg font-semibold tracking-tight text-zinc-950">
                   Export
                 </h3>
@@ -1263,7 +1248,7 @@ export function BriefingBuilderClient() {
             </div>
           </section>
 
-        </main>
+        </div>
       </section>
     </div>
   );

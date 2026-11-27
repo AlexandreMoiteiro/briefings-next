@@ -1161,19 +1161,19 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
               <p className="text-xs font-semibold uppercase tracking-wide text-zinc-600">Flight time</p>
               <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-950">{hasCalculatedRoute ? formatDuration(flightTimeSec) : "—"}</p>
-              <p className="mt-1 text-xs leading-5 text-zinc-600">Airborne time to your planned destination. No taxi or alternate.</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-600">Airborne to destination · no taxi or alternate.</p>
             </div>
-            <div className="rounded-xl border-2 border-sky-400 bg-sky-50 p-4">
+            <div className="rounded-xl border border-sky-300 bg-sky-50 p-3">
               <p className="text-xs font-semibold uppercase tracking-wide text-sky-800">Block time · Flight Logger</p>
               <p className="mt-2 text-2xl font-semibold tabular-nums text-sky-950">{hasCalculatedRoute ? formatDuration(blockTimeSec) : "—"}</p>
-              <p className="mt-1 text-xs leading-5 text-sky-800">Flight to destination + {setup.taxiMin} min ground/taxi allowance. This is the planned block time to log.</p>
+              <p className="mt-1 text-xs leading-5 text-sky-800">Destination + {setup.taxiMin} min taxi. Planned block time to log.</p>
             </div>
-            <div className="relative rounded-xl border border-violet-200 bg-violet-50 p-4">
-              <p className="pr-7 text-xs font-semibold uppercase tracking-wide text-violet-800">Block + alternate</p>
-              <p className="mt-2 text-2xl font-semibold tabular-nums text-violet-950">{hasCalculatedRoute && routeTimes.hasAlternate ? formatDuration(blockPlusAlternateSec) : "—"}</p>
-              <p className="mt-1 text-xs leading-5 text-violet-800">{routeTimes.hasAlternate
+            <div className="relative rounded-xl border border-zinc-200 bg-white p-3">
+              <p className="pr-7 text-xs font-semibold uppercase tracking-wide text-zinc-700">Block + alternate</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-zinc-950">{hasCalculatedRoute && routeTimes.hasAlternate ? formatDuration(blockPlusAlternateSec) : "—"}</p>
+              <p className="mt-1 text-xs leading-5 text-zinc-600">{routeTimes.hasAlternate
                 ? `Contingency only: block + ${formatDuration(alternateTimeSec)} to alternate. Not your planned Flight Logger block time.`
-                : "Use Start alternate on your planned destination in Review → Waypoints, after adding the alternate as the next waypoint. It keeps diversion time separate from your normal Block time."}</p>
+                : "No alternate selected. Use the help button for instructions."}</p>
               <details className="group">
                 <summary aria-label="How to use Start alternate" className="absolute right-4 top-4 flex size-6 cursor-pointer list-none items-center justify-center rounded-full border border-violet-300 bg-white text-xs font-bold text-violet-800 outline-none transition hover:border-violet-500 hover:bg-violet-100 focus-visible:ring-2 focus-visible:ring-violet-500 [&::-webkit-details-marker]:hidden">?</summary>
                 <div className="mt-3 rounded-lg border border-violet-200 bg-white p-3 text-left text-xs leading-5 text-violet-950">
@@ -1221,7 +1221,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-semibold text-white">1</span>
               <div>
                 <h3 className="text-base font-semibold text-zinc-950">Choose an existing route</h3>
-                <p className="mt-0.5 text-sm leading-6 text-zinc-600">Start with a default route, or reopen a route you saved privately.</p>
+                <p className="mt-0.5 text-sm leading-6 text-zinc-600">Default or personal saved routes.</p>
               </div>
             </div>
               <div className="grid gap-2 sm:grid-cols-2" aria-label="Route collections">
@@ -1309,7 +1309,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">2</span>
                   <div>
                     <h3 className="text-base font-semibold text-zinc-950">Find and add navigation points</h3>
-                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Build your own route one point at a time. Search an aerodrome, VOR or waypoint by name or ICAO code.</p>
+                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Search aerodromes, VORs or waypoints by name or code.</p>
                   </div>
                 </div>
                 <div className="mt-4">
@@ -1325,7 +1325,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                   <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">3</span>
                   <div>
                     <h3 className="text-base font-semibold text-zinc-950">Enter a complete route</h3>
-                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Already know the route? Paste the waypoints in order, as in Item 15 of a flight plan.</p>
+                    <p className="mt-0.5 text-sm leading-6 text-zinc-600">Paste waypoints in Item 15 order.</p>
                   </div>
                 </div>
                 <label htmlFor="navlog-route-text" className="sr-only">Route waypoints</label>
@@ -1356,7 +1356,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                 {manualMapClickEnabled ? "✓ Stop adding map points" : "+ Add point anywhere on map"}
               </button>
               <p className="max-w-64 text-[11px] leading-4 text-zinc-600">
-                Enable, then click or tap the map to place a waypoint.
+                Enable and tap the map to place a waypoint.
               </p>
             </div>
             <div className="flex items-center gap-2 rounded-xl border border-zinc-200 bg-white px-3 py-1.5">
@@ -1370,7 +1370,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             <button type="button" onClick={() => updateSetup("showReferencePoints", !setup.showReferencePoints)} className={["rounded-xl border px-3 py-2 text-sm font-medium", setup.showReferencePoints ? "border-zinc-950 bg-zinc-950 text-white" : "border-zinc-300 bg-white text-zinc-700"].join(" ")}>
               Reference points {setup.showReferencePoints ? "on" : "off"}
             </button>
-            <button type="button" onClick={() => setShowLayers((value) => !value)} className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700">Layers {showLayers ? "▴" : "▾"}</button>
+            <button type="button" onClick={() => setShowLayers((value) => !value)} aria-expanded={showLayers} className="rounded-xl border border-zinc-300 bg-white px-3 py-2 text-sm font-medium text-zinc-700">Layers {showLayers ? "▴" : "▾"}</button>
           </div>
         </div>
 

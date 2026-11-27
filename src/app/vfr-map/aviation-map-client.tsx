@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { PreparationPageHeader } from "@/components/preparation-page-header";
 import { useEffect, useMemo, useState } from "react";
 import { loadAllNavlogData } from "@/lib/navlog-data";
 import type { NavlogDataBundle, NavlogPoint } from "@/lib/navlog";
@@ -129,21 +130,11 @@ export function AviationMapClient() {
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-zinc-200 pb-6">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-          Portugal
-        </p>
-        <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-          Aviation Map
-        </h1>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600 sm:text-base">
-          Search aviation points and choose the chart and layers you want to see.
-        </p>
-      </header>
+      <PreparationPageHeader title="VFR Map" description="Portugal · aerodromes, navigation points and chart layers." />
 
-      <section className="grid gap-5 xl:grid-cols-[360px_minmax(0,1fr)]">
-        <aside className="space-y-4">
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+      <section className="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
+        <aside className="space-y-3">
+          <section className="rounded-xl border border-zinc-200 bg-white p-3">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                 Search
@@ -218,7 +209,7 @@ export function AviationMapClient() {
             ) : null}
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <section className="rounded-xl border border-zinc-200 bg-white p-3">
             <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
               Map
             </p>
@@ -251,11 +242,12 @@ export function AviationMapClient() {
             </div>
           </section>
 
-          <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                Layers
-              </p>
+          <details className="group rounded-xl border border-zinc-200 bg-white p-3">
+            <summary className="flex min-h-9 cursor-pointer list-none items-center justify-between gap-2 text-sm font-semibold text-zinc-800 [&::-webkit-details-marker]:hidden">
+              <span>Layers <span className="text-xs font-normal text-zinc-500">· {activeLayers.length} active</span></span>
+              <span aria-hidden="true" className="group-open:rotate-180">⌄</span>
+            </summary>
+            <div className="mt-2 flex items-center justify-end gap-3">
               <div className="flex gap-1.5">
                 <button
                   type="button"
@@ -307,10 +299,10 @@ export function AviationMapClient() {
                 );
               })}
             </div>
-          </section>
+          </details>
 
           {selectedPoint ? (
-            <section className="rounded-2xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <section className="rounded-xl border border-zinc-200 bg-white p-3">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
@@ -336,8 +328,8 @@ export function AviationMapClient() {
           ) : null}
         </aside>
 
-        <main className="min-w-0">
-          <div className="sticky top-28">
+        <div className="min-w-0">
+          <div className="lg:sticky lg:top-24">
             <AviationMapLeaflet
               points={data.points}
               activeLayers={activeLayers}
@@ -346,7 +338,7 @@ export function AviationMapClient() {
               mapSourceMode={mapSourceMode}
             />
           </div>
-        </main>
+        </div>
       </section>
     </div>
   );

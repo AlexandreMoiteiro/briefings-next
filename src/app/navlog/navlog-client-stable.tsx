@@ -54,7 +54,7 @@ const AIRCRAFT_CHOICES: readonly AircraftChoice<Aircraft>[] = [
 const PILOT_STORAGE_KEY = "briefings_performance_pilot_name";
 const NAVLOG_SESSION_SELECTION_KEY = "briefings_navlog_selection_v1";
 const PAGE_DESCRIPTION =
-  "Compose the route on one planning surface, verify it on the map, then review the calculated NavLog before the final Briefing.";
+  "Plan your route, review fuel and flight times, and export your NavLog.";
 
 function normalize(value: string | null | undefined) {
   return String(value ?? "").trim().toLowerCase().replace(/\s+/g, " ");

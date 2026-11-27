@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { PreparationPageHeader } from "@/components/preparation-page-header";
 import { useEffect, useMemo, useState } from "react";
 import { parseCoordinateAreaInput } from "@/lib/coordinate-area-parser";
 import type { NotamApiResponse, PlotNotam } from "@/lib/notams";
@@ -191,33 +192,13 @@ export function NotamMapWorkspace() {
 
   return (
     <div className="space-y-5">
-      <header className="border-b border-zinc-200 pb-5">
-        <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-          Utility · Portugal
-        </p>
-        <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-              NOTAM Map
-            </h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600 sm:text-base">
-              Portuguese and Portuguese-FIR NOTAMs plotted by day, with areas and categories shown visually.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="rounded-full bg-zinc-950 px-3 py-1.5 font-semibold text-white">
-              {loading
-                ? "Loading…"
-                : `${visibleNotams.length} NOTAM${visibleNotams.length === 1 ? "" : "s"}`}
-            </span>
-          </div>
-        </div>
-      </header>
+      <PreparationPageHeader title="NOTAM Map" description="Portugal and Portuguese FIRs · NOTAM validity by day." action={
+        <span className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-semibold text-zinc-700">{loading ? "Loading…" : `${visibleNotams.length} NOTAM${visibleNotams.length === 1 ? "" : "s"}`}</span>
+      } />
 
       <section
         aria-label="NOTAM day"
-        className="overflow-x-auto rounded-2xl border border-zinc-200 bg-white p-1.5 shadow-sm"
+        className="overflow-x-auto rounded-xl border border-zinc-200 bg-white p-1.5"
       >
         <div className="grid min-w-[700px] grid-cols-7 gap-1">
           {dayOptions.map((day) => {
@@ -228,6 +209,7 @@ export function NotamMapWorkspace() {
                 key={day.key}
                 type="button"
                 onClick={() => setSelectedDayKey(day.key)}
+                aria-pressed={active}
                 className={[
                   "rounded-xl px-3 py-2.5 text-center transition",
                   active
@@ -260,7 +242,7 @@ export function NotamMapWorkspace() {
               <span>{status}</span>
             ) : (
               <span>
-                Showing NOTAMs whose validity overlaps the selected day. Check any published schedule in the NOTAM details.
+                Validity overlaps the selected day. Check published schedules.
               </span>
             )}
           </div>
@@ -287,7 +269,7 @@ export function NotamMapWorkspace() {
         </p>
       </section>
 
-      <details className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+      <details className="group rounded-xl border border-zinc-200 bg-white">
         <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -295,7 +277,7 @@ export function NotamMapWorkspace() {
                 Plot a custom area
               </p>
               <p className="mt-0.5 text-xs leading-5 text-zinc-500">
-                Optional · paste NOTAM/GAMET wording or a coordinate sequence to draw it over the map.
+                Optional · paste coordinates or NOTAM/GAMET text.
               </p>
             </div>
             <span className="rounded-full bg-zinc-100 px-2.5 py-1 text-xs font-semibold text-zinc-500">
@@ -303,6 +285,7 @@ export function NotamMapWorkspace() {
                 ? `${parsed.errors.length} issue${parsed.errors.length === 1 ? "" : "s"}`
                 : `${parsed.points.length} point${parsed.points.length === 1 ? "" : "s"}`}
             </span>
+            <span aria-hidden="true" className="text-zinc-500 group-open:rotate-180">⌄</span>
           </div>
         </summary>
 

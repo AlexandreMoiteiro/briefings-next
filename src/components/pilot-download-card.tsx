@@ -10,22 +10,19 @@ export function PilotDownloadCard({
   documentLabel,
 }: PilotDownloadCardProps) {
   return (
-    <section className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="grid gap-4 lg:grid-cols-[220px_minmax(280px,380px)_minmax(0,1fr)] lg:items-end">
+    <section className="rounded-xl border border-zinc-200 bg-white p-3 sm:p-4">
+      <div className="grid gap-3 sm:grid-cols-[minmax(180px,1fr)_minmax(220px,1fr)] sm:items-center lg:grid-cols-[180px_minmax(220px,1fr)_minmax(220px,1fr)]">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-400">
-            PDF identity
-          </p>
-          <h2 className="mt-1 text-lg font-semibold tracking-tight text-zinc-950">
+          <h2 className="text-base font-semibold tracking-tight text-zinc-950">
             Pilot
           </h2>
-          <p className="mt-1 text-sm leading-6 text-zinc-500">
+          <p className="mt-0.5 text-xs leading-5 text-zinc-600">
             Required for {documentLabel} PDF downloads.
           </p>
         </div>
 
         <label className="block space-y-1.5">
-          <span className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">
+          <span className="text-xs font-medium text-zinc-700">
             Pilot name <span className="text-red-600">*</span>
           </span>
           <input
@@ -33,12 +30,12 @@ export function PilotDownloadCard({
             onChange={(event) => onChange(event.target.value)}
             required
             autoComplete="name"
-            className="w-full rounded-xl border border-zinc-300 bg-white px-4 py-3 text-sm font-semibold text-zinc-900 outline-none transition focus:border-zinc-950"
+            className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm font-semibold text-zinc-900 outline-none transition focus:border-zinc-950"
             placeholder="Required for download"
           />
         </label>
 
-        <div className="rounded-xl border border-zinc-200 bg-zinc-50 px-4 py-3 text-xs leading-5 text-zinc-600">
+        <div className="text-xs leading-5 text-zinc-600 sm:col-span-2 lg:col-span-1">
           Use your real name for PDF downloads. False names may temporarily disable PDF export.
         </div>
       </div>

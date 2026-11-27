@@ -1,34 +1,13 @@
 import type { ReactNode } from "react";
-
-type PreparationPageHeaderProps = {
-  step: number;
-  title: string;
-  description: string;
-  action?: ReactNode;
-};
-
-export function PreparationPageHeader({
-  step,
-  title,
-  description,
-  action,
-}: PreparationPageHeaderProps) {
+type PageHeaderProps = { title: string; description?: ReactNode; action?: ReactNode; step?: number };
+export function PreparationPageHeader({ title, description, action }: PageHeaderProps) {
   return (
-    <header className="border-b border-zinc-200 pb-6">
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-400">
-            Flight preparation · Step {step}
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950 sm:text-4xl">
-            {title}
-          </h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600 sm:text-base">
-            {description}
-          </p>
-        </div>
-        {action ? <div className="shrink-0">{action}</div> : null}
+    <header className="flex flex-wrap items-start justify-between gap-3 border-b border-zinc-200 pb-4 sm:items-center sm:pb-5">
+      <div className="min-w-0 flex-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-zinc-950 sm:text-3xl">{title}</h1>
+        {description ? <p className="mt-1 max-w-3xl text-sm leading-5 text-zinc-600">{description}</p> : null}
       </div>
+      {action ? <div className="shrink-0">{action}</div> : null}
     </header>
   );
 }

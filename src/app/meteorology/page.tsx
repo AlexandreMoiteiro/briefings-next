@@ -1,6 +1,7 @@
 "use client";
 /* eslint-disable @next/next/no-img-element -- Keep official chart PNGs unmodified for full-resolution viewing. */
 import { useEffect, useState } from "react";
+import { PreparationPageHeader } from "@/components/preparation-page-header";
 
 type Chart={name:string;path:string;validAt:string;runAt?:string;fl?:string};
 type Data={sigwx:Chart[];wind:Chart[];error?:string};
@@ -112,7 +113,7 @@ export default function MeteorologyPage(){
     const items = kind === "sigwx" ? sigwx : winds;
     const onSelect = kind === "sigwx" ? setSigPath : setWindPath;
     const current = currentChart(items,now,kind === "sigwx" ? 6 : 3);
-    return <section className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-3 sm:p-4">
+    return <section className="min-w-0 rounded-xl border border-zinc-200 bg-white p-3 sm:p-4">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-zinc-950">{kind==="sigwx"?"SIGWX Low-Level":"Wind & Temperature"}</h2>
         <div className="flex items-center gap-3">
@@ -137,26 +138,20 @@ export default function MeteorologyPage(){
   };
   const fullCharts=full==="both"?ordered:full==="sigwx"?(sig?[sig]:[]):(wind?[wind]:[]);
   return <div className="space-y-4">
-    <header className="flex flex-wrap items-center justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold text-zinc-950 sm:text-3xl">AEMET Weather Charts</h1>
-        <p className="mt-1 text-sm text-zinc-500">SIGWX and wind/temperature · Times in UTC</p>
-      </div>
-      <button type="button" onClick={refresh} disabled={refreshing}
+    <PreparationPageHeader title="Meteorology" description="AEMET SIGWX and wind / temperature · UTC validity." action={<button type="button" onClick={refresh} disabled={refreshing}
         title={lastChecked?"Last checked: "+fmt(lastChecked):"Automatic refresh every 5 minutes"}
         className="rounded-lg border border-zinc-200 bg-white px-3 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-50">
         {refreshing?"Refreshing…":"Refresh"}
-      </button>
-    </header>
+      </button>} />
     {error&&<p role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">{error}{data?" Showing the most recently loaded list.":""}</p>}
     {loading?<p className="text-sm">Loading charts…</p>:!data?<p className="rounded-xl bg-white p-5 text-sm text-zinc-600">Charts could not be loaded. Please try Refresh charts.</p>:
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-zinc-200">
-        <div className="flex items-center gap-5" role="group" aria-label="Chart view">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1" role="group" aria-label="Chart view">
           <button type="button" aria-pressed={!compare} onClick={()=>setCompare(false)}
-            className={"border-b-2 pb-2 text-sm transition " + (!compare?"border-zinc-900 font-semibold text-zinc-950":"border-transparent text-zinc-500 hover:text-zinc-900")}>SIGWX + Wind / Temp</button>
+            className={"rounded-md px-3 py-2 text-sm transition-colors " + (!compare?"bg-zinc-950 font-semibold text-white":"text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900")}>SIGWX + Wind / Temp</button>
           <button type="button" aria-pressed={compare} onClick={()=>setCompare(true)}
-            className={"border-b-2 pb-2 text-sm transition " + (compare?"border-zinc-900 font-semibold text-zinc-950":"border-transparent text-zinc-500 hover:text-zinc-900")}>Compare SIGWX</button>
+            className={"rounded-md px-3 py-2 text-sm transition-colors " + (compare?"bg-zinc-950 font-semibold text-white":"text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900")}>Compare SIGWX</button>
         </div>
         {compare&&<button type="button" onClick={()=>setFull("both")} disabled={ordered.length<2} className="pb-2 text-xs text-zinc-600 hover:underline disabled:opacity-40">Full screen</button>}
       </div>
