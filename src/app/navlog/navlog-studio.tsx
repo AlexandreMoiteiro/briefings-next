@@ -208,6 +208,7 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
 
   const [selectedRouteId, setSelectedRouteId] = useState("");
   const [routeSearch, setRouteSearch] = useState("");
+  const [routeEntry, setRouteEntry] = useState<"saved" | "points" | "paste">("saved");
   const [routeLibraryScope, setRouteLibraryScope] = useState<"featured" | "personal">("featured");
   const [routeCategory, setRouteCategory] = useState<"all" | "VFR" | "IFR">("all");
   const [showSaveRouteForm, setShowSaveRouteForm] = useState(false);
@@ -895,8 +896,12 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
     "Uses the Route wind for the leg leaving this waypoint. Turn it off only when that leg needs a different forecast wind.";
 
   return (
-    <div className="navlog-studio space-y-5">
-      <section className="rounded-2xl border border-zinc-200 bg-white shadow-sm">
+    <div className="navlog-studio space-y-4">
+      <nav aria-label="NavLog sections" className="flex flex-wrap items-center gap-2 rounded-xl border border-zinc-200 bg-white p-2">
+        {([["navlog-setup","Mission settings"],["navlog-route","Route & map"],["navlog-review","Review & export"]] as const).map(([id,label]) => <a key={id} href={"#"+id} className="rounded-lg border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 hover:bg-sky-50 hover:text-sky-900">{label}</a>)}
+      </nav>
+      <section id="navlog-setup" className="scroll-mt-24 rounded-xl border border-zinc-200 bg-white">
+        <h2 className="border-b border-zinc-200 px-4 py-3 text-sm font-semibold">Mission settings</h2>
         <div className="grid gap-px overflow-hidden rounded-t-2xl bg-zinc-200 sm:grid-cols-2 lg:grid-cols-6">
           <div className="bg-white p-3 lg:col-span-1">
             <FieldLabel>Registration</FieldLabel>
@@ -1143,8 +1148,8 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
         </details>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
-        <div className="border-b border-zinc-200 p-4 sm:p-5">
+      <section id="navlog-route" className="scroll-mt-24 overflow-hidden rounded-xl border border-zinc-200 bg-white">
+        <div className="border-b border-zinc-200 p-3 sm:p-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
             <div>
               <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Route studio</p>
@@ -1216,25 +1221,33 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
           ) : null}
           {routeSaveStatus ? <p role="status" className="mt-2 text-xs text-zinc-700">{routeSaveStatus}</p> : null}
 
-          <div className="mt-6 space-y-3">
+        </div>
+        <div className="grid min-w-0 lg:grid-cols-[minmax(280px,340px)_minmax(0,1fr)]">
+          <aside className="min-w-0 space-y-3 border-b border-zinc-200 bg-zinc-50/60 p-3 lg:border-b-0 lg:border-r">
+            <h3 className="text-sm font-semibold text-zinc-950">Route entry</h3>
+            <div role="group" aria-label="Route entry method" className="grid grid-cols-3 gap-1 rounded-lg border border-zinc-200 bg-white p-1">
+              {([["saved","Saved"],["points","Points"],["paste","Paste"]] as const).map(([mode,label]) => <button key={mode} type="button" aria-pressed={routeEntry===mode} onClick={()=>setRouteEntry(mode)} className={"min-h-10 rounded-md px-1 py-2 text-xs font-semibold "+(routeEntry===mode?"bg-sky-900 text-white":"text-zinc-600 hover:bg-zinc-100")}>{label}</button>)}
+            </div>
+            {dataError ? <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-2 text-xs text-red-700">{dataError}</p> : null}
+            <div className={routeEntry==="saved"?"space-y-3":"hidden"}>
             <div className="flex items-start gap-3">
-              <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-zinc-950 text-sm font-semibold text-white">1</span>
+              
               <div>
                 <h3 className="text-base font-semibold text-zinc-950">Choose an existing route</h3>
                 <p className="mt-0.5 text-sm leading-6 text-zinc-600">Default or personal saved routes.</p>
               </div>
             </div>
-              <div className="grid gap-2 sm:grid-cols-2" aria-label="Route collections">
+              <div className="grid grid-cols-2 gap-1" aria-label="Route collections">
                   {([
                     ["featured", "Default routes", verifiedRouteCount, "Selected by the site owner"],
                     ["personal", "My saved routes", personalRoutes.length, "Private to your account"],
                   ] as const).map(([scope, label, count, description]) => (
                     <button key={scope} type="button" onClick={() => { setRouteLibraryScope(scope); setRouteSearch(""); }} aria-pressed={routeLibraryScope === scope}
-                      className={`rounded-2xl border-2 px-4 py-4 text-left shadow-sm transition-all hover:-translate-y-0.5 ${scope === "featured"
+                      className={`rounded-lg border px-2 py-2 text-left transition-colors ${scope === "featured"
                         ? routeLibraryScope === scope ? "border-sky-600 bg-sky-50 ring-2 ring-sky-100" : "border-sky-200 bg-sky-50/70 hover:border-sky-400"
                         : routeLibraryScope === scope ? "border-violet-600 bg-violet-50 ring-2 ring-violet-100" : "border-violet-200 bg-violet-50/70 hover:border-violet-400"}`}>
                       <span className="block text-sm font-semibold text-zinc-950">{label} <span className="font-normal tabular-nums text-zinc-500">({count})</span></span>
-                      <span className="mt-1.5 block text-xs leading-5 text-zinc-600">{description}</span>
+                      <span className="mt-1 block text-[11px] leading-4 text-zinc-600">{description}</span>
                     </button>
                   ))}
               </div>
@@ -1303,26 +1316,26 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
               </div>
             </div>
 
-            <div className="mt-7 grid gap-4 lg:grid-cols-2">
-              <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            <div className={routeEntry==="points"?"space-y-3":"hidden"}>
+              <section className="rounded-lg border border-zinc-200 bg-white p-3">
                 <div className="flex items-start gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">2</span>
+                  
                   <div>
                     <h3 className="text-base font-semibold text-zinc-950">Find and add navigation points</h3>
                     <p className="mt-0.5 text-sm leading-6 text-zinc-600">Search aerodromes, VORs or waypoints by name or code.</p>
                   </div>
                 </div>
                 <div className="mt-4">
-                  {dataError ? <p className="pb-2 text-sm text-red-700">{dataError}</p> : null}
                   <NavlogPointPicker points={navlogData?.points ?? emptyNavlogData.points} onAdd={addPoint}
                     onLocate={(point) => setMapSearchQuery(point.code)} disabled={!navlogData} />
                   <p className="mt-2 text-[11px] text-zinc-500">Use <strong>Map</strong> to locate a result without interrupting your typing, or <strong>+ Add</strong> to include it in the route.</p>
                 </div>
               </section>
-
-              <section className="rounded-xl border border-zinc-200 bg-white p-4">
+            </div>
+            <div className={routeEntry==="paste"?"space-y-3":"hidden"}>
+              <section className="rounded-lg border border-zinc-200 bg-white p-3">
                 <div className="flex items-start gap-3">
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-lg border border-zinc-300 text-sm font-semibold text-zinc-800">3</span>
+                  
                   <div>
                     <h3 className="text-base font-semibold text-zinc-950">Enter a complete route</h3>
                     <p className="mt-0.5 text-sm leading-6 text-zinc-600">Paste waypoints in Item 15 order.</p>
@@ -1335,16 +1348,17 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
                   <button type="button" onClick={replaceRouteFromText} disabled={!navlogData || !routeText.trim()} className="rounded-lg bg-zinc-950 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40">Use this route</button>
                   <button type="button" onClick={appendRouteFromText} disabled={!navlogData || !routeText.trim()} className="rounded-lg border border-zinc-300 bg-white px-4 py-2.5 text-sm font-medium text-zinc-800 disabled:opacity-40">Add to current route</button>
                 </div>
+
+              </section>
+            </div>
                 {routeWarnings.length > 0 ? (
                   <div className="mt-3 rounded-lg border border-zinc-200 bg-zinc-50 px-3 py-2">
                     {routeWarnings.map((warning) => <p key={warning} className="text-xs text-zinc-700">{warning}</p>)}
                   </div>
                 ) : null}
-              </section>
-            </div>
-        </div>
-
-        <div className="flex flex-col gap-3 border-b border-zinc-200 bg-zinc-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          </aside>
+          <div className="min-w-0">
+        <div className="flex flex-col gap-2 border-b border-zinc-200 bg-zinc-50 px-3 py-2 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap items-center gap-2">
             <div className="flex flex-col gap-1">
               <button
@@ -1424,9 +1438,11 @@ export function NavlogStudio({ aircraftType, onOpenAccount }: { aircraftType: Na
             </div>
           )}
         </div>
+          </div>
+        </div>
       </section>
 
-      <section className="overflow-hidden rounded-3xl border border-zinc-200 bg-white shadow-sm">
+      <section id="navlog-review" className="scroll-mt-24 overflow-hidden rounded-xl border border-zinc-200 bg-white">
         <div className="flex flex-col gap-4 border-b border-zinc-200 p-4 sm:p-5 xl:flex-row xl:items-center xl:justify-between">
           <div className="min-w-0">
             <p className="text-[10px] font-semibold uppercase tracking-[0.16em] text-zinc-400">Review</p>

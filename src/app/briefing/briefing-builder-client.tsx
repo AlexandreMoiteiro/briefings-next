@@ -516,7 +516,7 @@ export function BriefingBuilderClient() {
 
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-4">
       <section className="border-b border-zinc-200 pb-4 sm:pb-5">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -557,7 +557,7 @@ export function BriefingBuilderClient() {
         </div>
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)]">
+      <section className="grid gap-4 lg:grid-cols-[220px_minmax(0,1fr)] lg:items-start">
         <aside className="h-fit rounded-xl border border-zinc-200 bg-white p-2 lg:sticky lg:top-24">
           <div className="px-3 py-2">
             <h2 className="text-sm font-semibold text-zinc-950">
@@ -578,7 +578,7 @@ export function BriefingBuilderClient() {
                   className={[
                     "flex min-h-11 w-full items-center gap-2 rounded-lg px-2 py-2 text-left transition",
                     isActive
-                      ? "bg-zinc-950 text-white"
+                      ? "bg-sky-900 text-white"
                       : "text-zinc-700 hover:bg-zinc-100",
                   ].join(" ")}
                 >
@@ -605,7 +605,7 @@ export function BriefingBuilderClient() {
         </aside>
 
         <div className="min-w-0 space-y-4">
-          <section className="rounded-xl border border-zinc-200 bg-white p-4 sm:p-5">
+          <section className="border-b border-zinc-200 pb-3">
             <h2 className="text-xl font-semibold tracking-tight text-zinc-950">
               {activeStep.title}
             </h2>

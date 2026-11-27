@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 type PerformanceMode = "P2006T" | "P2008" | "PA28" | "C152";
 type SectionKind =
@@ -100,6 +100,7 @@ export function PerformanceWorkspace({
   children: ReactNode;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
+  const [available, setAvailable] = useState<SectionKind[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -110,6 +111,10 @@ export function PerformanceWorkspace({
       if (cancelled) return;
       const root = rootRef.current;
       const ready = root ? decoratePerformance(root) : false;
+      if (root) {
+        const kinds = (["weather","loading","reference","fuel","aerodrome","pdf"] as const).filter(kind => root.querySelector(`[data-performance-section="${kind}"]`));
+        setAvailable(previous => previous.join(",") === kinds.join(",") ? previous : kinds);
+      }
 
       attempt += 1;
       if (attempt < 14 && (attempt < 8 || !ready)) {
@@ -126,8 +131,17 @@ export function PerformanceWorkspace({
   }, [mode]);
 
   return (
-    <div ref={rootRef} className="performance-workspace" data-performance-mode={mode}>
-      {children}
+    <div className="space-y-4">
+      {available.length > 0 ? <nav aria-label="Performance sections" className="sticky top-0 z-20 flex flex-wrap gap-1.5 rounded-xl border border-zinc-200 bg-white p-2 lg:top-[64px]">
+        {available.map(kind => <button key={kind} type="button" onClick={() => {
+          const targets = Array.from(rootRef.current?.querySelectorAll<HTMLElement>(`[data-performance-section="${kind}"]`) ?? []);
+          const section = targets.find(element => element.getClientRects().length > 0 && !targets.some(other => other !== element && element.contains(other))) ?? targets.find(element => element.getClientRects().length > 0);
+          if (section) { section.style.scrollMarginTop = "140px"; section.scrollIntoView({block:"start",behavior:"auto"}); }
+        }} className="rounded-lg border border-zinc-200 px-3 py-2 text-xs font-semibold text-zinc-700 hover:bg-sky-50 hover:text-sky-900">{SECTION_TITLES[kind] ?? "Aircraft reference"}</button>)}
+      </nav> : null}
+      <div ref={rootRef} className="performance-workspace" data-performance-mode={mode}>
+        {children}
+      </div>
     </div>
   );
 }

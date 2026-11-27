@@ -213,7 +213,7 @@ export function NotamMapWorkspace() {
                 className={[
                   "rounded-xl px-3 py-2.5 text-center transition",
                   active
-                    ? "bg-zinc-950 text-white shadow-sm"
+                    ? "bg-sky-900 text-white"
                     : "text-zinc-700 hover:bg-zinc-100",
                 ].join(" ")}
               >
@@ -233,8 +233,8 @@ export function NotamMapWorkspace() {
         </div>
       </section>
 
-      <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+      <section className="grid gap-3">
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 bg-white p-3">
           <div className="text-sm text-zinc-500">
             {configured === false ? (
               <span>{status}</span>
@@ -257,19 +257,8 @@ export function NotamMapWorkspace() {
           </label>
         </div>
 
-        <CoordinateLeafletMap
-          areas={customAreas}
-          selectedAreaId="custom-area"
-          notams={visibleNotams}
-          showNotams={showNotams}
-        />
-
-        <p className="mt-3 text-xs leading-5 text-zinc-500">
-          Map overlay for situational awareness. Confirm applicability, validity, schedule and operational details in the official briefing before flight.
-        </p>
-      </section>
-
-      <details className="group rounded-xl border border-zinc-200 bg-white">
+        <div className="grid items-start gap-3 lg:grid-cols-[260px_minmax(0,1fr)]">
+          <details open className="group rounded-xl border border-zinc-200 bg-white">
         <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -297,7 +286,7 @@ export function NotamMapWorkspace() {
             <textarea
               value={input}
               onChange={(event) => setInput(event.target.value)}
-              rows={7}
+              rows={5}
               className="mt-2 w-full rounded-2xl border border-zinc-300 bg-white px-4 py-3 font-mono text-sm leading-6 outline-none transition focus:border-zinc-500"
               placeholder={'S OF N3845 AND W OF W00815\nN3842 W00900 - N3900 W00830\n384221N 0090058W - 384226N 0090052W'}
             />
@@ -351,6 +340,21 @@ export function NotamMapWorkspace() {
           ) : null}
         </div>
       </details>
+          <div className="min-w-0">
+        <CoordinateLeafletMap
+          areas={customAreas}
+          selectedAreaId="custom-area"
+          notams={visibleNotams}
+          showNotams={showNotams}
+        />
+
+        <p className="mt-3 text-xs leading-5 text-zinc-500">
+          Map overlay for situational awareness. Confirm applicability, validity, schedule and operational details in the official briefing before flight.
+        </p>
+
+          </div>
+        </div>
+      </section>
     </div>
   );
 }

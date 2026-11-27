@@ -65,7 +65,8 @@ function ChartTimePicker({
 export default function MeteorologyPage(){
   const [data,setData]=useState<Data|null>(null),[error,setError]=useState(""),[loading,setLoading]=useState(true);
   const [fl,setFl]=useState("020"),[sigPath,setSigPath]=useState(""),[windPath,setWindPath]=useState("");
-  const [compare,setCompare]=useState(false);
+  const [view,setView]=useState<"sigwx"|"wind"|"both"|"compare">("sigwx");
+  const compare=view==="compare";
   const [full,setFull]=useState<FullMode>(null);
   const [now,setNow]=useState(()=>Date.now());
   const [refreshKey,setRefreshKey]=useState(0);
@@ -147,15 +148,12 @@ export default function MeteorologyPage(){
     {loading?<p className="text-sm">Loading charts…</p>:!data?<p className="rounded-xl bg-white p-5 text-sm text-zinc-600">Charts could not be loaded. Please try Refresh charts.</p>:
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex flex-wrap items-center gap-1 rounded-lg border border-zinc-200 bg-white p-1" role="group" aria-label="Chart view">
-          <button type="button" aria-pressed={!compare} onClick={()=>setCompare(false)}
-            className={"rounded-md px-3 py-2 text-sm transition-colors " + (!compare?"bg-zinc-950 font-semibold text-white":"text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900")}>SIGWX + Wind / Temp</button>
-          <button type="button" aria-pressed={compare} onClick={()=>setCompare(true)}
-            className={"rounded-md px-3 py-2 text-sm transition-colors " + (compare?"bg-zinc-950 font-semibold text-white":"text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900")}>Compare SIGWX</button>
+        <div role="group" aria-label="Chart view" className="flex flex-wrap items-center gap-1 rounded-xl border border-zinc-200 bg-white p-1">
+          {([["sigwx","SIGWX"],["wind","Wind / Temp"],["both","Both charts"],["compare","Compare SIGWX"]] as const).map(([id,label]) => <button key={id} type="button" aria-pressed={view===id} onClick={()=>setView(id)} className={"min-h-10 rounded-lg px-3 py-2 text-sm font-semibold "+(view===id?"bg-sky-900 text-white":"text-zinc-600 hover:bg-zinc-100")}>{label}</button>)}
         </div>
         {compare&&<button type="button" onClick={()=>setFull("both")} disabled={ordered.length<2} className="pb-2 text-xs text-zinc-600 hover:underline disabled:opacity-40">Full screen</button>}
       </div>
-      {!compare?<div className="grid gap-4 lg:grid-cols-2">{panel("sigwx",sig)}{panel("wind",wind)}</div>:
+      {!compare?<div className={view==="both"?"grid gap-4 lg:grid-cols-2":"mx-auto w-full max-w-5xl"}>{view!=="wind"?panel("sigwx",sig):null}{view!=="sigwx"?panel("wind",wind):null}</div>:
       <div className="space-y-3">
         <p className="text-xs text-zinc-500">The two latest available SIGWX charts · earlier validity on the left, later validity on the right · automatically refreshed.</p>
         <div className="grid gap-3 sm:grid-cols-2">{ordered.map(c=><section key={c.path} className="min-w-0 rounded-2xl border border-zinc-200 bg-white p-3">

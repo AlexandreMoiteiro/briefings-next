@@ -133,7 +133,7 @@ export function AviationMapClient() {
       <PreparationPageHeader title="VFR Map" description="Portugal · aerodromes, navigation points and chart layers." />
 
       <section className="grid gap-3 lg:grid-cols-[280px_minmax(0,1fr)]">
-        <aside className="space-y-3">
+        <aside className="space-y-3 lg:sticky lg:top-24">
           <section className="rounded-xl border border-zinc-200 bg-white p-3">
             <label className="block">
               <span className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -179,7 +179,7 @@ export function AviationMapClient() {
                       className={[
                         "w-full rounded-xl border px-3 py-2.5 text-left transition",
                         selected
-                          ? "border-zinc-950 bg-zinc-950 text-white"
+                          ? "border-sky-900 bg-sky-900 text-white"
                           : "border-zinc-200 bg-white text-zinc-700 hover:border-zinc-400 hover:bg-zinc-50",
                       ].join(" ")}
                     >
@@ -329,7 +329,7 @@ export function AviationMapClient() {
         </aside>
 
         <div className="min-w-0">
-          <div className="lg:sticky lg:top-24">
+          <div>
             <AviationMapLeaflet
               points={data.points}
               activeLayers={activeLayers}
